@@ -55,8 +55,7 @@ function getEnv(...keys: string[]): string {
     if (val) return val
   }
   throw new Error(
-    `Supabase client: missing required environment variable. ` +
-      `Set one of: ${keys.join(', ')}`,
+    `Supabase client: missing required environment variable. ` + `Set one of: ${keys.join(', ')}`,
   )
 }
 
