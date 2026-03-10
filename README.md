@@ -30,10 +30,10 @@ clawos/
 
 ## Prerequisites
 
-| Tool       | Version  |
-|------------|----------|
-| Node.js    | ≥ 22.0.0 |
-| npm        | ≥ 10.0.0 |
+| Tool    | Version  |
+| ------- | -------- |
+| Node.js | ≥ 22.0.0 |
+| npm     | ≥ 10.0.0 |
 
 ---
 
@@ -67,12 +67,12 @@ npx turbo run dev --filter=@clawos/api
 
 ## Individual Dev Ports
 
-| App           | Port  |
-|---------------|-------|
-| `apps/web`    | 5173  |
-| `apps/api`    | 3001  |
-| `apps/worker` | 3002  |
-| `apps/telegram`| 3003 |
+| App             | Port |
+| --------------- | ---- |
+| `apps/web`      | 5173 |
+| `apps/api`      | 3001 |
+| `apps/worker`   | 3002 |
+| `apps/telegram` | 3003 |
 
 ---
 
@@ -81,26 +81,29 @@ npx turbo run dev --filter=@clawos/api
 CI runs on every push and PR. Three jobs:
 
 **Security** (blocks merge on HIGH/CRITICAL findings)
+
 - `npm audit --audit-level=high` — known CVE detection
 - Socket.dev — supply chain, typosquatting, malicious package detection
 - Snyk — CVE scanning + license compliance
 
 **Quality**
+
 - ESLint v9 flat config
 - TypeScript typecheck across all workspaces
 - Prettier format check
 
 **Test**
+
 - Vitest across all workspaces
 
 ### Required GitHub Secrets
 
 Add these at `Settings → Secrets and variables → Actions`:
 
-| Secret           | Where to get it                  |
-|------------------|----------------------------------|
-| `SOCKET_API_KEY` | https://socket.dev               |
-| `SNYK_TOKEN`     | https://app.snyk.io/account      |
+| Secret           | Where to get it             |
+| ---------------- | --------------------------- |
+| `SOCKET_API_KEY` | https://socket.dev          |
+| `SNYK_TOKEN`     | https://app.snyk.io/account |
 
 ---
 
@@ -159,17 +162,17 @@ User (Web / Telegram)
 
 ## MVP Build Plan
 
-| Chat | Deliverable                     | Status     |
-|------|---------------------------------|------------|
-| 1    | Turborepo scaffold + CI/CD      | ✅ Done     |
-| 2    | Supabase schema + RLS           | ⬜ Next     |
-| 3    | Lightsail skill worker          | ⬜          |
-| 4    | Agent API (Hono + Claude + SSE) | ⬜          |
-| 5    | Telegram adapter                | ⬜          |
-| 6    | Web frontend                    | ⬜          |
-| 7    | Billing (Polar.sh)              | ⬜          |
-| 8    | E2E testing + security review   | ⬜          |
+| Chat | Deliverable                     | Status  |
+| ---- | ------------------------------- | ------- |
+| 1    | Turborepo scaffold + CI/CD      | ✅ Done |
+| 2    | Supabase schema + RLS           | ⬜ Next |
+| 3    | Lightsail skill worker          | ⬜      |
+| 4    | Agent API (Hono + Claude + SSE) | ⬜      |
+| 5    | Telegram adapter                | ⬜      |
+| 6    | Web frontend                    | ⬜      |
+| 7    | Billing (Polar.sh)              | ⬜      |
+| 8    | E2E testing + security review   | ⬜      |
 
 ---
 
-*ClawOS · Confidential · Orestes Garcia Martinez · March 2026*
+_ClawOS · Confidential · Orestes Garcia Martinez · March 2026_
