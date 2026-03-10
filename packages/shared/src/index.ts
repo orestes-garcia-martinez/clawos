@@ -1,45 +1,74 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// @clawos/shared — public API
+//
+// Platform types only. Skill-specific types (CareerClaw, etc.) live alongside
+// their skill workers and are added from Chat 3 onwards.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Re-exports from sub-modules ───────────────────────────────────────────────
+
+export { createBrowserClient, createServerClient } from './supabase.js'
+export type { Database, TypedSupabaseClient } from './supabase.js'
+export type { Json } from './types/database.types.js'
+
+import type { Database } from './types/database.types.js'
+
+export type UserRow = Database['public']['Tables']['users']['Row']
+export type UserInsert = Database['public']['Tables']['users']['Insert']
+export type UserUpdate = Database['public']['Tables']['users']['Update']
+
+export type ChannelIdentityRow = Database['public']['Tables']['channel_identities']['Row']
+export type ChannelIdentityInsert = Database['public']['Tables']['channel_identities']['Insert']
+
+export type SessionRow = Database['public']['Tables']['sessions']['Row']
+export type SessionInsert = Database['public']['Tables']['sessions']['Insert']
+export type SessionUpdate = Database['public']['Tables']['sessions']['Update']
+
 // ── Enums / Literals ──────────────────────────────────────────────────────────
 
 export type Channel = 'web' | 'telegram' | 'whatsapp'
 export type Tier = 'free' | 'pro'
-export type WorkMode = 'remote' | 'hybrid' | 'onsite'
-export type RunStatus = 'pending' | 'running' | 'complete' | 'error'
-export type JobStatus = 'saved' | 'applied' | 'interviewing' | 'rejected' | 'offer'
 export type MessageRole = 'user' | 'assistant'
 
-// ── Domain types ──────────────────────────────────────────────────────────────
+// ── Platform domain types ─────────────────────────────────────────────────────
 
+/** Canonical platform user. tier is a cached snapshot — Polar.sh is authoritative. */
 export interface User {
   id: string
   email: string | null
   name: string | null
   tier: Tier
-  workMode: WorkMode | null
-  /** Minimum acceptable annual salary in USD */
-  salaryMin: number | null
-  /** Maximum acceptable annual salary in USD */
-  salaryMax: number | null
-  /** Extracted plain text from last uploaded resume. 50k char max. Raw PDF never stored. */
-  resumeText: string | null
   createdAt: string
   updatedAt: string
 }
 
+/** Maps an external channel user ID to a canonical Supabase Auth UUID. */
 export interface ChannelIdentity {
   id: string
   userId: string
   channel: Channel
-  /** External channel user ID (e.g. Telegram user ID) */
+  /** External channel user ID — e.g. Telegram numeric user ID as a string. */
   channelUserId: string
   createdAt: string
 }
 
+/**
+ * A single message in a session's conversation history.
+ * This is the only content type stored in sessions.messages.
+ * Raw skill outputs are never stored here — summaries only.
+ */
 export interface Message {
   role: MessageRole
   content: string
   timestamp: string
 }
 
+/**
+ * Platform-level conversation session.
+ * One active row per (userId, channel).
+ * Messages are pruned to 20 max and 8,000 tokens before each Claude call.
+ * Sessions inactive for 30 days are soft-deleted.
+ */
 export interface Session {
   id: string
   userId: string
@@ -47,28 +76,7 @@ export interface Session {
   messages: Message[]
   lastActive: string
   createdAt: string
-}
-
-export interface JobTracking {
-  id: string
-  userId: string
-  jobId: string
-  title: string
-  company: string
-  url: string | null
-  status: JobStatus
-  createdAt: string
-}
-
-/** Append-only log of job search skill invocations per user */
-export interface Run {
-  id: string
-  userId: string
-  skill: string
-  status: RunStatus
-  resultSummary: string | null
-  durationMs: number | null
-  createdAt: string
+  deletedAt: string | null
 }
 
 // ── API contracts ─────────────────────────────────────────────────────────────
@@ -87,7 +95,7 @@ export interface ChatResponse {
   metadata?: Record<string, unknown>
 }
 
-/** SSE progress event sent during long-running skill invocations */
+/** SSE progress event emitted during long-running skill invocations. */
 export interface ProgressEvent {
   type: 'progress'
   step: string
@@ -98,40 +106,4 @@ export interface ApiError {
   code: string
   message: string
   status: number
-}
-
-// ── Worker contracts ──────────────────────────────────────────────────────────
-
-export interface CareerClawProfile {
-  name?: string
-  workMode?: WorkMode
-  salaryMin?: number
-  salaryMax?: number
-}
-
-export interface CareerClawRunRequest {
-  userId: string
-  profile: CareerClawProfile
-  resumeText?: string
-  /** Number of top-scored results to return (free: 3, pro: 10) */
-  topK: number
-}
-
-export interface JobMatch {
-  id: string
-  title: string
-  company: string
-  url: string
-  salary: string | null
-  location: string
-  source: string
-  score: number
-  skillOverlap: string[]
-  outreachDraft: string | null
-}
-
-export interface CareerClawRunResult {
-  matches: JobMatch[]
-  runId: string
-  durationMs: number
 }
