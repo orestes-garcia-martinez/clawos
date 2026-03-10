@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -167,7 +168,9 @@ export default function App() {
   // Close sidebar on resize to desktop
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)')
-    const handler = (e: MediaQueryListEvent) => { if (e.matches) setSidebarOpen(false) }
+    const handler = (e: MediaQueryListEvent) => {
+      if (e.matches) setSidebarOpen(false)
+    }
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
@@ -201,7 +204,6 @@ export default function App() {
 
   return (
     <div className="h-screen bg-bg text-text font-sans flex overflow-hidden">
-
       {/* ── Mobile backdrop ─────────────────────────────────────────────── */}
       {sidebarOpen && (
         <div
@@ -269,7 +271,10 @@ export default function App() {
             return (
               <button
                 key={id}
-                onClick={() => { setActiveNav(id); setSidebarOpen(false) }}
+                onClick={() => {
+                  setActiveNav(id)
+                  setSidebarOpen(false)
+                }}
                 className={[
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left',
                   'transition-all duration-150 group',
@@ -281,9 +286,7 @@ export default function App() {
               >
                 <IconComp />
                 <span className="font-medium">{label}</span>
-                {active && (
-                  <span className="ml-auto w-1 h-4 rounded-full bg-accent shrink-0" />
-                )}
+                {active && <span className="ml-auto w-1 h-4 rounded-full bg-accent shrink-0" />}
               </button>
             )
           })}
@@ -332,7 +335,6 @@ export default function App() {
 
       {/* ── Main content ────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-w-0">
-
         {/* Header */}
         <header className="h-14 shrink-0 border-b border-border bg-surface flex items-center px-4 gap-3">
           <button
@@ -364,12 +366,14 @@ export default function App() {
         <div className="flex-1 overflow-y-auto">
           <div className="h-full flex flex-col items-center justify-center px-4 sm:px-8 py-12">
             <div className="max-w-2xl w-full space-y-10">
-
               {/* Hero */}
               <div className="text-center space-y-4">
                 <div
                   className="inline-flex items-center justify-center w-20 h-20 rounded-3xl text-accent mb-1"
-                  style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent-border)' }}
+                  style={{
+                    background: 'var(--accent-dim)',
+                    border: '1px solid var(--accent-border)',
+                  }}
                   aria-hidden="true"
                 >
                   <ClawLogo className="w-11 h-11" />
@@ -380,8 +384,8 @@ export default function App() {
                 </h1>
 
                 <p className="text-text-muted leading-relaxed max-w-md mx-auto text-sm sm:text-base">
-                  CareerClaw finds best-fit jobs, scores them against your profile,
-                  and drafts personalised outreach — all from a single command.
+                  CareerClaw finds best-fit jobs, scores them against your profile, and drafts
+                  personalised outreach — all from a single command.
                 </p>
 
                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-2 border border-border text-xs font-mono text-text-muted">
@@ -414,9 +418,7 @@ export default function App() {
                     <div
                       className={[
                         'text-sm font-medium mb-0.5 transition-colors',
-                        s.pro
-                          ? 'text-text-muted'
-                          : 'text-text group-hover:text-accent',
+                        s.pro ? 'text-text-muted' : 'text-text group-hover:text-accent',
                       ].join(' ')}
                     >
                       {s.label}

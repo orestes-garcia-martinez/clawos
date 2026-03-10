@@ -4,7 +4,15 @@
   "private": true,
   "description": "Zod schemas, rate limiting config, and audit logging for ClawOS",
   "main": "./src/index.ts",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

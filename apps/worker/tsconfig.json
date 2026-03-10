@@ -2,11 +2,7 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
-    "paths": {
-      "@clawos/shared": ["../../packages/shared/src/index.ts"],
-      "@clawos/security": ["../../packages/security/src/index.ts"]
-    }
+    "rootDir": "src"
   },
   "include": ["src"]
 }
