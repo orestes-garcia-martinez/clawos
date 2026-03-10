@@ -1,0 +1,28 @@
+{
+  "name": "@clawos/telegram",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ClawOS Telegram bot adapter — webhook handler for Bot API",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clawos/security": "*",
+    "@clawos/shared": "*",
+    "express": "^5.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "*",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+/* ── Design tokens: dark (default) ──────────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --bg: #07090f;
+  --bg-subtle: #0c1018;
+  --surface: #0f1523;
+  --surface-2: #162035;
+  --surface-3: #1c2a44;
+  --border: #1e2f4a;
+  --border-subtle: #162035;
+
+  --accent: #00d4a1;
+  --accent-dim: rgba(0, 212, 161, 0.12);
+  --accent-border: rgba(0, 212, 161, 0.25);
+  --accent-2: #6366f1;
+  --accent-2-dim: rgba(99, 102, 241, 0.12);
+
+  --text: #dde8f8;
+  --text-muted: #4d6480;
+  --text-dim: #7a95b8;
+
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+}
+
+/* ── Design tokens: light ────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg: #f0f4fb;
+  --bg-subtle: #f8faff;
+  --surface: #ffffff;
+  --surface-2: #f0f4fb;
+  --surface-3: #e4eaf5;
+  --border: #d6dff0;
+  --border-subtle: #eaeffa;
+
+  --accent: #00a882;
+  --accent-dim: rgba(0, 168, 130, 0.1);
+  --accent-border: rgba(0, 168, 130, 0.3);
+  --accent-2: #4f46e5;
+  --accent-2-dim: rgba(79, 70, 229, 0.1);
+
+  --text: #0d1a2e;
+  --text-muted: #6b7fa0;
+  --text-dim: #8fa0bb;
+
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+}
+
+/* ── Tailwind v4 theme (CSS-first, inline CSS vars for dynamic theming) ──────── */
+@theme inline {
+  /* Fonts */
+  --font-display: "Syne", sans-serif;
+  --font-sans: "DM Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Colors — all reference CSS vars for live theme switching */
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-accent-border: var(--accent-border);
+  --color-accent-2: var(--accent-2);
+  --color-accent-2-dim: var(--accent-2-dim);
+
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+}
+
+/* ── Base resets ─────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar styling ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ── Selection ───────────────────────────────────────────────────────────────── */
+::selection {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+/* ── Focus ring ──────────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Textarea reset ──────────────────────────────────────────────────────────── */
+textarea {
+  font-family: inherit;
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@clawos/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ClawOS Agent API — Hono + Claude orchestration",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clawos/billing": "*",
+    "@clawos/security": "*",
+    "@clawos/shared": "*",
+    "@hono/node-server": "^1.13.0",
+    "hono": "^4.6.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "*",
+    "vitest": "^3.0.0"
+  }
+}

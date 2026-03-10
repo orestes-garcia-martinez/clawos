@@ -1,0 +1,46 @@
+flowchart TD
+    ROOT("📦 clawos/\nTurborepo monorepo root")
+
+    ROOT --> CFG("⚙️ Config files\npackage.json · turbo.json\ntsconfig.json · eslint.config.mjs\n.npmrc · .prettierrc · .gitignore")
+    ROOT --> GH("🔐 .github/workflows/\nci.yml")
+    ROOT --> APPS("📂 apps/")
+    ROOT --> PKGS("📂 packages/")
+
+    %% Apps
+    APPS --> API("🌐 api/\nHono · Vercel serverless\nAgent API + Claude orch.")
+    APPS --> WEB("💻 web/\nReact + Vite + Tailwind 4\nVercel · Chat UI")
+    APPS --> TG("📱 telegram/\nWebhook adapter\nLightsail · Bot API")
+    APPS --> WRK("⚙️ worker/\nExpress · Lightsail\nCLI skill runner")
+
+    %% App files
+    API --> API_F("src/index.ts\npackage.json\ntsconfig.json\n.env.example")
+    WEB --> WEB_F("src/\n  App.tsx\n  main.tsx\n  index.css\nindex.html\nvite.config.ts\npackage.json\ntsconfig.json\n.env.example")
+    TG --> TG_F("src/index.ts\npackage.json\ntsconfig.json\n.env.example")
+    WRK --> WRK_F("src/index.ts\npackage.json\ntsconfig.json\n.env.example")
+
+    %% Packages
+    PKGS --> SH("🔷 shared/\nDomain types")
+    PKGS --> BL("💳 billing/\nPolar.sh client stub")
+    PKGS --> SEC("🔒 security/\nZod schemas · rate limits\nHMAC helpers · audit log")
+
+    SH --> SH_F("src/index.ts\nUser · Session · Channel\nTier · JobMatch · Run\npackage.json · tsconfig.json")
+    BL --> BL_F("src/index.ts\nvalidateLicense\ngetSubscription\ncreateCheckoutSession\npackage.json · tsconfig.json")
+    SEC --> SEC_F("src/index.ts\nChatRequestSchema\nCareerClawRunSchema\nRATE_LIMITS · TOP_K_LIMITS\nhmacSha256 · safeCompare\nbuildAuditEntry\npackage.json · tsconfig.json")
+
+    %% CI detail
+    GH --> CI_J("3 jobs\n🔐 security — npm audit\n   Socket.dev · Snyk\n✅ quality — ESLint · tsc\n   Prettier\n🧪 test — Vitest")
+
+    %% Styling
+    classDef root fill:#0f1523,stroke:#00d4a1,color:#dde8f8,font-weight:bold
+    classDef section fill:#162035,stroke:#1e2f4a,color:#dde8f8
+    classDef app fill:#0f1523,stroke:#6366f1,color:#dde8f8
+    classDef pkg fill:#0f1523,stroke:#00d4a1,color:#dde8f8
+    classDef files fill:#07090f,stroke:#1e2f4a,color:#4d6480,font-size:11px
+    classDef ci fill:#0f1523,stroke:#22c55e,color:#dde8f8
+
+    class ROOT root
+    class CFG,APPS,PKGS,GH section
+    class API,WEB,TG,WRK app
+    class SH,BL,SEC pkg
+    class API_F,WEB_F,TG_F,WRK_F,SH_F,BL_F,SEC_F files
+    class CI_J ci

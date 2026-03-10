@@ -1,0 +1,115 @@
+# ClawOS CI — runs on every push and PR
+#
+# Jobs:
+#   security  — npm audit + Socket.dev supply chain + Snyk CVE scan
+#               HIGH/CRITICAL findings block merge — non-negotiable.
+#   quality   — ESLint + TypeScript typecheck across all workspaces
+#   test      — Vitest across all workspaces
+#
+# Required secrets (Settings → Secrets → Actions):
+#   SOCKET_API_KEY   — Socket.dev API key (https://socket.dev)
+#   SNYK_TOKEN       — Snyk token (https://app.snyk.io/account)
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ── Security job ──────────────────────────────────────────────────────────────
+jobs:
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # required for Snyk SARIF upload
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        # npm ci is required — never npm install in CI. Fails if lockfile is stale.
+        run: npm ci
+
+      # ── npm audit — first line of defence ────────────────────────────────
+      # Blocks on high and critical severity findings.
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+      # ── Socket.dev — supply chain and malicious package detection ─────────
+      # Detects typosquatting, malware, and suspicious behaviour beyond CVE DBs.
+      # This is the tooling that would have caught ClawHavoc-style attacks.
+      - name: Socket.dev scan
+        uses: socket-security/action@v1
+        with:
+          api-key: ${{ secrets.SOCKET_API_KEY }}
+        # No continue-on-error — findings block merge
+
+      # ── Snyk — CVE scanning for code + dependencies ───────────────────────
+      - name: Snyk scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --all-projects
+
+# ── Quality job ───────────────────────────────────────────────────────────────
+  quality:
+    name: Lint + TypeScript
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Format check (Prettier)
+        run: npm run format:check
+
+# ── Test job ──────────────────────────────────────────────────────────────────
+  test:
+    name: Test (Vitest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test
