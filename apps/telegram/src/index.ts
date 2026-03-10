@@ -58,10 +58,7 @@ app.get('/health', (_req: Request, res: Response) => {
 app.post('/webhook', (req: Request, res: Response) => {
   // Step 1: validate Telegram secret token header
   const secretHeader = req.headers['x-telegram-bot-api-secret-token']
-  if (
-    typeof secretHeader !== 'string' ||
-    !validateTelegramSecret(secretHeader)
-  ) {
+  if (typeof secretHeader !== 'string' || !validateTelegramSecret(secretHeader)) {
     res.status(401).json({ error: 'Invalid or missing signature' })
     return
   }
