@@ -1,0 +1,51 @@
+[Unit]
+Description=ClawOS Skill Worker
+Documentation=https://github.com/orestes-garcia-martinez/clawos
+# Start after network is available
+After=network.target
+# If Telegram bot service exists, coordinate start order (not a hard dependency)
+Wants=clawos-telegram.service
+
+[Service]
+Type=simple
+
+# ── Security: non-root execution ──────────────────────────────────────────────
+# Worker must never run as root. clawos-admin has no sudo, no write access
+# outside /home/clawos-admin/careerclaw-workspace.
+User=clawos-admin
+Group=clawos-admin
+
+# ── Working directory and binary ──────────────────────────────────────────────
+WorkingDirectory=/home/clawos-admin/clawos/apps/worker
+ExecStart=/usr/bin/node dist/index.js
+
+# ── Environment ───────────────────────────────────────────────────────────────
+# Secrets loaded from env file, never hardcoded here.
+EnvironmentFile=/home/clawos-admin/clawos/apps/worker/.env
+
+# ── Restart policy ────────────────────────────────────────────────────────────
+Restart=on-failure
+RestartSec=5s
+# Prevent restart loops from hammering the system
+StartLimitIntervalSec=60s
+StartLimitBurst=3
+
+# ── Hardening ─────────────────────────────────────────────────────────────────
+# Prevent the worker from acquiring new privileges
+NoNewPrivileges=true
+# Read-only access to most of the filesystem
+ProtectSystem=strict
+# /home/clawos-admin is writable (workspace dir lives here)
+ReadWritePaths=/home/clawos-admin/careerclaw-workspace
+# Prevent writes to /tmp — workspace dir is used instead
+PrivateTmp=true
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# Audit log entries (JSON) go to stdout → journald
+# View with: journalctl -u clawos-worker -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clawos-worker
+
+[Install]
+WantedBy=multi-user.target

@@ -1,17 +1,25 @@
-// ClawOS Lightsail Skill Worker
-// Thin Express wrapper around the careerclaw-js CLI.
-// Chat 3 builds the full implementation: CLI invocation, non-root execution, audit logging.
-//
-// Security constraints enforced here from day one:
-//   - WORKER_SECRET required to start (no secret = no start)
-//   - All /run/* routes require x-worker-secret header
-//   - /health is public (used by monitoring)
-//   - Input validated with Zod before touching business logic
-//   - Worker never runs as root (enforced by systemd service in Chat 3)
+/**
+ * index.ts — ClawOS Lightsail Skill Worker
+ *
+ * Thin Express wrapper around skill CLI invocations.
+ * All business logic lives in the skill engines (careerclaw-js, etc.)
+ * This server only handles: auth, validation, spawning, and audit logging.
+ *
+ * Security constraints:
+ *   - WORKER_SECRET required to start (no secret = no start)
+ *   - All /run/* routes require x-worker-secret header (constant-time compare)
+ *   - /health is public
+ *   - Input validated with Zod before any CLI invocation
+ *   - Worker runs as non-root (clawos-admin) enforced by systemd service
+ *   - CLI never receives raw resume text as an argument (written to temp file)
+ *   - Audit logs record metadata only — no resume text, prompts, or message bodies
+ */
 
 import express from 'express'
 import type { Request, Response, NextFunction } from 'express'
-import { CareerClawRunSchema } from '@clawos/security'
+import { CareerClawRunSchema, buildAuditEntry } from '@clawos/security'
+import { runCareerClawCli, CareerClawCliError } from './cli-adapter.js'
+import { timingSafeEqual } from 'node:crypto'
 
 // ── Boot guard ────────────────────────────────────────────────────────────────
 
@@ -20,6 +28,8 @@ if (!WORKER_SECRET) {
   console.error('[worker] Fatal: WORKER_SECRET env var is required. Refusing to start.')
   process.exit(1)
 }
+
+const WORKER_SECRET_BUF = Buffer.from(WORKER_SECRET)
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
@@ -32,9 +42,19 @@ app.get('/health', (_req: Request, res: Response) => {
 })
 
 // ── Auth middleware for all /run/* routes ─────────────────────────────────────
+// Constant-time compare prevents timing attacks on the shared secret.
 function requireWorkerSecret(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers['x-worker-secret']
-  if (header !== WORKER_SECRET) {
+  if (typeof header !== 'string') {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+  const headerBuf = Buffer.from(header)
+  // Buffers must be the same length for timingSafeEqual
+  if (
+    headerBuf.length !== WORKER_SECRET_BUF.length ||
+    !timingSafeEqual(headerBuf, WORKER_SECRET_BUF)
+  ) {
     res.status(401).json({ error: 'Unauthorized' })
     return
   }
@@ -43,31 +63,105 @@ function requireWorkerSecret(req: Request, res: Response, next: NextFunction): v
 
 // ── POST /run/careerclaw ──────────────────────────────────────────────────────
 // Accepts: { userId, profile, resumeText?, topK }
-// Returns: { matches, runId, durationMs }
-// Full implementation: Chat 3
-app.post('/run/careerclaw', requireWorkerSecret, (req: Request, res: Response) => {
-  const result = CareerClawRunSchema.safeParse(req.body)
-  if (!result.success) {
-    res.status(400).json({
-      error: 'Invalid input',
-      details: result.error.flatten(),
-    })
-    return
-  }
+// Returns: { briefing, runId, durationMs }
+//
+// The skill worker is intentionally stateless — it does not write to Supabase.
+// The Agent API is responsible for persisting run metadata after receiving
+// the worker response. This keeps the skill layer decoupled from the platform.
+app.post(
+  '/run/careerclaw',
+  requireWorkerSecret,
+  async (req: Request, res: Response): Promise<void> => {
+    const parseResult = CareerClawRunSchema.safeParse(req.body)
+    if (!parseResult.success) {
+      res.status(400).json({
+        error: 'Invalid input',
+        details: parseResult.error.flatten(),
+      })
+      return
+    }
 
-  // TODO Chat 3: Spawn careerclaw-js CLI as non-root user
-  // TODO Chat 3: Stream progress events back
-  // TODO Chat 3: Write audit log entry (metadata only — no resume text)
-  // TODO Chat 3: Return structured JSON result
+    const { userId, profile, resumeText, topK } = parseResult.data
+    const startMs = Date.now()
 
-  res.status(501).json({
-    error: 'Not implemented',
-    message: 'Full CLI invocation implemented in Chat 3',
-  })
-})
+    try {
+      const result = await runCareerClawCli({
+        profile: {
+          name: profile.name,
+          workMode: profile.workMode,
+          salaryMin: profile.salaryMin,
+          salaryMax: profile.salaryMax,
+          locationPref: profile.locationPref,
+        },
+        resumeText,
+        topK,
+      })
+
+      // Audit log — metadata only
+      const entry = buildAuditEntry({
+        userId,
+        skill: 'careerclaw',
+        channel: 'worker',
+        status: 'success',
+        statusCode: 200,
+        durationMs: result.durationMs,
+      })
+      console.log(JSON.stringify(entry))
+
+      res.status(200).json({
+        briefing: result.briefing,
+        durationMs: result.durationMs,
+      })
+    } catch (err) {
+      const durationMs = Date.now() - startMs
+
+      if (err instanceof CareerClawCliError) {
+        const isTimeout = err.message.includes('timed out')
+
+        // Audit log — metadata only, never the CLI error detail which may contain paths
+        const entry = buildAuditEntry({
+          userId,
+          skill: 'careerclaw',
+          channel: 'worker',
+          status: 'error',
+          statusCode: isTimeout ? 504 : 500,
+          durationMs,
+        })
+        console.log(JSON.stringify(entry))
+
+        if (isTimeout) {
+          res.status(504).json({ error: 'Skill invocation timed out' })
+        } else {
+          // Do not leak CLI error message to the caller — it may contain file paths
+          res.status(500).json({ error: 'Skill invocation failed' })
+        }
+        return
+      }
+
+      // Unexpected error — log and return generic 500
+      const entry = buildAuditEntry({
+        userId,
+        skill: 'careerclaw',
+        channel: 'worker',
+        status: 'error',
+        statusCode: 500,
+        durationMs,
+      })
+      console.log(JSON.stringify(entry))
+      console.error(
+        '[worker] Unexpected error in /run/careerclaw:',
+        err instanceof Error ? err.message : String(err),
+      )
+
+      res.status(500).json({ error: 'Internal worker error' })
+    }
+  },
+)
 
 // ── Server ────────────────────────────────────────────────────────────────────
 const port = Number(process.env.PORT ?? 3002)
 app.listen(port, () => {
   console.log(`[worker] ClawOS skill worker running on http://localhost:${port}`)
 })
+
+export { app }

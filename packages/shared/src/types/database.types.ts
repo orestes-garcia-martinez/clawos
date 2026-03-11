@@ -8,6 +8,7 @@ export type Database = {
   }
   public: {
     Tables: {
+      // ── Platform tables (skill-agnostic) ─────────────────────────────────
       channel_identities: {
         Row: {
           channel: string
@@ -104,6 +105,132 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+
+      // ── CareerClaw skill tables (skill-owned, prefixed) ──────────────────
+      // A user with no CareerClaw activity has zero careerclaw_* rows.
+      // Adding ScrapeClaw = new scrapeclaw_* tables, zero changes here.
+
+      careerclaw_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          /** Extracted plain text only — raw PDF never stored. 50k char max. */
+          resume_text: string | null
+          work_mode: 'remote' | 'hybrid' | 'onsite' | null
+          salary_min: number | null
+          location_pref: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          resume_text?: string | null
+          work_mode?: 'remote' | 'hybrid' | 'onsite' | null
+          salary_min?: number | null
+          location_pref?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          resume_text?: string | null
+          work_mode?: 'remote' | 'hybrid' | 'onsite' | null
+          salary_min?: number | null
+          location_pref?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'careerclaw_profiles_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: true
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      careerclaw_runs: {
+        Row: {
+          id: string
+          user_id: string
+          run_at: string
+          job_count: number
+          top_score: number | null
+          status: 'success' | 'error' | 'no_matches'
+          duration_ms: number | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          run_at?: string
+          job_count?: number
+          top_score?: number | null
+          status: 'success' | 'error' | 'no_matches'
+          duration_ms?: number | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          run_at?: string
+          job_count?: number
+          top_score?: number | null
+          status?: 'success' | 'error' | 'no_matches'
+          duration_ms?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'careerclaw_runs_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      careerclaw_job_tracking: {
+        Row: {
+          id: string
+          user_id: string
+          job_id: string
+          title: string
+          company: string
+          status: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          job_id: string
+          title: string
+          company: string
+          status?: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          job_id?: string
+          title?: string
+          company?: string
+          status?: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'careerclaw_job_tracking_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
       }
     }
     Views: {

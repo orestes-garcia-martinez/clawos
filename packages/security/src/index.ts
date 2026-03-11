@@ -24,6 +24,8 @@ export const CareerClawProfileSchema = z.object({
   workMode: WorkModeSchema.optional(),
   salaryMin: z.number().int().positive().max(10_000_000).optional(),
   salaryMax: z.number().int().positive().max(10_000_000).optional(),
+  /** User's preferred work location (free-text, max 200 chars). */
+  locationPref: z.string().max(200).optional(),
 })
 
 export const CareerClawRunSchema = z
