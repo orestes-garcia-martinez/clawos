@@ -32,7 +32,7 @@ process.env.CAREERCLAW_WORKSPACE_DIR = '/tmp/test-workspace'
 
 // Import after mocks are set up
 const { app } = await import('./index.js')
-const { runCareerClawCli, CareerClawCliError } = await import('./cli-adapter.js')
+const { runCareerClawCli } = await import('./cli-adapter.js')
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
