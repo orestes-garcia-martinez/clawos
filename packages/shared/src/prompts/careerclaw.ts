@@ -76,7 +76,7 @@ export interface RunCareerClawInput {
 export const RUN_CAREERCLAW_TOOL = {
   name: 'run_careerclaw',
   description:
-    'Run the CareerClaw job search engine. Fetches live jobs from RemoteOK and HN Who\'s Hiring, scores them against the user\'s profile and resume, and (for Pro users) generates LLM-enhanced outreach drafts. Returns a structured briefing with ranked matches.',
+    "Run the CareerClaw job search engine. Fetches live jobs from RemoteOK and HN Who's Hiring, scores them against the user's profile and resume, and (for Pro users) generates LLM-enhanced outreach drafts. Returns a structured briefing with ranked matches.",
   input_schema: {
     type: 'object' as const,
     properties: {
