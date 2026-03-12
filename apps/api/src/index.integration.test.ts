@@ -55,7 +55,7 @@ describe.skipIf(missingVars.length > 0)('Agent API -- direct text path (integrat
 
   // Credentials for the throw-away test user
   const TEST_EMAIL = `clawos-integration-test-${Date.now()}@example.com`
-  const TEST_PASSWORD = `Test_${crypto.randomUUID()}`
+  const TEST_PASSWORD = `Test_${crypto.randomUUID()}` // ggignore
 
   let testUserId = ''
   let testJwt = ''
