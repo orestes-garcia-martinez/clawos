@@ -25,11 +25,7 @@
 import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { ChatRequestSchema, buildAuditEntry, TOP_K_LIMITS } from '@clawos/security'
-import {
-  CAREERCLAW_SYSTEM_PROMPT,
-  RUN_CAREERCLAW_TOOL,
-  createServerClient,
-} from '@clawos/shared'
+import { CAREERCLAW_SYSTEM_PROMPT, RUN_CAREERCLAW_TOOL, createServerClient } from '@clawos/shared'
 import type { Channel, Message } from '@clawos/shared'
 import type { RunCareerClawInput } from '@clawos/shared'
 import { callLLM, callLLMWithToolResult } from '../llm.js'
@@ -98,11 +94,9 @@ export async function chatHandler(c: Context): Promise<Response> {
       // ── 4. First Claude call ─────────────────────────────────────────────
       await sendProgress('thinking', 'Thinking...')
 
-      const llmResult = await callLLM(
-        CAREERCLAW_SYSTEM_PROMPT,
-        messagesForClaude,
-        [RUN_CAREERCLAW_TOOL],
-      )
+      const llmResult = await callLLM(CAREERCLAW_SYSTEM_PROMPT, messagesForClaude, [
+        RUN_CAREERCLAW_TOOL,
+      ])
 
       // ── 5a. Direct text response ─────────────────────────────────────────
       if (llmResult.type === 'text') {
@@ -112,7 +106,12 @@ export async function chatHandler(c: Context): Promise<Response> {
           { role: 'assistant', content: llmResult.content, timestamp: new Date().toISOString() },
         ]
 
-        const savedId = await saveSession(userId, channel as Channel, updatedMessages, activeSessionId)
+        const savedId = await saveSession(
+          userId,
+          channel as Channel,
+          updatedMessages,
+          activeSessionId,
+        )
 
         logAudit({
           userId,
@@ -222,6 +221,11 @@ export async function chatHandler(c: Context): Promise<Response> {
         )
         formattedResponse = formatResult.content
       } catch (err) {
+        // Unexpected error — log and send generic error event
+        console.error(
+          '[chat] Second Claude call: format the tool result error:',
+          err instanceof Error ? err.message : String(err),
+        )
         logAudit({
           userId,
           skill: 'careerclaw',
@@ -246,7 +250,12 @@ export async function chatHandler(c: Context): Promise<Response> {
         { role: 'assistant', content: sessionSummary, timestamp: new Date().toISOString() },
       ]
 
-      const savedId = await saveSession(userId, channel as Channel, updatedMessages, activeSessionId)
+      const savedId = await saveSession(
+        userId,
+        channel as Channel,
+        updatedMessages,
+        activeSessionId,
+      )
 
       logAudit({
         userId,

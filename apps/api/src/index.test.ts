@@ -25,7 +25,7 @@ const mockGetUser = vi.fn()
 const mockFrom = vi.fn()
 vi.mock('@clawos/shared', async (importOriginal) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const actual = await importOriginal() as any
+  const actual = (await importOriginal()) as any
   return {
     ...actual,
     createServerClient: () => ({
@@ -85,7 +85,7 @@ beforeEach(() => {
 // - Helpers -
 
 const FREE_USER_ID = '00000000-0000-0000-0000-000000000001'
-const PRO_USER_ID = '00000000-0000-0000-0000-000000000002'
+// const PRO_USER_ID = '00000000-0000-0000-0000-000000000002'
 const TEST_SESSION_ID = '00000000-0000-0000-0000-000000000099'
 // Unique IDs per test group -- rate limiter state is in-memory and shared per process
 const DIRECT_TEXT_USER = '00000000-0000-0000-0000-000000000011'
@@ -127,8 +127,18 @@ function buildSupabaseMock(opts: {
       limit: () => chain,
       single: () => Promise.resolve(result),
       maybeSingle: () => Promise.resolve(result),
-      insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: TEST_SESSION_ID }, error: null }) }), then: (cb: (v: unknown) => void) => cb({ data: null, error: null }) }),
-      update: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }), then: (cb: (v: unknown) => void) => cb({ error: null }) }) }),
+      insert: () => ({
+        select: () => ({
+          single: () => Promise.resolve({ data: { id: TEST_SESSION_ID }, error: null }),
+        }),
+        then: (cb: (v: unknown) => void) => cb({ data: null, error: null }),
+      }),
+      update: () => ({
+        eq: () => ({
+          eq: () => Promise.resolve({ error: null }),
+          then: (cb: (v: unknown) => void) => cb({ error: null }),
+        }),
+      }),
       then: (cb: (v: unknown) => void) => cb({ data: null, error: null }),
     }
     return chain
@@ -141,21 +151,40 @@ function buildSupabaseMock(opts: {
       return makeChain({ data: { tier: opts.tier }, error: null })
     }
     if (table === 'sessions') {
-      const sessionData = opts.sessionRow !== undefined
-        ? opts.sessionRow
-        : { id: TEST_SESSION_ID, user_id: opts.userId, channel: 'web', messages: [], last_active: new Date().toISOString(), created_at: new Date().toISOString(), deleted_at: null }
+      const sessionData =
+        opts.sessionRow !== undefined
+          ? opts.sessionRow
+          : {
+              id: TEST_SESSION_ID,
+              user_id: opts.userId,
+              channel: 'web',
+              messages: [],
+              last_active: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              deleted_at: null,
+            }
       return makeChain({ data: sessionData, error: sessionData ? null : { message: 'not found' } })
     }
     if (table === 'careerclaw_profiles') {
       return makeChain({
-        data: { resume_text: opts.resumeText ?? null, work_mode: 'remote', salary_min: 120000, location_pref: null },
+        data: {
+          resume_text: opts.resumeText ?? null,
+          work_mode: 'remote',
+          salary_min: 120000,
+          location_pref: null,
+        },
         error: null,
       })
     }
     if (table === 'careerclaw_runs') {
       // insert path
       const runChain = {
-        insert: () => ({ then: (cb: (v: unknown) => void) => { cb({ data: null, error: null }); return Promise.resolve() } }),
+        insert: () => ({
+          then: (cb: (v: unknown) => void) => {
+            cb({ data: null, error: null })
+            return Promise.resolve()
+          },
+        }),
         select: () => runChain,
         eq: () => runChain,
         is: () => runChain,
@@ -196,7 +225,7 @@ describe('GET /health', () => {
   it('returns 200 with no auth', async () => {
     const res = await app.request('/health')
     expect(res.status).toBe(200)
-    const body = await res.json() as { status: string; service: string }
+    const body = (await res.json()) as { status: string; service: string }
     expect(body.status).toBe('ok')
     expect(body.service).toBe('clawos-api')
   })
@@ -212,13 +241,17 @@ describe('Auth middleware', () => {
       body: JSON.stringify(VALID_BODY),
     })
     expect(res.status).toBe(401)
-    const body = await res.json() as { code: string }
+    const body = (await res.json()) as { code: string }
     expect(body.code).toBe('UNAUTHORIZED')
   })
 
   it('rejects POST /chat with invalid JWT', async () => {
     mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'invalid' } })
-    mockFrom.mockImplementation(() => ({ select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }) }))
+    mockFrom.mockImplementation(() => ({
+      select: () => ({
+        eq: () => ({ single: () => Promise.resolve({ data: null, error: null }) }),
+      }),
+    }))
 
     const res = await app.request('/chat', {
       method: 'POST',
@@ -247,7 +280,7 @@ describe('Zod input validation', () => {
       body: JSON.stringify({ ...VALID_BODY, message: '' }),
     })
     expect(res.status).toBe(400)
-    const body = await res.json() as { code: string }
+    const body = (await res.json()) as { code: string }
     expect(body.code).toBe('BAD_REQUEST')
   })
 
@@ -344,7 +377,12 @@ describe('POST /chat -- tool use path (CareerClaw)', () => {
       type: 'tool_use',
       toolName: 'run_careerclaw',
       toolUseId: 'tool_abc123',
-      toolInput: { topK: 5, includeOutreach: false, includeCoverLetter: false, includeGapAnalysis: false },
+      toolInput: {
+        topK: 5,
+        includeOutreach: false,
+        includeCoverLetter: false,
+        includeGapAnalysis: false,
+      },
       provider: 'anthropic',
     })
     mockRunWorkerCareerclaw.mockResolvedValue({
@@ -353,7 +391,8 @@ describe('POST /chat -- tool use path (CareerClaw)', () => {
     })
     mockCallLLMWithToolResult.mockResolvedValue({
       type: 'text',
-      content: '## Your Top Job Matches\n\n1. Senior Engineer at Acme (92% match)\n2. Staff Engineer at Beta (85% match)',
+      content:
+        '## Your Top Job Matches\n\n1. Senior Engineer at Acme (92% match)\n2. Staff Engineer at Beta (85% match)',
       provider: 'anthropic',
     })
   })
@@ -407,7 +446,12 @@ describe('POST /chat -- tool use path (CareerClaw)', () => {
       type: 'tool_use',
       toolName: 'run_careerclaw',
       toolUseId: 'tool_pro123',
-      toolInput: { topK: 10, includeOutreach: true, includeCoverLetter: true, includeGapAnalysis: true },
+      toolInput: {
+        topK: 10,
+        includeOutreach: true,
+        includeCoverLetter: true,
+        includeGapAnalysis: true,
+      },
       provider: 'anthropic',
     })
     const res = await app.request('/chat', {
@@ -422,12 +466,21 @@ describe('POST /chat -- tool use path (CareerClaw)', () => {
   })
 
   it('passes resumeText from profile to the worker', async () => {
-    buildSupabaseMock({ userId: RESUME_USER, tier: 'free', resumeText: 'Senior fullstack engineer...' })
+    buildSupabaseMock({
+      userId: RESUME_USER,
+      tier: 'free',
+      resumeText: 'Senior fullstack engineer...',
+    })
     mockCallLLM.mockResolvedValue({
       type: 'tool_use',
       toolName: 'run_careerclaw',
       toolUseId: 'tool_resume',
-      toolInput: { topK: 3, includeOutreach: false, includeCoverLetter: false, includeGapAnalysis: false },
+      toolInput: {
+        topK: 3,
+        includeOutreach: false,
+        includeCoverLetter: false,
+        includeGapAnalysis: false,
+      },
       provider: 'anthropic',
     })
     const res = await app.request('/chat', {
@@ -451,7 +504,12 @@ describe('POST /chat -- error paths', () => {
       type: 'tool_use',
       toolName: 'run_careerclaw',
       toolUseId: 'tool_err',
-      toolInput: { topK: 3, includeOutreach: false, includeCoverLetter: false, includeGapAnalysis: false },
+      toolInput: {
+        topK: 3,
+        includeOutreach: false,
+        includeCoverLetter: false,
+        includeGapAnalysis: false,
+      },
       provider: 'anthropic',
     })
   })
@@ -462,9 +520,7 @@ describe('POST /chat -- error paths', () => {
 
   it('emits error event on worker timeout', async () => {
     const { WorkerError } = await import('./worker-client.js')
-    mockRunWorkerCareerclaw.mockRejectedValueOnce(
-      new WorkerError('timeout', 504, true),
-    )
+    mockRunWorkerCareerclaw.mockRejectedValueOnce(new WorkerError('timeout', 504, true))
     const res = await app.request('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
@@ -479,9 +535,7 @@ describe('POST /chat -- error paths', () => {
 
   it('emits error event on worker failure (non-timeout)', async () => {
     const { WorkerError } = await import('./worker-client.js')
-    mockRunWorkerCareerclaw.mockRejectedValueOnce(
-      new WorkerError('internal error', 500, false),
-    )
+    mockRunWorkerCareerclaw.mockRejectedValueOnce(new WorkerError('internal error', 500, false))
     const res = await app.request('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
@@ -542,7 +596,7 @@ describe('Rate limiting', () => {
       body: JSON.stringify({ ...VALID_BODY, userId: RL_FREE_USER }),
     })
     expect(res.status).toBe(429)
-    const body = await res.json() as { code: string }
+    const body = (await res.json()) as { code: string }
     expect(body.code).toBe('RATE_LIMITED')
     expect(res.headers.get('Retry-After')).toBeDefined()
   })
@@ -557,11 +611,20 @@ describe('Audit log -- metadata only', () => {
       type: 'tool_use',
       toolName: 'run_careerclaw',
       toolUseId: 'tool_audit',
-      toolInput: { topK: 3, includeOutreach: false, includeCoverLetter: false, includeGapAnalysis: false },
+      toolInput: {
+        topK: 3,
+        includeOutreach: false,
+        includeCoverLetter: false,
+        includeGapAnalysis: false,
+      },
       provider: 'anthropic',
     })
     mockRunWorkerCareerclaw.mockResolvedValue({ briefing: MOCK_BRIEFING, durationMs: 1800 })
-    mockCallLLMWithToolResult.mockResolvedValue({ type: 'text', content: 'Results here', provider: 'anthropic' })
+    mockCallLLMWithToolResult.mockResolvedValue({
+      type: 'text',
+      content: 'Results here',
+      provider: 'anthropic',
+    })
   })
 
   afterEach(() => {
@@ -608,4 +671,3 @@ describe('Audit log -- metadata only', () => {
     expect(auditStr).not.toContain('Find remote jobs')
   })
 })
-

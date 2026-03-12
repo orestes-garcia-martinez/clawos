@@ -26,7 +26,10 @@ export function requireAuth(): MiddlewareHandler {
   return async (c: Context, next: Next) => {
     const authHeader = c.req.header('Authorization')
     if (!authHeader?.startsWith('Bearer ')) {
-      return c.json({ code: 'UNAUTHORIZED', message: 'Missing or invalid Authorization header' }, 401)
+      return c.json(
+        { code: 'UNAUTHORIZED', message: 'Missing or invalid Authorization header' },
+        401,
+      )
     }
 
     const jwt = authHeader.slice(7)

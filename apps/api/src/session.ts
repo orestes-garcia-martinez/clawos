@@ -12,7 +12,7 @@
  */
 
 import { createServerClient } from '@clawos/shared'
-import type { Channel, Message, Session } from '@clawos/shared'
+import type { Channel, Json, Message, Session } from '@clawos/shared'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -88,7 +88,7 @@ export async function loadSession(
  */
 export function pruneMessages(messages: Message[]): Message[] {
   // Cap at 20 messages first
-  let pruned = messages.slice(-MAX_MESSAGES)
+  const pruned = messages.slice(-MAX_MESSAGES)
 
   // Then enforce token budget — remove oldest until we fit
   let totalTokens = pruned.reduce((sum, m) => sum + estimateTokens(m.content), 0)
@@ -161,7 +161,7 @@ export async function saveSession(
     const { error } = await supabase
       .from('sessions')
       .update({
-        messages: toStore as unknown as import('@clawos/shared').Json,
+        messages: toStore as unknown as Json,
         last_active: now,
       })
       .eq('id', sessionId)
@@ -179,7 +179,7 @@ export async function saveSession(
     .insert({
       user_id: userId,
       channel,
-      messages: toStore as unknown as import('@clawos/shared').Json,
+      messages: toStore as unknown as Json,
       last_active: now,
     })
     .select('id')
