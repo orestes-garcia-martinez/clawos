@@ -33,6 +33,8 @@ const CAREERCLAW_BIN = join(
   new URL('.', import.meta.url).pathname,
   '..', // src/
   '..', // apps/worker/
+  '..', // apps/
+  '..', // clawos/ (repo root)
   'node_modules',
   '.bin',
   'careerclaw-js',
