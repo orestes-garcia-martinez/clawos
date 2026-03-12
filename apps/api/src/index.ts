@@ -1,12 +1,40 @@
-// ClawOS Agent API
-// Chat 4 builds: POST /chat, Supabase JWT auth, Claude orchestration, SSE streaming
+/**
+ * index.ts — ClawOS Agent API entry point.
+ *
+ * Routes:
+ *   GET  /health          — public health check
+ *   POST /chat            — main agent endpoint (auth + rate limit + SSE)
+ *
+ * Chat 7 will add:
+ *   POST /billing/webhook      — Polar.sh webhook handler
+ *   POST /billing/force-sync   — Admin tier sync endpoint
+ *
+ * Exported as `app` for Vercel serverless (vercel.json routes all to this).
+ * Also starts a local @hono/node-server when run directly.
+ */
 
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
+import { ENV } from './env.js'
+import { requireAuth } from './auth.js'
+import { rateLimit } from './rate-limit.js'
+import { chatHandler } from './routes/chat.js'
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
 const app = new Hono()
+
+// ── CORS — strict: only the ClawOS web domain ─────────────────────────────────
+app.use(
+  '*',
+  cors({
+    origin: ENV.ALLOWED_ORIGIN,
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Channel'],
+    exposeHeaders: ['Content-Type'],
+  }),
+)
 
 // ── Health check — no auth required ──────────────────────────────────────────
 app.get('/health', (c) => {
@@ -18,31 +46,21 @@ app.get('/health', (c) => {
   })
 })
 
-// ── Stubs — implemented in subsequent chats ───────────────────────────────────
+// ── POST /chat — main agent endpoint ─────────────────────────────────────────
+// Auth → rate limit → SSE handler
+app.post('/chat', requireAuth(), rateLimit(), chatHandler)
 
-// TODO Chat 4: POST /chat
-//   - Supabase JWT validation
-//   - Session context load/save
-//   - Claude API orchestration with CareerClaw system prompt
-//   - Skill worker invocation (POST to Lightsail worker)
-//   - SSE streaming (progress events + final response)
-//   - Per-tier rate limiting
-//   - Zod input validation
-//   - Audit logging (metadata only)
-
+// ── Stubs — Chat 7 (Billing) ──────────────────────────────────────────────────
 // TODO Chat 7: POST /billing/webhook
-//   - Polar.sh signature validation
-//   - Update users.tier in Supabase on subscription events
+// TODO Chat 7: POST /billing/force-sync
 
-// TODO Chat 7: POST /billing/force-sync (internal admin endpoint)
-//   - Force-sync a user's tier from Polar.sh on demand
+// ── Server (local dev + Lightsail) ───────────────────────────────────────────
+// Vercel uses the default export (app.fetch) — this block is skipped there.
 
-// ── Server ────────────────────────────────────────────────────────────────────
-
-const port = Number(process.env.PORT ?? 3001)
+const port = ENV.PORT
 
 serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`ClawOS API running on http://localhost:${info.port}`)
+  console.log(`[api] ClawOS Agent API running on http://localhost:${info.port}`)
 })
 
 export default app

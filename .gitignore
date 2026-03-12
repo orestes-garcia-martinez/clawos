@@ -11,9 +11,7 @@ build/
 
 # Environment files — never commit secrets
 .env
-.env.local
-.env.*.local
-*.env
+.env.*
 
 # Vercel
 .vercel/

@@ -11,6 +11,10 @@ export { createBrowserClient, createServerClient } from './supabase.js'
 export type { Database, TypedSupabaseClient } from './supabase.js'
 export type { Json } from './types/database.types.js'
 
+// ── Prompts ───────────────────────────────────────────────────────────────────
+export { CAREERCLAW_SYSTEM_PROMPT, RUN_CAREERCLAW_TOOL } from './prompts/careerclaw.js'
+export type { RunCareerClawInput } from './prompts/careerclaw.js'
+
 import type { Database } from './types/database.types.js'
 
 export type UserRow = Database['public']['Tables']['users']['Row']
