@@ -1,0 +1,65 @@
+flowchart TD
+
+%% Entry points
+    Web("🌐 Web browser\nReact chat UI · Vercel")
+    TG("✈️ Telegram app\nWebhook · Lightsail")
+
+%% Platform
+    API("⚙️ api/\nAgent API · Hono · Vercel\nvalidates · sessions · streams")
+
+%% Supabase
+    AUTH("🔑 identity\nWho is this user?")
+    MEM("💬 sessions\nWhat did we talk about?")
+    PROF("📄 careerclaw_profiles\nResume + job preferences")
+    TIER("💳 users.tier\nFree or Pro?")
+
+%% Claude
+    CLAUDE("🤖 Claude API\nreads message + full context\ndecides what action to take")
+
+%% Skill worker
+    WORKER("🖥️ worker/\nLightsail · Express\nreceives job search task")
+    CLI("⚡ careerclaw-js v1.0.4\nfetches · ranks · drafts outreach")
+
+%% Job boards
+    RO("🌍 RemoteOK\nlive job listings")
+    HN("📰 HN Who's Hiring\nlive job listings")
+
+%% Flow
+    Web -->|"you type a message"| API
+    TG -->|"you send a message"| API
+
+    API --> AUTH
+    API --> MEM
+    AUTH -->|"user identity"| CLAUDE
+    MEM -->|"conversation history"| CLAUDE
+    PROF -->|"resume + preferences"| CLAUDE
+    TIER -->|"feature entitlements"| CLAUDE
+    API -->|"message + full context"| CLAUDE
+
+    CLAUDE -->|"job search intent detected"| WORKER
+    WORKER --> CLI
+    CLI -->|"fetch live jobs"| RO
+    CLI -->|"fetch live jobs"| HN
+    RO -->|"raw listings"| CLI
+    HN -->|"raw listings"| CLI
+    CLI -->|"ranked matches + outreach drafts"| WORKER
+    WORKER -->|"structured JSON"| CLAUDE
+
+    CLAUDE -->|"natural language response"| API
+    API -->|"SSE stream"| Web
+    API -->|"reply message"| TG
+
+%% Styling
+    classDef channel  fill:#0f1523,stroke:#6366f1,color:#dde8f8,font-weight:bold
+    classDef platform fill:#0f1523,stroke:#00d4a1,color:#dde8f8
+    classDef db       fill:#162035,stroke:#1e2f4a,color:#dde8f8
+    classDef brain    fill:#0f1523,stroke:#a855f7,color:#dde8f8,font-weight:bold
+    classDef skill    fill:#0f1523,stroke:#f59e0b,color:#dde8f8
+    classDef boards   fill:#07090f,stroke:#1e2f4a,color:#4d6480,font-size:11px
+
+    class Web,TG channel
+    class API platform
+    class AUTH,MEM,PROF,TIER db
+    class CLAUDE brain
+    class WORKER,CLI skill
+    class RO,HN boards
