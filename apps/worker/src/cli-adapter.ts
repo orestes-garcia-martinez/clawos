@@ -11,7 +11,23 @@
  *   - Temp files are written inside WORKSPACE_DIR (restricted to clawos-admin).
  *   - Temp files are always deleted in a finally block regardless of outcome.
  *   - Raw resume text is never included in logs or error messages.
- *   - The CLI binary is resolved from node_modules/.bin — no $PATH lookup.
+ *   - The CLI binary is resolved from the global npm bin — careerclaw-js is
+ *     installed globally on Lightsail via `npm install -g careerclaw-js`.
+ *
+ * Persistence note:
+ *   The worker always passes --dry-run to the CLI. Tracking (saved jobs,
+ *   run logs) is the responsibility of the Agent API writing to Supabase —
+ *   not the CLI writing to local filesystem. This keeps the skill layer
+ *   stateless and decoupled from platform persistence.
+ *
+ * Profile field mapping (camelCase ClawOS → snake_case careerclaw-js):
+ *   skills          → skills          (primary keyword corpus)
+ *   targetRoles     → target_roles    (secondary keyword corpus)
+ *   experienceYears → experience_years
+ *   resumeSummary   → resume_summary  (tertiary keyword corpus)
+ *   workMode        → work_mode
+ *   salaryMin       → salary_min
+ *   locationPref    → location
  */
 
 import { spawn } from 'node:child_process'
@@ -27,24 +43,24 @@ const WORKSPACE_DIR =
 /** CLI timeout in milliseconds. Strategy target: 5s p95. Hard limit: 30s. */
 const CLI_TIMEOUT_MS = 30_000
 
-/** Resolved path to the careerclaw-js binary in local node_modules */
-const CAREERCLAW_BIN = join(
-  // apps/worker/ → resolve relative to this file at runtime
-  new URL('.', import.meta.url).pathname,
-  '..', // src/
-  '..', // apps/worker/
-  '..', // apps/
-  '..', // clawos/ (repo root)
-  'node_modules',
-  '.bin',
-  'careerclaw-js',
-)
+/**
+ * careerclaw-js is installed globally on Lightsail.
+ * We resolve it from the system PATH rather than node_modules/.bin
+ * because the worker is not co-located with careerclaw-js in the monorepo.
+ */
+const CAREERCLAW_BIN = process.env.CAREERCLAW_BIN_PATH ?? '/usr/bin/careerclaw-js'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface CareerClawCliInput {
   profile: {
     name?: string
+    /** Primary keyword corpus — empty array = near-zero match scores */
+    skills?: string[]
+    /** Secondary keyword corpus */
+    targetRoles?: string[]
+    experienceYears?: number | null
+    resumeSummary?: string | null
     workMode?: 'remote' | 'hybrid' | 'onsite'
     salaryMin?: number
     salaryMax?: number
@@ -76,29 +92,48 @@ export class CareerClawCliError extends Error {
 // The worker receives a CareerClaw profile in ClawOS format (camelCase).
 // The CLI expects profile.json in careerclaw-js format (snake_case).
 // This function translates between the two — isolating the impedance mismatch.
+//
+// careerclaw-js UserProfile interface (models.ts):
+//   skills: string[]
+//   target_roles: string[]
+//   experience_years: number | null
+//   work_mode: WorkMode | null   ("remote"|"hybrid"|"onsite"|"any")
+//   resume_summary: string | null
+//   location: string | null
+//   salary_min: number | null
+//
+// All fields are optional in the interface but skills + target_roles are the
+// primary keyword corpus. Without them the engine returns zero matches.
 
 interface CareerClawProfile {
-  target_roles?: string[]
-  skills?: string[]
-  experience_years?: number
-  work_mode?: 'remote' | 'hybrid' | 'onsite'
-  salary_min?: number
-  location?: string
-  resume_summary?: string
+  skills: string[]
+  target_roles: string[]
+  experience_years: number | null
+  work_mode: 'remote' | 'hybrid' | 'onsite' | null
+  resume_summary: string | null
+  location: string | null
+  salary_min: number | null
 }
 
 function buildCliProfile(input: CareerClawCliInput['profile']): CareerClawProfile {
-  const profile: CareerClawProfile = {}
-  if (input.workMode) profile.work_mode = input.workMode
-  if (input.salaryMin != null) profile.salary_min = input.salaryMin
-  if (input.locationPref) profile.location = input.locationPref
-  return profile
+  return {
+    skills: input.skills ?? [],
+    target_roles: input.targetRoles ?? [],
+    experience_years: input.experienceYears ?? null,
+    work_mode: input.workMode ?? null,
+    resume_summary: input.resumeSummary ?? null,
+    location: input.locationPref ?? null,
+    salary_min: input.salaryMin ?? null,
+  }
 }
 
 // ── Main invocation ───────────────────────────────────────────────────────────
 
 /**
  * Run the careerclaw-js CLI and return the parsed BriefingResult.
+ *
+ * Always passes --dry-run: persistence is handled by the Agent API
+ * writing to Supabase, not by the CLI writing to local filesystem.
  *
  * Temp files are cleaned up unconditionally in the finally block.
  * Throws CareerClawCliError on timeout, non-zero exit, or JSON parse failure.
@@ -117,7 +152,14 @@ export async function runCareerClawCli(input: CareerClawCliInput): Promise<Caree
     const cliProfile = buildCliProfile(input.profile)
     await writeFile(profilePath, JSON.stringify(cliProfile), { mode: 0o600 })
 
-    const args: string[] = ['--profile', profilePath, '--top-k', String(input.topK), '--json']
+    const args: string[] = [
+      '--profile',
+      profilePath,
+      '--top-k',
+      String(input.topK),
+      '--json',
+      '--dry-run', // persistence is Supabase's job, not the CLI's
+    ]
 
     // Resume text: write to file and pass path — never inline in args
     if (input.resumeText) {
@@ -165,7 +207,7 @@ interface SpawnResult {
 function spawnWithTimeout(bin: string, args: string[], timeoutMs: number): Promise<SpawnResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, {
-      // Inherit the worker's env (LLM keys, etc.) — no extra PATH manipulation
+      // Inherit the worker's env (LLM keys, CAREERCLAW_DIR, etc.)
       env: process.env,
       // Do not inherit parent stdio — capture stdout/stderr explicitly
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -191,8 +233,8 @@ function spawnWithTimeout(bin: string, args: string[], timeoutMs: number): Promi
     child.on('close', (code) => {
       clearTimeout(timer)
       if (code !== 0) {
-        // stderr may contain useful diagnostics but never raw resume text
-        // Truncate to 500 chars to keep audit logs lean
+        // stderr may contain useful diagnostics but never raw resume text.
+        // Truncate to 500 chars to keep audit logs lean.
         const hint = stderr.slice(0, 500).replace(/\n/g, ' ').trim()
         reject(
           new CareerClawCliError(
@@ -220,7 +262,7 @@ function spawnWithTimeout(bin: string, args: string[], timeoutMs: number): Promi
 async function rmTmpDir(dir: string): Promise<void> {
   // Enumerate and delete files individually — avoids importing fs/promises rm
   // with recursive flag (requires Node 14.14+, which is fine, but being explicit
-  // makes the intent clear: only touch files we created)
+  // makes the intent clear: only touch files we created).
   const { readdir } = await import('node:fs/promises')
   const files = await readdir(dir)
   await Promise.all(files.map((f) => unlink(join(dir, f))))

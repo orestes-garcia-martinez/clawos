@@ -19,8 +19,30 @@ export const ChatRequestSchema = z.object({
   sessionId: z.string().uuid().optional(),
 })
 
+/**
+ * CareerClawProfileSchema — validates the profile payload sent from the Agent API
+ * to the worker. Field names are camelCase (ClawOS convention); cli-adapter.ts
+ * translates them to snake_case for profile.json (careerclaw-js convention).
+ *
+ * Mapping to careerclaw-js UserProfile:
+ *   skills          → skills          (primary keyword corpus — must be populated for matches)
+ *   targetRoles     → target_roles    (secondary keyword corpus)
+ *   experienceYears → experience_years
+ *   resumeSummary   → resume_summary  (tertiary keyword corpus)
+ *   workMode        → work_mode
+ *   salaryMin       → salary_min
+ *   locationPref    → location
+ */
 export const CareerClawProfileSchema = z.object({
   name: z.string().max(200).optional(),
+  /** Skills list — primary keyword matching corpus. Empty = zero matches from engine. */
+  skills: z.array(z.string().max(100)).max(100).optional().default([]),
+  /** Target role titles — secondary keyword corpus. */
+  targetRoles: z.array(z.string().max(200)).max(20).optional().default([]),
+  /** Total years of professional experience. */
+  experienceYears: z.number().int().min(0).max(60).nullable().optional(),
+  /** Short resume summary — tertiary keyword corpus. Max 2000 chars. */
+  resumeSummary: z.string().max(2_000).nullable().optional(),
   workMode: WorkModeSchema.optional(),
   salaryMin: z.number().int().positive().max(10_000_000).optional(),
   salaryMax: z.number().int().positive().max(10_000_000).optional(),

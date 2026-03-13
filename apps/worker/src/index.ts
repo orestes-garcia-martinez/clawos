@@ -63,11 +63,15 @@ function requireWorkerSecret(req: Request, res: Response, next: NextFunction): v
 
 // ── POST /run/careerclaw ──────────────────────────────────────────────────────
 // Accepts: { userId, profile, resumeText?, topK }
-// Returns: { briefing, runId, durationMs }
+// Returns: { briefing, durationMs }
 //
 // The skill worker is intentionally stateless — it does not write to Supabase.
 // The Agent API is responsible for persisting run metadata after receiving
 // the worker response. This keeps the skill layer decoupled from the platform.
+//
+// The CLI is always invoked with --dry-run for the same reason: tracking.json
+// and runs.jsonl are not used. Supabase tables (careerclaw_runs,
+// careerclaw_job_tracking) are the persistence layer for ClawOS.
 app.post(
   '/run/careerclaw',
   requireWorkerSecret,
@@ -88,6 +92,10 @@ app.post(
       const result = await runCareerClawCli({
         profile: {
           name: profile.name,
+          skills: profile.skills,
+          targetRoles: profile.targetRoles,
+          experienceYears: profile.experienceYears,
+          resumeSummary: profile.resumeSummary,
           workMode: profile.workMode,
           salaryMin: profile.salaryMin,
           salaryMax: profile.salaryMax,
