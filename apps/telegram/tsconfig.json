@@ -3,10 +3,9 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "paths": {
-      "@clawos/shared": ["../../packages/shared/src/index.ts"],
-      "@clawos/security": ["../../packages/security/src/index.ts"]
-    }
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
 }

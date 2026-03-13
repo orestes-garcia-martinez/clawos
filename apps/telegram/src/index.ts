@@ -1,88 +1,287 @@
-// ClawOS Telegram Bot Adapter
-// Chat 5 builds the full implementation:
-//   - HMAC-SHA256 signature validation on every incoming update
-//   - Message normalization → Agent API format
-//   - Resume PDF extraction
-//   - Supabase user identity mapping (channel_identities table)
-//   - /link account claim flow (Telegram-to-Web account merge)
-//
-// Security: unsigned webhooks are rejected with 401 — non-negotiable.
-// No OpenClaw dependencies anywhere in this file.
-//
-// Design note: we use the Telegram Bot API directly via fetch rather than
-// node-telegram-bot-api, which carries critical transitive CVEs (form-data,
-// qs, tough-cookie via the deprecated `request` lib). Raw webhook handling
-// needs only Express + fetch. Chat 5 will add typed Bot API helpers inline.
+/**
+ * ClawOS Telegram Bot Adapter
+ *
+ * Security:
+ *   - Every incoming webhook is validated against X-Telegram-Bot-Api-Secret-Token.
+ *     Unsigned requests are rejected with 401 before touching the body.
+ *   - No OpenClaw dependencies anywhere in this adapter.
+ *
+ * Update routing:
+ *   /start          -- Welcome message.
+ *   /link <token>   -- Telegram-to-Web account claim flow.
+ *   /help           -- Usage instructions.
+ *   document (PDF)  -- Resume upload: extract text, save to careerclaw_profiles.
+ *   text message    -- Forward to Agent API, reply with result.
+ *   other           -- Polite unsupported reply.
+ *
+ * Telegram UX:
+ *   Webhook is acknowledged immediately (200 OK before async processing).
+ *   Typing indicator is sent before Agent API calls (sendChatAction).
+ *   Errors are delivered to the user via sendMessage.
+ */
 
 import express from 'express'
 import type { Request, Response } from 'express'
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { timingSafeEqual } from 'node:crypto'
+import { createServerClient } from '@clawos/shared'
+import { ENV } from './env.js'
+import { resolveOrCreateTelegramUser } from './identity.js'
+import { claimLinkToken } from './link.js'
+import { extractPdfFromTelegram, PdfExtractionError } from './pdf.js'
+import { callAgentApi, AgentApiError } from './agent-client.js'
 
-// ── Boot guards ───────────────────────────────────────────────────────────────
+// ── Telegram Bot API types ────────────────────────────────────────────────────
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
-const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET
-
-if (!TELEGRAM_BOT_TOKEN) {
-  console.error('[telegram] Fatal: TELEGRAM_BOT_TOKEN env var is required.')
-  process.exit(1)
+export interface TelegramDocument {
+  file_id: string
+  file_name?: string
+  mime_type?: string
+  file_size?: number
 }
 
-if (!TELEGRAM_WEBHOOK_SECRET) {
-  console.error('[telegram] Fatal: TELEGRAM_WEBHOOK_SECRET env var is required.')
-  process.exit(1)
+export interface TelegramMessage {
+  message_id: number
+  from?: { id: number; first_name?: string; username?: string }
+  chat: { id: number; type: string }
+  text?: string
+  document?: TelegramDocument
+}
+
+export interface TelegramUpdate {
+  update_id: number
+  message?: TelegramMessage
 }
 
 // ── Signature validation ──────────────────────────────────────────────────────
-// Telegram sends an X-Telegram-Bot-Api-Secret-Token header with every webhook.
-// We validate it against our TELEGRAM_WEBHOOK_SECRET to reject forged requests.
+// Telegram sends X-Telegram-Bot-Api-Secret-Token with each webhook update.
+// Validated via constant-time comparison against TELEGRAM_WEBHOOK_SECRET.
 
-function validateTelegramSecret(incomingSecret: string): boolean {
-  const expected = Buffer.from(TELEGRAM_WEBHOOK_SECRET as string)
-  const incoming = Buffer.from(incomingSecret)
-  if (expected.length !== incoming.length) return false
-  return timingSafeEqual(expected, incoming)
+export function validateWebhookSecret(incoming: string): boolean {
+  const expected = Buffer.from(ENV.TELEGRAM_WEBHOOK_SECRET, 'utf8')
+  const actual = Buffer.from(incoming, 'utf8')
+  if (expected.length !== actual.length) return false
+  return timingSafeEqual(expected, actual)
 }
 
-// ── App ───────────────────────────────────────────────────────────────────────
+// ── Telegram Bot API helpers ──────────────────────────────────────────────────
 
-const app = express()
+export async function sendMessage(chatId: number, text: string): Promise<void> {
+  const url = `https://api.telegram.org/bot${ENV.TELEGRAM_BOT_TOKEN}/sendMessage`
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // sendMessage text limit is 4096 chars. Truncate defensively.
+      body: JSON.stringify({ chat_id: chatId, text: text.slice(0, 4096) }),
+    })
+  } catch (err) {
+    console.error(
+      '[telegram] sendMessage failed:',
+      err instanceof Error ? err.message : String(err),
+    )
+  }
+}
+
+export async function sendChatAction(chatId: number, action: string): Promise<void> {
+  const url = `https://api.telegram.org/bot${ENV.TELEGRAM_BOT_TOKEN}/sendChatAction`
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, action }),
+    })
+  } catch {
+    // Non-critical -- do not fail the flow if typing indicator fails.
+  }
+}
+
+// ── Update handlers ───────────────────────────────────────────────────────────
+
+async function handleTextMessage(chatId: number, userId: string, text: string): Promise<void> {
+  await sendChatAction(chatId, 'typing')
+  const { text: reply } = await callAgentApi(userId, text)
+  await sendMessage(chatId, reply)
+}
+
+async function handleDocumentUpload(
+  chatId: number,
+  userId: string,
+  doc: TelegramDocument,
+): Promise<void> {
+  if (doc.mime_type !== 'application/pdf') {
+    await sendMessage(chatId, 'Please upload your resume as a PDF file.')
+    return
+  }
+
+  await sendChatAction(chatId, 'upload_document')
+
+  let resumeText: string
+  try {
+    resumeText = await extractPdfFromTelegram(doc.file_id, doc.file_size)
+  } catch (err) {
+    if (err instanceof PdfExtractionError) {
+      await sendMessage(chatId, err.userMessage)
+    } else {
+      await sendMessage(chatId, 'Failed to read your PDF. Please try again.')
+    }
+    return
+  }
+
+  const supabase = createServerClient()
+  const { error } = await supabase
+    .from('careerclaw_profiles')
+    .upsert({ user_id: userId, resume_text: resumeText }, { onConflict: 'user_id' })
+
+  if (error) {
+    console.error('[telegram] Failed to save resume:', error.message)
+    await sendMessage(chatId, 'Your resume was read but could not be saved. Please try again.')
+    return
+  }
+
+  await sendMessage(
+    chatId,
+    '✅ Resume saved! I have extracted your resume text.\n\nYou can now ask me to find matching jobs — for example: "Find me remote Python engineer roles"',
+  )
+}
+
+async function handleLinkCommand(
+  chatId: number,
+  telegramUserId: string,
+  text: string,
+): Promise<void> {
+  const rawToken = text.slice('/link'.length).trim()
+
+  if (!rawToken) {
+    await sendMessage(
+      chatId,
+      'Usage: /link <token>\n\nGenerate a link token from the ClawOS web app under Settings → Link Telegram Account.',
+    )
+    return
+  }
+
+  const result = await claimLinkToken(telegramUserId, rawToken)
+
+  if (result.ok) {
+    await sendMessage(
+      chatId,
+      '✅ Your Telegram account is now linked to your ClawOS web account. Your job history and profile are now shared across both channels.',
+    )
+    return
+  }
+
+  const messages: Record<string, string> = {
+    invalid_or_expired:
+      '❌ This link token is invalid or has expired (tokens are valid for 10 minutes). Please generate a new token from the ClawOS web app.',
+    already_linked:
+      '⚠️ Your Telegram account is already linked to a different ClawOS account. Contact support if you need to change this.',
+    internal_error: 'Something went wrong while linking your account. Please try again.',
+  }
+
+  await sendMessage(chatId, messages[result.reason] ?? 'Something went wrong. Please try again.')
+}
+
+// ── Main update dispatcher ────────────────────────────────────────────────────
+
+export async function handleUpdate(update: TelegramUpdate): Promise<void> {
+  const message = update.message
+  if (!message) return // Ignore non-message updates (callbacks, inline, etc.)
+
+  const chatId = message.chat.id
+  const telegramUserId = String(message.from?.id ?? chatId)
+
+  try {
+    const userId = await resolveOrCreateTelegramUser(telegramUserId)
+
+    if (message.text) {
+      const text = message.text.trim()
+
+      if (text === '/start') {
+        await sendMessage(
+          chatId,
+          'Welcome to ClawOS! 🦀\n\nI can help you find matching jobs based on your resume and preferences.\n\nTo get started:\n1. Upload your resume as a PDF\n2. Ask me to find jobs — e.g. "Find remote Python roles"\n\nType /help for more commands.',
+        )
+        return
+      }
+
+      if (text === '/help') {
+        await sendMessage(
+          chatId,
+          'ClawOS commands:\n\n/start — Welcome message\n/help — Show this message\n/link <token> — Link your Telegram to your web account\n\nYou can also:\n• Upload a PDF to set your resume\n• Ask me anything about job searching',
+        )
+        return
+      }
+
+      if (text.startsWith('/link')) {
+        await handleLinkCommand(chatId, telegramUserId, text)
+        return
+      }
+
+      await handleTextMessage(chatId, userId, text)
+      return
+    }
+
+    if (message.document) {
+      await handleDocumentUpload(chatId, userId, message.document)
+      return
+    }
+
+    await sendMessage(
+      chatId,
+      'I can process text messages and PDF resume uploads. Type /help for more info.',
+    )
+  } catch (err) {
+    console.error(
+      '[telegram] Error handling update:',
+      err instanceof Error ? err.message : String(err),
+    )
+
+    const userMsg =
+      err instanceof AgentApiError && err.code === 'TIMEOUT'
+        ? 'The job search is taking too long. Please try again in a moment.'
+        : 'Something went wrong. Please try again in a moment.'
+
+    try {
+      await sendMessage(chatId, userMsg)
+    } catch {
+      // sendMessage itself failed -- nothing more to do.
+    }
+  }
+}
+
+// ── Express app ───────────────────────────────────────────────────────────────
+
+export const app = express()
 app.use(express.json())
 
-// ── Health check — no auth ────────────────────────────────────────────────────
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'clawos-telegram', version: '0.1.0' })
 })
 
-// ── Webhook handler ───────────────────────────────────────────────────────────
 app.post('/webhook', (req: Request, res: Response) => {
-  // Step 1: validate Telegram secret token header
   const secretHeader = req.headers['x-telegram-bot-api-secret-token']
-  if (typeof secretHeader !== 'string' || !validateTelegramSecret(secretHeader)) {
+
+  if (typeof secretHeader !== 'string' || !validateWebhookSecret(secretHeader)) {
     res.status(401).json({ error: 'Invalid or missing signature' })
     return
   }
 
-  // Step 2: acknowledge receipt immediately (Telegram requires fast response)
+  // Acknowledge immediately -- Telegram requires a response within 5 seconds.
   res.json({ ok: true })
 
-  // TODO Chat 5: Determine update type (message, document, command)
-  // TODO Chat 5: Map telegram_user_id → Supabase user via channel_identities
-  // TODO Chat 5: Handle /link <token> command (account claim flow)
-  // TODO Chat 5: Normalize message → Agent API ChatRequest format
-  // TODO Chat 5: Extract resume text if document upload
-  // TODO Chat 5: POST to Agent API, deliver response back to user
-
-  const update = req.body as Record<string, unknown>
-  console.log('[telegram] Update received:', JSON.stringify(update).slice(0, 200))
+  void handleUpdate(req.body as TelegramUpdate).catch((err: unknown) => {
+    console.error(
+      '[telegram] Unhandled async error:',
+      err instanceof Error ? err.message : String(err),
+    )
+  })
 })
 
-// ── Unused var suppression — remove after Chat 5 ─────────────────────────────
-const _hmac = createHmac // imported for use in Chat 5 full implementation
+// ── Start ─────────────────────────────────────────────────────────────────────
 
-// ── Server ────────────────────────────────────────────────────────────────────
-const port = Number(process.env.PORT ?? 3003)
-app.listen(port, () => {
-  console.log(`[telegram] ClawOS Telegram adapter running on http://localhost:${port}`)
-  console.log(`[telegram] Webhook endpoint: POST http://localhost:${port}/webhook`)
-})
+if (process.env['VITEST'] !== 'true') {
+  const port = ENV.PORT
+  app.listen(port, () => {
+    console.log(`[telegram] ClawOS Telegram adapter running on http://localhost:${port}`)
+    console.log(`[telegram] Webhook endpoint: POST http://localhost:${port}/webhook`)
+  })
+}

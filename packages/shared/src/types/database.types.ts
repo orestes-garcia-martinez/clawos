@@ -9,6 +9,38 @@ export type Database = {
   public: {
     Tables: {
       // ── Platform tables (skill-agnostic) ─────────────────────────────────
+      link_tokens: {
+        Row: {
+          id: string
+          token_hash: string
+          web_user_id: string
+          expires_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          token_hash: string
+          web_user_id: string
+          expires_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          token_hash?: string
+          web_user_id?: string
+          expires_at?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'link_tokens_web_user_id_fkey'
+            columns: ['web_user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       channel_identities: {
         Row: {
           channel: string
