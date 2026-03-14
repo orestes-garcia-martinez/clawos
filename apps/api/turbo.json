@@ -2,6 +2,9 @@
   "$schema": "https://turbo.build/schema.json",
   "extends": ["//"],
   "tasks": {
+    "build": {
+      "inputs": ["src/**", "api/**", "tsconfig.json", "package.json"]
+    },
     "test": {
       "outputs": ["coverage/**"]
     }
