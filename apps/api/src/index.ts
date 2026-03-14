@@ -16,7 +16,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
-import { handle } from '@hono/node-server/vercel'
 import { ENV } from './env.js'
 import { requireAuth } from './auth.js'
 import { rateLimit } from './rate-limit.js'
@@ -65,6 +64,8 @@ app.post('/chat', requireAuth(), rateLimit(), chatHandler)
 // ── Server (local dev + Lightsail) ───────────────────────────────────────────
 // Vercel uses the default export (app.fetch) — this block is skipped there.
 
+// Guard: only start the Node.js server when running locally.
+// Vercel uses @vercel/node which handles the adapter — serve() not needed there.
 if (!process.env['VERCEL']) {
   const port = ENV.PORT
   serve({ fetch: app.fetch, port }, (info) => {
@@ -72,5 +73,6 @@ if (!process.env['VERCEL']) {
   })
 }
 
+// Named export for tests. Default export used by @vercel/node.
 export { app }
-export default handle(app)
+export default app

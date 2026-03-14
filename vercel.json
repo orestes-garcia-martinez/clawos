@@ -1,11 +1,13 @@
 {
   "version": 2,
-  "installCommand": "npm ci",
-  "buildCommand": "npm run build --workspace=packages/shared --workspace=packages/security --workspace=packages/billing && npm run build --workspace=apps/api",
-  "functions": {
-    "apps/api/dist/index.js": {
-      "maxDuration": 30
+  "builds": [
+    {
+      "src": "apps/api/src/index.ts",
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 30
+      }
     }
-  },
-  "routes": [{ "src": "/(.*)", "dest": "/apps/api/dist/index.js" }]
+  ],
+  "routes": [{ "src": "/(.*)", "dest": "apps/api/src/index.ts" }]
 }
