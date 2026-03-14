@@ -38,4 +38,9 @@ export const ENV = {
 
   // CORS
   ALLOWED_ORIGIN: process.env['ALLOWED_ORIGIN'] ?? 'http://localhost:5173',
+
+  // Service-to-service auth — trusted internal adapters (Telegram, WhatsApp)
+  // Generate with: openssl rand -hex 32
+  // Must match SERVICE_SECRET in each channel adapter's env.
+  SERVICE_SECRET: optionalEnv('SERVICE_SECRET'),
 } as const
