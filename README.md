@@ -107,6 +107,11 @@ Add these at `Settings → Secrets and variables → Actions`:
 
 ---
 
+
+## Vercel (API in monorepo)
+
+Use the root deployment guide for the API project: `docs/vercel-api-monorepo-deployment.md`.
+
 ## Lightsail SSH
 
 ```bash
