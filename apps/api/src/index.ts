@@ -31,7 +31,14 @@ app.use(
   cors({
     origin: ENV.ALLOWED_ORIGIN,
     allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Channel'],
+    allowHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Channel',
+      'X-Service-Secret',
+      'X-Service-Name',
+      'X-User-Id',
+    ],
     exposeHeaders: ['Content-Type'],
   }),
 )
@@ -57,10 +64,11 @@ app.post('/chat', requireAuth(), rateLimit(), chatHandler)
 // ── Server (local dev + Lightsail) ───────────────────────────────────────────
 // Vercel uses the default export (app.fetch) — this block is skipped there.
 
-const port = ENV.PORT
-
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`[api] ClawOS Agent API running on http://localhost:${info.port}`)
-})
+if (!process.env['VERCEL']) {
+  const port = ENV.PORT
+  serve({ fetch: app.fetch, port }, (info) => {
+    console.log(`[api] ClawOS Agent API running on http://localhost:${info.port}`)
+  })
+}
 
 export default app
