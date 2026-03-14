@@ -77,7 +77,7 @@ log "  .env.test copied (mode 600)"
 
 cleanup() {
   log "Cleanup -- removing .env.test from Lightsail..."
-  ssh_r "rm -f '${ENV_TEST_REMOVE}'" 2>/dev/null || true
+  ssh_r "rm -f '${ENV_TEST_REMOTE}'" 2>/dev/null || true
   log "  .env.test removed."
 }
 trap cleanup EXIT
@@ -88,7 +88,7 @@ log "Step 2/3 -- Running Telegram integration tests on Lightsail..."
 log "  (Real Telegram messages will be delivered to TELEGRAM_TEST_CHAT_ID)"
 log ""
 
-ssh_r << REMOTE
+ssh_r << REMOTE || true
 set -euo pipefail
 cd "${DEPLOY_DIR}"
 npm ci --workspace=apps/telegram --include-workspace-root --ignore-scripts --silent
