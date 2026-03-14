@@ -9,10 +9,5 @@
       }
     }
   ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "apps/api/src/index.ts"
-    }
-  ]
+  "routes": [{ "src": "/(.*)", "dest": "apps/api/src/index.ts" }]
 }

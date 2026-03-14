@@ -64,6 +64,8 @@ app.post('/chat', requireAuth(), rateLimit(), chatHandler)
 // ── Server (local dev + Lightsail) ───────────────────────────────────────────
 // Vercel uses the default export (app.fetch) — this block is skipped there.
 
+// Guard: only start the Node.js server when running locally.
+// Vercel uses @vercel/node which handles the adapter — serve() not needed there.
 if (!process.env['VERCEL']) {
   const port = ENV.PORT
   serve({ fetch: app.fetch, port }, (info) => {
@@ -71,4 +73,6 @@ if (!process.env['VERCEL']) {
   })
 }
 
+// Named export for tests. Default export used by @vercel/node.
+export { app }
 export default app

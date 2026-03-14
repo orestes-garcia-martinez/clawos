@@ -74,7 +74,7 @@ vi.mock('./env.js', () => ({
 }))
 
 // Import app AFTER mocks are wired
-const { default: app } = await import('./index.js')
+const { app } = await import('./index.js')
 const { _resetRateLimitStore } = await import('./rate-limit.js')
 
 // Reset rate limit store before every test to prevent cross-test contamination
