@@ -82,10 +82,10 @@ describe.skipIf(missingVars.length > 0)(
     // Unique synthetic Telegram user ID per test run.
     // Using a numeric string that fits Telegram's int64 user ID space.
     // This creates a throw-away tg_<id>@clawos.internal Supabase user.
-    const SYNTHETIC_TG_USER_ID = String(900_000_000_000 + Date.now() % 1_000_000_000)
+    const SYNTHETIC_TG_USER_ID = String(900_000_000_000 + (Date.now() % 1_000_000_000))
 
     // Separate synthetic Telegram user ID for the /link test.
-    const LINK_TG_USER_ID = String(800_000_000_000 + Date.now() % 1_000_000_000)
+    const LINK_TG_USER_ID = String(800_000_000_000 + (Date.now() % 1_000_000_000))
 
     // Supabase UUIDs populated in beforeAll for cleanup.
     let syntheticUserId = ''
@@ -145,7 +145,7 @@ describe.skipIf(missingVars.length > 0)(
       if (!identity) {
         throw new Error(
           `beforeAll: channel_identity not found for tg:${SYNTHETIC_TG_USER_ID}. ` +
-          'Check Supabase logs and SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY.',
+            'Check Supabase logs and SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY.',
         )
       }
 
@@ -154,19 +154,17 @@ describe.skipIf(missingVars.length > 0)(
       // Seed a careerclaw_profiles row so the Agent API has profile + resume data
       // when Claude invokes the CareerClaw tool. This mirrors the data the curl
       // test uses directly -- no PDF upload needed.
-      const { error: profileError } = await supabase
-        .from('careerclaw_profiles')
-        .upsert(
-          {
-            user_id: syntheticUserId,
-            resume_text:
-              'Senior Software Engineer with 10 years of TypeScript, React, and Node.js experience. ' +
-              'Led distributed systems teams, shipped production APIs at scale, strong preference for remote work.',
-            work_mode: 'remote',
-            salary_min: 140000,
-          },
-          { onConflict: 'user_id' },
-        )
+      const { error: profileError } = await supabase.from('careerclaw_profiles').upsert(
+        {
+          user_id: syntheticUserId,
+          resume_text:
+            'Senior Software Engineer with 10 years of TypeScript, React, and Node.js experience. ' +
+            'Led distributed systems teams, shipped production APIs at scale, strong preference for remote work.',
+          work_mode: 'remote',
+          salary_min: 140000,
+        },
+        { onConflict: 'user_id' },
+      )
 
       if (profileError) {
         throw new Error(`beforeAll: failed to seed careerclaw_profiles: ${profileError.message}`)
@@ -193,9 +191,7 @@ describe.skipIf(missingVars.length > 0)(
       // careerclaw_profiles, careerclaw_runs, careerclaw_job_tracking, link_tokens.
       // No manual row cleanup needed.
       const toDelete = [syntheticUserId, linkTgUserId, webUserId].filter(Boolean)
-      await Promise.allSettled(
-        toDelete.map((id) => supabase.auth.admin.deleteUser(id)),
-      )
+      await Promise.allSettled(toDelete.map((id) => supabase.auth.admin.deleteUser(id)))
     })
 
     // ── Tests ─────────────────────────────────────────────────────────────────
@@ -333,9 +329,7 @@ describe.skipIf(missingVars.length > 0)(
       expect(insertError).toBeNull()
 
       // 4. Process the /link command with the real raw token.
-      await handleUpdate(
-        textUpdate(Number(LINK_TG_USER_ID), `/link ${rawToken}`),
-      )
+      await handleUpdate(textUpdate(Number(LINK_TG_USER_ID), `/link ${rawToken}`))
 
       // 5. Verify the token was consumed -- no row should remain.
       const { data: remainingToken } = await supabase
