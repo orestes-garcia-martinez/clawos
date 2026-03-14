@@ -313,7 +313,10 @@ describe('claimLinkToken', () => {
     if (!result.ok) expect(result.reason).toBe('invalid_or_expired')
   })
 
-  it('returns already_linked when Telegram user is linked to a different account', async () => {
+  it('re-links a Telegram user already pointing to a provisional identity (upserts unconditionally)', async () => {
+    // Valid token for web-A. Telegram user currently has a provisional identity
+    // pointing to a different UUID (created on first /start). With a valid token,
+    // link.ts must always upsert -- no already_linked bail-out.
     const supabase = buildSupabaseMock()
     const deleteChain = {
       eq: vi.fn().mockReturnValue({
@@ -322,27 +325,27 @@ describe('claimLinkToken', () => {
         }),
       }),
     }
-    // channel_identities lookup returns a different user
-    const maybeSingle = vi.fn().mockResolvedValue({ data: { user_id: 'web-B' }, error: null })
-    const eq2 = vi.fn().mockReturnValue({ maybeSingle })
-    const eq1 = vi.fn().mockReturnValue({ eq: eq2 })
+    const upsert = vi.fn().mockResolvedValue({ error: null })
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === 'link_tokens')
         return { delete: vi.fn().mockReturnValue(deleteChain) } as ReturnType<
           TypedSupabaseClient['from']
         >
-      return { select: vi.fn().mockReturnValue({ eq: eq1 }) } as ReturnType<
-        TypedSupabaseClient['from']
-      >
+      return { upsert } as ReturnType<TypedSupabaseClient['from']>
     })
     mockCreateServerClient.mockReturnValue(supabase)
 
     const result = await claimLinkToken('tg-789', 'a-token')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.reason).toBe('already_linked')
+    expect(result.ok).toBe(true)
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: 'web-A', channel_user_id: 'tg-789' }),
+      expect.any(Object),
+    )
   })
 
   it('is idempotent when Telegram is already linked to the same web account', async () => {
+    // Token for same-uuid. The upsert is called regardless -- Supabase handles
+    // the no-op update. Result must be ok: true.
     const supabase = buildSupabaseMock()
     const deleteChain = {
       eq: vi.fn().mockReturnValue({
@@ -351,22 +354,22 @@ describe('claimLinkToken', () => {
         }),
       }),
     }
-    const maybeSingle = vi.fn().mockResolvedValue({ data: { user_id: 'same-uuid' }, error: null })
-    const eq2 = vi.fn().mockReturnValue({ maybeSingle })
-    const eq1 = vi.fn().mockReturnValue({ eq: eq2 })
+    const upsert = vi.fn().mockResolvedValue({ error: null })
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === 'link_tokens')
         return { delete: vi.fn().mockReturnValue(deleteChain) } as ReturnType<
           TypedSupabaseClient['from']
         >
-      return { select: vi.fn().mockReturnValue({ eq: eq1 }) } as ReturnType<
-        TypedSupabaseClient['from']
-      >
+      return { upsert } as ReturnType<TypedSupabaseClient['from']>
     })
     mockCreateServerClient.mockReturnValue(supabase)
 
     const result = await claimLinkToken('tg-same', 'a-token')
     expect(result.ok).toBe(true)
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: 'same-uuid', channel_user_id: 'tg-same' }),
+      expect.any(Object),
+    )
   })
 })
 

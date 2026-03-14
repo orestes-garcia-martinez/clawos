@@ -9,7 +9,6 @@
  *   POST /billing/webhook      — Polar.sh webhook handler
  *   POST /billing/force-sync   — Admin tier sync endpoint
  *
- * Exported as `app` for Vercel serverless (vercel.json routes all to this).
  * Also starts a local @hono/node-server when run directly.
  */
 
