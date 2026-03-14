@@ -8,8 +8,9 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "npm run build --workspace=packages/shared --workspace=packages/security --workspace=packages/billing",
-    "build": "turbo run build",
+    "build:packages": "npm run build --workspace=packages/shared --workspace=packages/security --workspace=packages/billing",
+    "postinstall": "npm run build:packages",
+    "build": "npm run build:packages && turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

@@ -39,3 +39,6 @@ yarn-error.log*
 
 # TypeScript incremental
 *.tsbuildinfo
+packages/shared/tsconfig.tsbuildinfo
+packages/security/tsconfig.tsbuildinfo
+packages/billing/tsconfig.tsbuildinfo
