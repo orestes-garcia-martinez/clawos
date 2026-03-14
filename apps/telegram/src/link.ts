@@ -63,26 +63,18 @@ export async function claimLinkToken(
 
   const webUserId = tokenRow.web_user_id
 
-  // 3. Check if this Telegram user already has a channel_identity.
-  const { data: existing } = await supabase
-    .from('channel_identities')
-    .select('user_id')
-    .eq('channel', 'telegram')
-    .eq('channel_user_id', telegramUserId)
-    .maybeSingle()
-
-  if (existing) {
-    if (existing.user_id === webUserId) {
-      // Already linked to the same account -- idempotent success.
-      return { ok: true }
-    }
-    // Linked to a different account -- cannot merge here.
-    return { ok: false, reason: 'already_linked' }
-  }
-
-  // 4. Merge: update or insert the channel_identities row to point to webUserId.
-  //    The Telegram user may have a provisional identity from a first-message creation
-  //    (tg_<id>@clawos.internal). We update that row to point to the web user.
+  // 3. Merge: upsert channel_identities to point to webUserId.
+  //
+  //    A valid token is proof the web user authorised this link -- we always
+  //    update regardless of what the row currently points to.
+  //
+  //    Cases handled by the single upsert:
+  //      a) No existing row (Telegram user never sent /start) -- INSERT.
+  //      b) Provisional row from /start (tg_<id>@clawos.internal user) -- UPDATE.
+  //      c) Already points to webUserId -- idempotent UPDATE (no-op in practice).
+  //
+  //    The token is single-use and HMAC-signed, so presenting a valid token is
+  //    sufficient authorisation to (re-)assign the Telegram identity.
   const { error: upsertError } = await supabase
     .from('channel_identities')
     .upsert(
