@@ -36,10 +36,11 @@ create table public.link_tokens (
   created_at  timestamptz not null default now()
 );
 
--- Index for the atomic DELETE by hash + expiry check.
+-- Index for fast lookups by token_hash.
+-- The expiry filter (expires_at > now()) is applied in the query, not here --
+-- partial index predicates require IMMUTABLE functions and now() is STABLE.
 create index link_tokens_hash_idx
-  on public.link_tokens (token_hash)
-  where expires_at > now();
+  on public.link_tokens (token_hash);
 
 -- RLS: enabled. No user-facing policies — service role only.
 -- Web server and Telegram bot both use SUPABASE_SERVICE_ROLE_KEY which
