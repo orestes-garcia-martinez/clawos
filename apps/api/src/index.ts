@@ -61,17 +61,13 @@ app.post('/chat', requireAuth(), rateLimit(), chatHandler)
 // TODO Chat 7: POST /billing/force-sync
 
 // ── Server (local dev + Lightsail) ───────────────────────────────────────────
-// Vercel uses the default export (app.fetch) — this block is skipped there.
 
-// Guard: only start the Node.js server when running locally.
-// Vercel uses @vercel/node which handles the adapter — serve() not needed there.
-if (!process.env['VERCEL']) {
+if (process.env['VITEST'] !== 'true') {
   const port = ENV.PORT
   serve({ fetch: app.fetch, port }, (info) => {
     console.log(`[api] ClawOS Agent API running on http://localhost:${info.port}`)
   })
 }
 
-// Named export for tests. Default export used by @vercel/node.
 export { app }
 export default app
