@@ -1,0 +1,46 @@
+[Unit]
+Description=ClawOS Agent API
+Documentation=https://github.com/orestes-garcia-martinez/clawos
+After=network.target
+# Start after the skill worker -- API calls the worker for job-search requests.
+Requires=clawos-worker.service
+
+[Service]
+Type=simple
+
+# ── Security: non-root execution ──────────────────────────────────────────────
+# Agent API must never run as root.
+User=clawos-admin
+Group=clawos-admin
+
+# ── Working directory and binary ──────────────────────────────────────────────
+WorkingDirectory=/home/clawos-admin/clawos/apps/api
+ExecStart=/usr/bin/node dist/index.js
+
+# ── Environment ───────────────────────────────────────────────────────────────
+# Secrets loaded from env file, never hardcoded here.
+EnvironmentFile=/home/clawos-admin/clawos/apps/api/.env
+
+# ── Restart policy ────────────────────────────────────────────────────────────
+Restart=on-failure
+RestartSec=5s
+# Prevent restart loops from hammering the system.
+StartLimitIntervalSec=60s
+StartLimitBurst=3
+
+# ── Hardening ─────────────────────────────────────────────────────────────────
+NoNewPrivileges=true
+ProtectSystem=strict
+# /home/clawos-admin is readable for the deploy dir.
+ReadWritePaths=/home/clawos-admin/clawos/apps/api
+PrivateTmp=true
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# JSON audit entries go to stdout -> journald.
+# View with: journalctl -u clawos-api -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clawos-api
+
+[Install]
+WantedBy=multi-user.target
