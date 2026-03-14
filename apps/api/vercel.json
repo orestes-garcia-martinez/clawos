@@ -1,9 +1,10 @@
 {
   "version": 2,
+  "outputDirectory": ".",
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api/index"
     }
   ],
   "functions": {
