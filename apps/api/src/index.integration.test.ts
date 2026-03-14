@@ -138,7 +138,7 @@ describe.skipIf(missingVars.length > 0)('Agent API -- direct text path (integrat
 
   // Import app after env is confirmed present
   async function getApp() {
-    const { default: app } = await import('./index.js')
+    const { app } = await import('./index.js')
     return app
   }
 

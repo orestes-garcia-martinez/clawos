@@ -16,6 +16,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
+import { handle } from '@hono/node-server/vercel'
 import { ENV } from './env.js'
 import { requireAuth } from './auth.js'
 import { rateLimit } from './rate-limit.js'
@@ -71,4 +72,5 @@ if (!process.env['VERCEL']) {
   })
 }
 
-export default app
+export { app }
+export default handle(app)
