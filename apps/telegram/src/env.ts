@@ -11,6 +11,11 @@
 function requireEnv(key: string): string {
   const val = process.env[key]
   if (!val) {
+    // In test environments, return an empty string so the module can be imported.
+    // Integration tests use describe.skipIf to skip the suite when vars are missing.
+    if (process.env['VITEST']) {
+      return ''
+    }
     console.error(`[telegram] Fatal: required environment variable "${key}" is not set. Exiting.`)
     process.exit(1)
   }

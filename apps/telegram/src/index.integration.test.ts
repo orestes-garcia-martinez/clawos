@@ -63,18 +63,13 @@ const missingVars = REQUIRED_VARS.filter((v) => !process.env[v])
 describe.skipIf(missingVars.length > 0)(
   'Telegram adapter -- integration (all real outbound calls)',
   () => {
-    if (missingVars.length > 0) {
-      throw new Error(`Missing env vars: ${missingVars.join(', ')}`)
-    }
-
     // ── Supabase admin client ─────────────────────────────────────────────────
     // Service role key bypasses RLS -- used only for test setup and teardown.
+    // Initialised in beforeAll so createClient is not called during collection
+    // when env vars are absent (describe.skipIf skips execution, not collection).
 
-    const supabase = createClient(
-      process.env['SUPABASE_URL']!,
-      process.env['SUPABASE_SERVICE_ROLE_KEY']!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
-    )
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let supabase: ReturnType<typeof createClient> = null as any
 
     // Real Telegram chat ID where messages will be delivered during the test.
     const REAL_CHAT_ID = Number(process.env['TELEGRAM_TEST_CHAT_ID'])
@@ -129,6 +124,14 @@ describe.skipIf(missingVars.length > 0)(
     // ── Setup ─────────────────────────────────────────────────────────────────
 
     beforeAll(async () => {
+      // Initialise Supabase client here, not at describe-level, so that
+      // createClient is only called when tests actually run (not during collection).
+      supabase = createClient(
+        process.env['SUPABASE_URL']!,
+        process.env['SUPABASE_SERVICE_ROLE_KEY']!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      )
+
       // Pre-warm: create the synthetic user via a /start command so identity
       // resolution is done before the main tests. This also verifies the
       // full auth.users -> users trigger chain in Supabase.
