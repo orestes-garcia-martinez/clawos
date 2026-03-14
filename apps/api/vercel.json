@@ -1,7 +1,7 @@
 {
   "version": 2,
   "outputDirectory": ".",
-  "buildCommand": "cd ../.. && TURBO_FORCE=1 npm run build:packages && npm run build --workspace=apps/api",
+  "buildCommand": "cd ../.. && npm run build:packages && npm run build --workspace=apps/api",
   "rewrites": [
     {
       "source": "/(.*)",

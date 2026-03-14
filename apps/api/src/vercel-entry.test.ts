@@ -7,7 +7,7 @@ describe('Vercel entrypoint', () => {
     const entrypointPath = join(process.cwd(), 'api', 'index.js')
     const source = readFileSync(entrypointPath, 'utf8')
 
-    expect(source).toContain("../dist/index.js")
+    expect(source).toContain('../dist/index.js')
     expect(source).not.toContain('../src/index')
   })
 })
