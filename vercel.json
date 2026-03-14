@@ -3,14 +3,14 @@
   "version": 2,
   "buildCommand": "npm run build",
   "functions": {
-    "apps/api/src/index.ts": {
+    "api/**/*.ts": {
       "maxDuration": 30
     }
   },
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "apps/api/src/index.ts"
+      "destination": "/api/index"
     }
   ]
 }
