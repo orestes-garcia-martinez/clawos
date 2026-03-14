@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Zod schemas, rate limiting config, and audit logging for ClawOS",
-  "main": "./src/index.ts",
+  "main": "./dist/index.ts",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
