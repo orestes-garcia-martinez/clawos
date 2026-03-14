@@ -1,0 +1,58 @@
+# Vercel deployment guide (monorepo API)
+
+This repository uses npm workspaces (`apps/*`, `packages/*`). The API workspace (`apps/api`) depends on local packages (`@clawos/shared`, `@clawos/security`, `@clawos/billing`), so the deployment must run with monorepo context.
+
+## Recommended setup for the API Vercel project
+
+1. In Vercel, create a **separate project for the API**.
+2. Point it to this repository.
+3. Set **Root Directory** to `apps/api`.
+4. Keep **Install Command** as `npm ci`.
+5. Leave **Build Command** empty (functions-first deployment).
+6. If possible, leave **Output Directory** empty.
+   - If your Vercel project is currently pinned to `public`, this repo now includes `apps/api/public/.gitkeep` and sets `outputDirectory: "public"` in `apps/api/vercel.json` so builds do not fail while you migrate settings.
+7. Ensure the project uses `apps/api/vercel.json` (single source of truth).
+
+## Why this works
+
+- Vercel reads config from `apps/api/vercel.json`, so API routing/runtime rules are scoped to the API project only.
+- Routes in `apps/api/vercel.json` send all requests to `api/index.ts`.
+- The serverless entry uses the Hono Node adapter (`@hono/node-server/vercel`) with `runtime: nodejs`.
+
+## If deploy still fails
+
+Collect and share these log lines:
+
+- Install phase errors (`npm ci` output)
+- Build/function tracing errors
+- Runtime errors from `/health`
+
+The first failing phase usually identifies whether the issue is:
+
+- workspace dependency resolution,
+- function entry routing,
+- or runtime environment variables.
+
+
+## Legacy `public` output directory failure
+
+If deploy logs say `No Output Directory named "public" found`, your Vercel project still expects a static build output.
+
+This PR hardens API deploys by:
+
+- explicitly setting `outputDirectory` to `public` in `apps/api/vercel.json`,
+- committing `apps/api/public/.gitkeep`, and
+- using `@vercel/node` build + route mapping for `api/index.ts`.
+
+This keeps serverless API deploys working even before project settings are fully cleaned up.
+
+
+## Why only one `vercel.json`
+
+Having both a root `vercel.json` and `apps/api/vercel.json` is ambiguous and can lead to confusion across projects in the monorepo.
+
+This repository now keeps API deployment config only in `apps/api/vercel.json` so:
+
+- the API Vercel project has one clear config source,
+- route/function settings are scoped to the API app, and
+- root-level projects (like web) are not affected by API-specific rewrites.
