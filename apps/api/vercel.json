@@ -1,6 +1,7 @@
 {
   "version": 2,
   "outputDirectory": ".",
+  "buildCommand": "cd ../.. && npm run build:packages && npm run build --workspace=apps/api",
   "rewrites": [
     {
       "source": "/(.*)",
