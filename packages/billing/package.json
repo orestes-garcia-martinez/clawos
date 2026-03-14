@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Polar.sh billing client stub",
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -11,6 +12,9 @@
       "default": "./dist/index.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src",
@@ -21,6 +25,7 @@
     "@clawos/shared": "*"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "typescript": "*",
     "vitest": "^3.0.0"
   }
