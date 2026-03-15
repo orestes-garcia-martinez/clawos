@@ -97,6 +97,7 @@ export function chatSSE(
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let receivedTerminalEvent = false
 
     try {
       while (true) {
@@ -122,9 +123,20 @@ export function chatSSE(
           }
 
           if (event.type === 'progress') handlers.onProgress(event)
-          else if (event.type === 'done') handlers.onDone(event)
-          else if (event.type === 'error') handlers.onError(event)
+          else if (event.type === 'done') {
+            receivedTerminalEvent = true
+            handlers.onDone(event)
+          } else if (event.type === 'error') {
+            receivedTerminalEvent = true
+            handlers.onError(event)
+          }
         }
+      }
+
+      // Stream ended without a terminal done/error event — treat as network failure
+      // so the UI exits streaming state.
+      if (!receivedTerminalEvent) {
+        handlers.onNetworkError(new Error('Stream ended without a terminal event'))
       }
     } catch (err) {
       if ((err as { name?: string }).name !== 'AbortError') {
