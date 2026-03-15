@@ -40,7 +40,10 @@ export const ENV = {
   ALLOWED_ORIGIN: process.env['ALLOWED_ORIGIN'] ?? 'http://localhost:5173',
 
   // Service-to-service auth — trusted internal adapters (Telegram, WhatsApp)
-  // Generate with: openssl rand -hex 32
-  // Must match SERVICE_SECRET in each channel adapter's env.
   SERVICE_SECRET: optionalEnv('SERVICE_SECRET'),
+
+  // Telegram account-linking token secret (server-side only, never sent to browser)
+  // Generate with: openssl rand -hex 32
+  // Must match LINK_TOKEN_SECRET in apps/telegram/.env
+  LINK_TOKEN_SECRET: optionalEnv('LINK_TOKEN_SECRET'),
 } as const

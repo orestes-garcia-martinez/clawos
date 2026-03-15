@@ -14,14 +14,17 @@
   },
   "dependencies": {
     "@clawos/shared": "*",
+    "@supabase/supabase-js": "^2.49.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.1.4",
+    "msw": "^2.12.10",
     "tailwindcss": "^4.0.0",
     "typescript": "*",
     "vite": "^7.3.1",
