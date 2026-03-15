@@ -2,14 +2,14 @@
  * index.ts — ClawOS Agent API entry point.
  *
  * Routes:
- *   GET  /health          — public health check
- *   POST /chat            — main agent endpoint (auth + rate limit + SSE)
+ *   GET  /health              — public health check
+ *   POST /chat                — main agent endpoint (auth + rate limit + SSE)
+ *   POST /resume/extract      — PDF text extraction for web client (Chat 6)
+ *   POST /link-token          — generate Telegram linking token (Chat 6)
  *
  * Chat 7 will add:
  *   POST /billing/webhook      — Polar.sh webhook handler
  *   POST /billing/force-sync   — Admin tier sync endpoint
- *
- * Also starts a local @hono/node-server when run directly.
  */
 
 import { Hono } from 'hono'
@@ -19,6 +19,8 @@ import { ENV } from './env.js'
 import { requireAuth } from './auth.js'
 import { rateLimit } from './rate-limit.js'
 import { chatHandler } from './routes/chat.js'
+import { resumeExtractHandler } from './routes/resume.js'
+import { linkTokenHandler } from './routes/link-token.js'
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
@@ -55,6 +57,14 @@ app.get('/health', (c) => {
 // ── POST /chat — main agent endpoint ─────────────────────────────────────────
 // Auth → rate limit → SSE handler
 app.post('/chat', requireAuth(), rateLimit(), chatHandler)
+
+// ── POST /resume/extract — PDF text extraction (web client) ───────────────────
+// Auth required; no rate limit separate from /chat for MVP.
+app.post('/resume/extract', requireAuth(), resumeExtractHandler)
+
+// ── POST /link-token — Telegram account linking ───────────────────────────────
+// Auth required. Generates a single-use 10-min HMAC token.
+app.post('/link-token', requireAuth(), linkTokenHandler)
 
 // ── Stubs — Chat 7 (Billing) ──────────────────────────────────────────────────
 // TODO Chat 7: POST /billing/webhook
