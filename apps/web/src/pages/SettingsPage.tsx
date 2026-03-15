@@ -252,6 +252,7 @@ function ResumeSection({ userId }: { userId: string }): JSX.Element {
   const [loading, setLoading] = useState(true)
   const [clearing, setClearing] = useState(false)
   const [cleared, setCleared] = useState(false)
+  const [error, setError] = useState('')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -272,9 +273,20 @@ function ResumeSection({ userId }: { userId: string }): JSX.Element {
 
   async function handleClear() {
     setClearing(true)
-    await supabase.from('careerclaw_profiles').update({ resume_text: null }).eq('user_id', userId)
-    setResumeText(null)
+    setError('')
+    const { error } = await supabase
+      .from('careerclaw_profiles')
+      .update({ resume_text: null })
+      .eq('user_id', userId)
+
     setClearing(false)
+
+    if (error) {
+      setError('Could not clear resume. Please try again.')
+      return
+    }
+
+    setResumeText(null)
     setCleared(true)
     setTimeout(() => setCleared(false), 2500)
   }
@@ -299,6 +311,11 @@ function ResumeSection({ userId }: { userId: string }): JSX.Element {
           <p className="text-[11px] font-mono text-text-muted">
             {resumeText.length.toLocaleString()} characters stored
           </p>
+          {error && (
+            <p className="text-xs text-danger" role="alert">
+              {error}
+            </p>
+          )}
           <button
             onClick={() => {
               void handleClear()

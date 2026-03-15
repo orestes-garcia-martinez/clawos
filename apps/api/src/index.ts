@@ -14,6 +14,7 @@
 
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { bodyLimit } from 'hono/body-limit'
 import { serve } from '@hono/node-server'
 import { ENV } from './env.js'
 import { requireAuth } from './auth.js'
@@ -60,7 +61,12 @@ app.post('/chat', requireAuth(), rateLimit(), chatHandler)
 
 // ── POST /resume/extract — PDF text extraction (web client) ───────────────────
 // Auth required; no rate limit separate from /chat for MVP.
-app.post('/resume/extract', requireAuth(), resumeExtractHandler)
+app.post(
+  '/resume/extract',
+  requireAuth(),
+  bodyLimit({ maxSize: 6 * 1024 * 1024 }), // ~6 MB to allow multipart overhead on a 5 MB PDF
+  resumeExtractHandler,
+)
 
 // ── POST /link-token — Telegram account linking ───────────────────────────────
 // Auth required. Generates a single-use 10-min HMAC token.
