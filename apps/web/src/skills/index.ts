@@ -1,19 +1,26 @@
 /**
  * skills/index.ts — ClawOS skill registry.
  *
- * Each SkillDefinition owns:
+ * Each SkillDefinition describes a first-party skill's static metadata:
  *   - identity (key, name, status)
  *   - hero content (title, body)
  *   - workspace navigation items
  *   - quick action suggestions
  *   - composer placeholder copy
  *
- * The platform shell is never hard-coded to CareerClaw.
- * Adding a new skill = add a new entry here.
+ * STATUS MODEL:
+ *   'available'   — can be installed by users right now
+ *   'coming_soon' — not yet installable; shown in Add Skills with a badge
+ *   'waitlist'    — user can join a waitlist (Phase 2)
+ *
+ * User installation state lives in the user_skills Supabase table and is
+ * surfaced via SkillsContext. Do not add per-user state here.
+ *
+ * Adding a new skill = add an entry to SKILLS and SKILL_MAP.
  */
 
 export type SkillKey = 'careerclaw' | 'scrapeclaw' | 'investclaw'
-export type SkillStatus = 'active' | 'installed' | 'coming_soon'
+export type SkillStatus = 'available' | 'coming_soon' | 'waitlist'
 
 export interface QuickAction {
   label: string
@@ -30,7 +37,9 @@ export interface SkillDefinition {
   key: SkillKey
   name: string
   version?: string
+  /** Platform-wide availability — not per-user installation state. */
   status: SkillStatus
+  description: string
   heroTitle: string
   heroBody: string
   trustSignal: string
@@ -45,7 +54,8 @@ const careerclaw: SkillDefinition = {
   key: 'careerclaw',
   name: 'CareerClaw',
   version: 'v1.0.4',
-  status: 'active',
+  status: 'available',
+  description: 'Job search automation',
   heroTitle: 'Ready to hunt.',
   heroBody:
     'CareerClaw finds best-fit jobs, scores them against your profile, and drafts personalised outreach — all from a single command.',
@@ -80,7 +90,8 @@ const careerclaw: SkillDefinition = {
 const scrapeclaw: SkillDefinition = {
   key: 'scrapeclaw',
   name: 'ScrapeClaw',
-  status: 'installed',
+  status: 'coming_soon',
+  description: 'Web monitoring & extraction',
   heroTitle: 'Monitor the web with precision.',
   heroBody:
     'ScrapeClaw tracks target pages, extracts structured fields, and alerts you when something changes — inside the same ClawOS shell.',
@@ -104,6 +115,7 @@ const investclaw: SkillDefinition = {
   key: 'investclaw',
   name: 'InvestClaw',
   status: 'coming_soon',
+  description: 'Investing workflow assistant',
   heroTitle: 'Signal over noise.',
   heroBody:
     'InvestClaw will summarise watchlists, surface movements, and organise market signals without breaking the ClawOS platform shell.',

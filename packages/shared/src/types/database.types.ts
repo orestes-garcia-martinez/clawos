@@ -139,6 +139,51 @@ export type Database = {
         Relationships: []
       }
 
+      user_skills: {
+        Row: {
+          id: string
+          user_id: string
+          skill_slug: string
+          status: string
+          installed_at: string
+          last_used_at: string | null
+          is_default: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          skill_slug: string
+          status?: string
+          installed_at?: string
+          last_used_at?: string | null
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          skill_slug?: string
+          status?: string
+          installed_at?: string
+          last_used_at?: string | null
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'user_skills_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+
       // ── CareerClaw skill tables (skill-owned, prefixed) ──────────────────
       // A user with no CareerClaw activity has zero careerclaw_* rows.
       // Adding ScrapeClaw = new scrapeclaw_* tables, zero changes here.

@@ -3,21 +3,24 @@
  *
  * Owns:
  *   - Brand/status area
- *   - Skill switcher
- *   - Platform nav section
+ *   - Skill switcher (installed skills only, via SkillsContext)
  *   - Active skill nav section
+ *   - Platform nav section
  *   - Pro upgrade card
  *   - User footer
  *   - Mobile sidebar drawer + backdrop
  *   - Topbar with hamburger (mobile)
  *
- * The active skill determines the workspace nav and the workspace content
- * rendered in <main> via React Router Outlet.
+ * Guard: if a user lands on a skill route for a skill they have not installed,
+ * they are redirected to /home. Covers bookmarked routes and direct URL entry.
+ *
+ * Hook discipline: all hook calls are unconditional and precede every early
+ * return. Derived values (activeSkill, skill) are computed after guards.
  */
 
 import type { JSX } from 'react'
 import { useState, useEffect, useCallback } from 'react'
-import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { ClawLogo, IconMenu, IconX } from './icons.tsx'
 import { SkillSwitcher } from './SkillSwitcher.tsx'
 import { PlatformNav } from './PlatformNav.tsx'
@@ -25,51 +28,19 @@ import { SkillNav } from './SkillNav.tsx'
 import { UserFooter } from './UserFooter.tsx'
 
 import { useAuth } from '../context/AuthContext'
+import { useSkills } from '../context/SkillsContext.tsx'
 import type { SkillKey } from '../skills'
 import { SKILL_MAP } from '../skills'
 
-// "Coming soon" overlay shown when user selects a non-active skill
-function ComingSoonOverlay({
-  skillName,
-  onDismiss,
-}: {
-  skillName: string
-  onDismiss: () => void
-}): JSX.Element {
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 text-center">
-      <div
-        className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6"
-        style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
-      >
-        <ClawLogo className="w-9 h-9 text-text-muted" />
-      </div>
-      <h2 className="text-2xl font-display font-bold tracking-tight mb-3">{skillName}</h2>
-      <p className="text-text-muted text-sm max-w-xs leading-relaxed mb-6">
-        This skill isn&apos;t available yet. Switch back to CareerClaw to get started.
-      </p>
-      <button
-        onClick={onDismiss}
-        className="px-5 py-2.5 rounded-xl bg-accent text-bg text-sm font-semibold hover:brightness-110 active:scale-95 transition-all"
-      >
-        Back to CareerClaw
-      </button>
-    </div>
-  )
-}
-
 export function AppShell(): JSX.Element {
   const { tier } = useAuth()
+  const { installedSlugs, loading: skillsLoading } = useSkills()
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  // Derive active skill key from current path segment
-  const pathSkill = pathname.split('/')[1] as SkillKey | undefined
-  const activeSkill: SkillKey = pathSkill && SKILL_MAP[pathSkill] ? pathSkill : 'careerclaw'
-
-  const skill = SKILL_MAP[activeSkill]
+  // All hooks must be unconditional — placed before any early return.
 
   const handleSelectSkill = useCallback(
     (key: SkillKey) => {
@@ -79,7 +50,6 @@ export function AppShell(): JSX.Element {
     [navigate],
   )
 
-  // Close sidebar on desktop resize
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)')
     const handler = (e: MediaQueryListEvent) => {
@@ -89,7 +59,31 @@ export function AppShell(): JSX.Element {
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  const isSkillAvailable = skill.status === 'active'
+  // ── Guards ────────────────────────────────────────────────────────────────
+
+  if (skillsLoading) {
+    return (
+      <div className="h-screen bg-bg flex items-center justify-center">
+        <span
+          className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin"
+          aria-label="Loading…"
+        />
+      </div>
+    )
+  }
+
+  const pathSkill = pathname.split('/')[1] as SkillKey | undefined
+
+  if (!pathSkill || !SKILL_MAP[pathSkill] || !installedSlugs.includes(pathSkill)) {
+    return <Navigate to="/home" replace />
+  }
+
+  // ── Derived values — safe to compute after guards ─────────────────────────
+
+  const activeSkill = pathSkill
+  const skill = SKILL_MAP[activeSkill]
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="h-screen bg-bg text-text font-sans flex overflow-hidden">
@@ -114,10 +108,10 @@ export function AppShell(): JSX.Element {
         aria-label="Platform navigation"
       >
         {/* Brand block */}
-        <div className="px-4 py-4 border-b border-border">
+        <div className="h-16 px-4 py-4 border-b border-border">
           <div className="flex items-center justify-between">
             <button
-              onClick={() => navigate('/careerclaw/chat')}
+              onClick={() => navigate('/home')}
               className="flex items-center gap-3 group"
               aria-label="ClawOS home"
             >
@@ -133,7 +127,6 @@ export function AppShell(): JSX.Element {
                 </div>
               </div>
             </button>
-            {/* Close button — mobile only */}
             <button
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden p-1 rounded-lg text-text-muted hover:text-text hover:bg-surface-2 transition-colors"
@@ -144,7 +137,7 @@ export function AppShell(): JSX.Element {
           </div>
         </div>
 
-        {/* Skill switcher */}
+        {/* Installed skill switcher */}
         <SkillSwitcher activeSkill={activeSkill} onSelectSkill={handleSelectSkill} />
 
         {/* Active skill nav */}
@@ -186,7 +179,7 @@ export function AppShell(): JSX.Element {
       {/* Main panel */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Topbar */}
-        <header className="h-14 shrink-0 border-b border-border bg-surface flex items-center px-4 gap-3">
+        <header className="h-16 shrink-0 border-b border-border bg-surface flex items-center px-4 gap-3">
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-surface-2 transition-all"
@@ -215,14 +208,7 @@ export function AppShell(): JSX.Element {
 
         {/* Workspace */}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden" id="main-content">
-          {isSkillAvailable ? (
-            <Outlet />
-          ) : (
-            <ComingSoonOverlay
-              skillName={skill.name}
-              onDismiss={() => navigate('/careerclaw/chat')}
-            />
-          )}
+          <Outlet />
         </main>
       </div>
     </div>
