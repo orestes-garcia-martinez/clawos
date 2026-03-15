@@ -13,9 +13,7 @@
 
 // In dev, Vite's server.proxy rewrites /api/* → VITE_API_URL.
 // In prod, the browser calls VITE_API_URL directly (requires HTTPS).
-const BASE: string = import.meta.env.DEV
-  ? '/api'
-  : (import.meta.env['VITE_API_URL'] as string)
+const BASE: string = import.meta.env.DEV ? '/api' : (import.meta.env['VITE_API_URL'] as string)
 
 // ── SSE event types (mirror the API's chat.ts) ─────────────────────────────
 
@@ -150,10 +148,7 @@ export interface ExtractResumeResult {
  * Upload a PDF to the API and receive extracted plain text.
  * Raw PDF is discarded server-side — never stored.
  */
-export async function extractResume(
-  jwt: string,
-  file: File,
-): Promise<ExtractResumeResult> {
+export async function extractResume(jwt: string, file: File): Promise<ExtractResumeResult> {
   const form = new FormData()
   form.append('file', file)
 

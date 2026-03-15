@@ -74,7 +74,7 @@ const careerclaw: SkillDefinition = {
       description: 'Search across all sources',
     },
   ],
-  composerPlaceholder: 'Upload your resume or ask for today\'s briefing',
+  composerPlaceholder: "Upload your resume or ask for today's briefing",
 }
 
 const scrapeclaw: SkillDefinition = {

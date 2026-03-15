@@ -136,9 +136,7 @@ export function JobsView(): JSX.Element {
                     </td>
                     <td className="px-4 py-3 font-mono text-text">{run.job_count}</td>
                     <td className="px-4 py-3 font-mono text-text">
-                      {run.top_score != null
-                        ? `${Math.round(run.top_score * 100)}%`
-                        : '—'}
+                      {run.top_score != null ? `${Math.round(run.top_score * 100)}%` : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill status={run.status} />

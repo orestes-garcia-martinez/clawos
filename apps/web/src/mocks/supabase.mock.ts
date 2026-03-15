@@ -13,6 +13,8 @@
 
 // ── Mutable mock tier ─────────────────────────────────────────────────────
 
+import type { createClient } from '@supabase/supabase-js'
+
 export type MockTier = 'free' | 'pro'
 
 let currentTier: MockTier = 'pro'
@@ -126,4 +128,4 @@ export const supabase = {
     const rows = TABLES[table]
     return makeQueryChain(rows?.[0] ?? null)
   },
-} as unknown as ReturnType<typeof import('@supabase/supabase-js').createClient>
+} as unknown as ReturnType<typeof createClient>

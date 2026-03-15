@@ -11,9 +11,9 @@ import type { JSX } from 'react'
 export interface JobMatch {
   title: string
   company: string
-  score: number           // 0–1
-  skills?: string[]       // matched skill keywords
-  salary?: string         // formatted string if available
+  score: number // 0–1
+  skills?: string[] // matched skill keywords
+  salary?: string // formatted string if available
   outreachPreview?: string
   url?: string
 }
@@ -25,8 +25,7 @@ interface JobCardProps {
 
 function ScoreBadge({ score }: { score: number }): JSX.Element {
   const pct = Math.round(score * 100)
-  const color =
-    pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--accent)' : 'var(--warning)'
+  const color = pct >= 80 ? 'var(--success)' : pct >= 60 ? 'var(--accent)' : 'var(--warning)'
 
   return (
     <div
@@ -79,9 +78,7 @@ export function JobCard({ job, isPro }: JobCardProps): JSX.Element {
       )}
 
       {/* Salary */}
-      {job.salary && (
-        <p className="text-xs font-mono text-text-dim">{job.salary}</p>
-      )}
+      {job.salary && <p className="text-xs font-mono text-text-dim">{job.salary}</p>}
 
       {/* Outreach preview — Pro only */}
       {job.outreachPreview && isPro && (

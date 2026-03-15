@@ -18,7 +18,7 @@
 import type { Context } from 'hono'
 import pdfParse from 'pdf-parse'
 
-export const PDF_MAX_BYTES = 5 * 1024 * 1024       // 5 MB
+export const PDF_MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 export const RESUME_TEXT_MAX_CHARS = 50_000
 
 export async function resumeExtractHandler(c: Context): Promise<Response> {

@@ -19,7 +19,7 @@
 import type { Context } from 'hono'
 import { randomBytes, createHmac } from 'node:crypto'
 import { createServerClient } from '@clawos/shared'
-import { ENV } from './env.js'
+import { ENV } from '../env.js'
 
 export async function linkTokenHandler(c: Context): Promise<Response> {
   const userId = c.get('userId') as string

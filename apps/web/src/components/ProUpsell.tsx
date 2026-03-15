@@ -28,8 +28,8 @@ export function ProUpsell({ reason }: ProUpsellProps): JSX.Element {
       <div>
         <p className="font-display font-bold text-base">Upgrade to Pro · $9/mo</p>
         <p className="text-xs text-text-muted mt-1 leading-relaxed">
-          {reason ?? 'You have reached the free tier limit for this session.'}
-          {' '}Pro unlocks LLM-crafted outreach, cover letters, and resume gap analysis.
+          {reason ?? 'You have reached the free tier limit for this session.'} Pro unlocks
+          LLM-crafted outreach, cover letters, and resume gap analysis.
         </p>
       </div>
       <button

@@ -26,9 +26,8 @@ export function HistoryView(): JSX.Element {
         </div>
         <h2 className="font-display font-bold text-lg">Session History</h2>
         <p className="text-sm text-text-muted leading-relaxed">
-          Full cross-session history browse is coming in the next release.
-          Your conversation context is already being persisted — it will
-          surface here soon.
+          Full cross-session history browse is coming in the next release. Your conversation context
+          is already being persisted — it will surface here soon.
         </p>
       </div>
     </div>
