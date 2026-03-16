@@ -196,3 +196,25 @@ export function IconMonitors({ className = 'w-4 h-4' }: IconProps): JSX.Element 
     </svg>
   )
 }
+
+// ── Phase 2 additions ───────────────────────────────────────────────────────
+
+export function IconEllipsis({ className = 'w-4 h-4' }: IconProps): JSX.Element {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  )
+}
+
+export function IconPlus({ className = 'w-4 h-4' }: IconProps): JSX.Element {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+        clipRule="evenodd"
+      />
+    </svg>
+  )
+}
