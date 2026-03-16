@@ -74,14 +74,18 @@ export function AppShell(): JSX.Element {
 
   const pathSkill = pathname.split('/')[1] as SkillKey | undefined
 
-  if (!pathSkill || !SKILL_MAP[pathSkill] || !installedSlugs.includes(pathSkill)) {
+  // Only enforce the installed-skill guard on actual skill routes.
+  // Platform routes (/settings, /, catch-all) pass through to <Outlet />.
+  const isSkillRoute = pathSkill && pathSkill in SKILL_MAP
+
+  if (isSkillRoute && !installedSlugs.includes(pathSkill)) {
     return <Navigate to="/home" replace />
   }
 
   // ── Derived values — safe to compute after guards ─────────────────────────
 
-  const activeSkill = pathSkill
-  const skill = SKILL_MAP[activeSkill]
+  const activeSkill = isSkillRoute ? pathSkill : null
+  const skill = activeSkill ? SKILL_MAP[activeSkill] : null
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -140,8 +144,8 @@ export function AppShell(): JSX.Element {
         {/* Installed skill switcher */}
         <SkillSwitcher activeSkill={activeSkill} onSelectSkill={handleSelectSkill} />
 
-        {/* Active skill nav */}
-        <SkillNav skill={skill} onNavigate={() => setSidebarOpen(false)} />
+        {/* Active skill nav — only when on a skill route */}
+        {skill && <SkillNav skill={skill} onNavigate={() => setSidebarOpen(false)} />}
 
         {/* Platform nav */}
         <PlatformNav />
@@ -191,11 +195,17 @@ export function AppShell(): JSX.Element {
             <span className="text-text-muted">
               <ClawLogo className="w-4 h-4" />
             </span>
-            <span className="font-display font-semibold text-sm">{skill.name}</span>
-            {skill.version && (
-              <span className="hidden sm:inline text-[10px] font-mono text-text-muted">
-                {skill.version}
-              </span>
+            {skill ? (
+              <>
+                <span className="font-display font-semibold text-sm">{skill.name}</span>
+                {skill.version && (
+                  <span className="hidden sm:inline text-[10px] font-mono text-text-muted">
+                    {skill.version}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="font-display font-semibold text-sm">ClawOS</span>
             )}
           </div>
           <div className="ml-auto flex items-center gap-2">

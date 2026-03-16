@@ -16,7 +16,7 @@ import { SKILL_MAP } from '../skills'
 import { useSkills } from '../context/SkillsContext.tsx'
 
 interface SkillSwitcherProps {
-  activeSkill: SkillKey
+  activeSkill: SkillKey | null
   onSelectSkill: (key: SkillKey) => void
 }
 
