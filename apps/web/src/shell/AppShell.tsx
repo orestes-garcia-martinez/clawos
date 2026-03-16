@@ -4,6 +4,7 @@
  * Owns:
  *   - Brand/status area
  *   - Skill switcher (installed skills only, via SkillsContext)
+ *   - Add Skills drawer (sidebar-scoped slide-over)
  *   - Active skill nav section
  *   - Platform nav section
  *   - Pro upgrade card
@@ -11,8 +12,17 @@
  *   - Mobile sidebar drawer + backdrop
  *   - Topbar with hamburger (mobile)
  *
- * Guard: if a user lands on a skill route for a skill they have not installed,
- * they are redirected to /home. Covers bookmarked routes and direct URL entry.
+ * Guards:
+ *   - Skills loading → spinner
+ *   - Skill route for non-installed skill → /home
+ *   - Platform routes (/settings, /) pass through without redirect
+ *
+ * Behaviours:
+ *   - last_used_at written to user_skills on every skill route change
+ *   - Remove skill: navigate FIRST, then removeSkill() — prevents ghost render.
+ *     If navigate() fired after removeSkill(), setInstalledSlugs() would trigger
+ *     a re-render on the old skill route before navigation completed, causing
+ *     the AppShell guard to produce a double-redirect to /home.
  *
  * Hook discipline: all hook calls are unconditional and precede every early
  * return. Derived values (activeSkill, skill) are computed after guards.
@@ -23,6 +33,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { ClawLogo, IconMenu, IconX } from './icons.tsx'
 import { SkillSwitcher } from './SkillSwitcher.tsx'
+
 import { PlatformNav } from './PlatformNav.tsx'
 import { SkillNav } from './SkillNav.tsx'
 import { UserFooter } from './UserFooter.tsx'
@@ -31,16 +42,21 @@ import { useAuth } from '../context/AuthContext'
 import { useSkills } from '../context/SkillsContext.tsx'
 import type { SkillKey } from '../skills'
 import { SKILL_MAP } from '../skills'
+import { AddSkillsDrawer } from './AddSkillsDrawer.tsx'
 
 export function AppShell(): JSX.Element {
   const { tier } = useAuth()
-  const { installedSlugs, loading: skillsLoading } = useSkills()
+  const { installedSlugs, loading: skillsLoading, removeSkill, updateLastUsed } = useSkills()
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
-  // All hooks must be unconditional — placed before any early return.
+  const tentativeSkill = pathname.split('/')[1] as SkillKey | undefined
+  const isTentativeSkillRoute = Boolean(tentativeSkill && tentativeSkill in SKILL_MAP)
+
+  // ── Unconditional hooks ───────────────────────────────────────────────────
 
   const handleSelectSkill = useCallback(
     (key: SkillKey) => {
@@ -50,6 +66,14 @@ export function AppShell(): JSX.Element {
     [navigate],
   )
 
+  // Write last_used_at on skill route change
+  useEffect(() => {
+    if (tentativeSkill && isTentativeSkillRoute && installedSlugs.includes(tentativeSkill)) {
+      void updateLastUsed(tentativeSkill)
+    }
+  }, [tentativeSkill])
+
+  // Close sidebar on desktop resize
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)')
     const handler = (e: MediaQueryListEvent) => {
@@ -72,20 +96,36 @@ export function AppShell(): JSX.Element {
     )
   }
 
-  const pathSkill = pathname.split('/')[1] as SkillKey | undefined
-
-  // Only enforce the installed-skill guard on actual skill routes.
-  // Platform routes (/settings, /, catch-all) pass through to <Outlet />.
-  const isSkillRoute = pathSkill && pathSkill in SKILL_MAP
-
-  if (isSkillRoute && !installedSlugs.includes(pathSkill)) {
+  if (isTentativeSkillRoute && tentativeSkill && !installedSlugs.includes(tentativeSkill)) {
     return <Navigate to="/home" replace />
   }
 
-  // ── Derived values — safe to compute after guards ─────────────────────────
+  // ── Derived values ────────────────────────────────────────────────────────
 
-  const activeSkill = isSkillRoute ? pathSkill : null
+  const activeSkill = isTentativeSkillRoute ? (tentativeSkill ?? null) : null
   const skill = activeSkill ? SKILL_MAP[activeSkill] : null
+
+  // ── Remove handler — navigate FIRST to prevent ghost render ───────────────
+  //
+  // Order matters: if we called removeSkill() first, setInstalledSlugs() would
+  // fire synchronously inside the async op, triggering a re-render while still
+  // on the skill route. The AppShell guard would then redirect to /home
+  // independently, racing with the intended navigate() call below.
+  //
+  // By navigating first, the route changes before any state update, so there
+  // is no ghost render on the old skill route.
+
+  function handleRemoveSkill(slug: SkillKey): void {
+    const remaining = installedSlugs.filter((s) => s !== slug)
+
+    if (slug === activeSkill) {
+      // Leave the skill route immediately — no ghost
+      navigate(remaining.length > 0 ? `/${remaining[0]}/chat` : '/home', { replace: true })
+    }
+
+    // Remove from DB + context after navigation is committed
+    void removeSkill(slug)
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -100,20 +140,27 @@ export function AppShell(): JSX.Element {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — relative + overflow-hidden clips the AddSkillsDrawer slide */}
       <aside
         className={[
           'fixed lg:static inset-y-0 left-0 z-30',
           'w-64 shrink-0 bg-surface border-r border-border',
-          'flex flex-col',
+          'flex flex-col relative overflow-hidden',
           'transition-transform duration-200 ease-in-out',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         ].join(' ')}
         aria-label="Platform navigation"
       >
+        {/* Add Skills drawer — covers the sidebar surface */}
+        <AddSkillsDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          onInstalled={(slug) => navigate(`/${slug}/chat`)}
+        />
+
         {/* Brand block */}
-        <div className="h-16 px-4 py-4 border-b border-border">
-          <div className="flex items-center justify-between">
+        <div className="h-16 px-4 flex items-center border-b border-border shrink-0">
+          <div className="flex items-center justify-between w-full">
             <button
               onClick={() => navigate('/home')}
               className="flex items-center gap-3 group"
@@ -142,7 +189,12 @@ export function AppShell(): JSX.Element {
         </div>
 
         {/* Installed skill switcher */}
-        <SkillSwitcher activeSkill={activeSkill} onSelectSkill={handleSelectSkill} />
+        <SkillSwitcher
+          activeSkill={activeSkill}
+          onSelectSkill={handleSelectSkill}
+          onRemoveSkill={handleRemoveSkill}
+          onOpenAddSkills={() => setDrawerOpen(true)}
+        />
 
         {/* Active skill nav — only when on a skill route */}
         {skill && <SkillNav skill={skill} onNavigate={() => setSidebarOpen(false)} />}
