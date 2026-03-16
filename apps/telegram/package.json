@@ -18,7 +18,7 @@
     "@clawos/security": "*",
     "@clawos/shared": "*",
     "express": "^5.0.0",
-    "pdf-parse": "^1.1.1",
+    "pdf-parse": "^2.4.5",
     "zod": "^3.24.0"
   },
   "devDependencies": {
