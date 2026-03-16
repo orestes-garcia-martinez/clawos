@@ -147,18 +147,20 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
 
 // ── Chainable query builder ───────────────────────────────────────────────
 //
-// This builder mimics the Supabase PostgREST chain well enough for the
-// queries used by AuthContext (users table) and SkillsContext (user_skills).
-// It tracks filters, ordering, and operations so the final resolution
-// returns the correct slice of the in-memory TABLES data.
+// Mimics the Supabase PostgREST chain for queries used by AuthContext,
+// SkillsContext (select, insert, delete, update).
+
+type Operation = 'select' | 'insert' | 'delete' | 'update'
 
 interface QueryState {
   table: string
+  operation: Operation
   filters: Array<{ column: string; op: string; value: unknown }>
   orders: Array<{ column: string; ascending: boolean }>
   isSingle: boolean
   isMaybeSingle: boolean
   insertData: Record<string, unknown> | null
+  updateData: Record<string, unknown> | null
 }
 
 function applyFilters(
@@ -215,11 +217,13 @@ function applyOrders(
 function makeQueryChain(table: string): Record<string, unknown> {
   const state: QueryState = {
     table,
+    operation: 'select',
     filters: [],
     orders: [],
     isSingle: false,
     isMaybeSingle: false,
     insertData: null,
+    updateData: null,
   }
 
   const chain: Record<string, unknown> = {}
@@ -256,47 +260,67 @@ function makeQueryChain(table: string): Record<string, unknown> {
   }
   chain.limit = () => chain
 
+  // Mutation methods — set operation flag, return chain for further filtering
+  chain.delete = () => {
+    state.operation = 'delete'
+    return chain
+  }
+  chain.update = (data: Record<string, unknown>) => {
+    state.operation = 'update'
+    state.updateData = data
+    return chain
+  }
+  chain.upsert = () => chain
+
   // Terminal methods
   chain.single = () => {
     state.isSingle = true
-    return resolve()
+    return resolveSelect()
   }
   chain.maybeSingle = () => {
     state.isMaybeSingle = true
-    return resolve()
+    return resolveSelect()
   }
 
-  // Insert
+  // Insert — handled separately (see makeInsertResult)
   chain.insert = (data: Record<string, unknown>) => {
     state.insertData = data
     return makeInsertResult(state)
   }
 
-  // Update / upsert / delete — resolve filtered rows after mutation
-  chain.update = () => chain
-  chain.upsert = () => chain
-  chain.delete = () => chain
-
-  // Thenable — allows `await supabase.from('x').select().eq(...)` without .single()
+  // Thenable — allows awaiting the chain directly
   chain.then = (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => {
-    const rows = TABLES[table] ?? []
-    const filtered = applyFilters(rows as Record<string, unknown>[], state)
-    const ordered = applyOrders(filtered, state)
     try {
+      const rows = (TABLES[table] ?? []) as Record<string, unknown>[]
+
+      if (state.operation === 'delete') {
+        const toRemove = applyFilters(rows, state)
+        TABLES[table] = rows.filter((r) => !toRemove.includes(r))
+        resolve({ data: null, error: null })
+        return
+      }
+
+      if (state.operation === 'update' && state.updateData) {
+        const toUpdate = applyFilters(rows, state)
+        toUpdate.forEach((r) => Object.assign(r, state.updateData))
+        resolve({ data: toUpdate, error: null })
+        return
+      }
+
+      // Default: select
+      const filtered = applyFilters(rows, state)
+      const ordered = applyOrders(filtered, state)
       resolve({ data: ordered, error: null })
     } catch (e) {
       reject?.(e)
     }
   }
 
-  function resolve() {
-    const rows = TABLES[table] ?? []
-    const filtered = applyFilters(rows as Record<string, unknown>[], state)
+  function resolveSelect() {
+    const rows = (TABLES[table] ?? []) as Record<string, unknown>[]
+    const filtered = applyFilters(rows, state)
     const ordered = applyOrders(filtered, state)
-    if (state.isSingle) {
-      return Promise.resolve({ data: ordered[0] ?? null, error: null })
-    }
-    if (state.isMaybeSingle) {
+    if (state.isSingle || state.isMaybeSingle) {
       return Promise.resolve({ data: ordered[0] ?? null, error: null })
     }
     return Promise.resolve({ data: ordered, error: null })

@@ -2,9 +2,11 @@
  * SkillsContext.tsx — platform-wide installed-skills state.
  *
  * Provides:
- *   installedSlugs  — ordered list of skill keys the user has installed
- *   loading         — true until the first DB fetch resolves
- *   installSkill()  — inserts a row into user_skills and updates local state
+ *   installedSlugs    — ordered list of skill keys the user has installed
+ *   loading           — true until the first DB fetch resolves
+ *   installSkill()    — inserts a row into user_skills and updates local state
+ *   removeSkill()     — deletes the row and updates local state
+ *   updateLastUsed()  — writes last_used_at = now() for a slug (fire-and-forget)
  *
  * Source of truth is the user_skills Supabase table.
  * The static skill registry (skills/index.ts) defines what is available
@@ -24,6 +26,8 @@ interface SkillsState {
   installedSlugs: SkillKey[]
   loading: boolean
   installSkill: (slug: SkillKey) => Promise<void>
+  removeSkill: (slug: SkillKey) => Promise<void>
+  updateLastUsed: (slug: SkillKey) => Promise<void>
 }
 
 const SkillsContext = createContext<SkillsState | undefined>(undefined)
@@ -88,8 +92,41 @@ export function SkillsProvider({ children }: { children: React.ReactNode }): JSX
     [user, installedSlugs],
   )
 
+  const removeSkill = useCallback(
+    async (slug: SkillKey): Promise<void> => {
+      if (!user) return
+
+      const { error } = await supabase
+        .from('user_skills')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('skill_slug', slug)
+
+      if (!error) {
+        setInstalledSlugs((prev) => prev.filter((s) => s !== slug))
+      }
+    },
+    [user],
+  )
+
+  const updateLastUsed = useCallback(
+    async (slug: SkillKey): Promise<void> => {
+      if (!user) return
+
+      // Fire-and-forget — no local state update needed.
+      await supabase
+        .from('user_skills')
+        .update({ last_used_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('skill_slug', slug)
+    },
+    [user],
+  )
+
   return (
-    <SkillsContext.Provider value={{ installedSlugs, loading, installSkill }}>
+    <SkillsContext.Provider
+      value={{ installedSlugs, loading, installSkill, removeSkill, updateLastUsed }}
+    >
       {children}
     </SkillsContext.Provider>
   )
