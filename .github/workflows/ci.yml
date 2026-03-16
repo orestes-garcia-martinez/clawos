@@ -40,23 +40,19 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
-        # npm ci is required — never npm install in CI. Fails if lockfile is stale.
-        run: npm ci
+      - name: Setup Socket Firewall
+        uses: SocketDev/action@v1
+        with:
+          mode: firewall-enterprise
+          socket-token: ${{ secrets.SOCKET_API_KEY }}
+
+      - name: Install dependencies through Socket
+        run: sfw npm ci
 
       # ── npm audit — first line of defence ────────────────────────────────
       # Blocks on high and critical severity findings.
       - name: npm audit
         run: npm audit --audit-level=high
-
-      # ── Socket.dev — supply chain and malicious package detection ─────────
-      # Detects typosquatting, malware, and suspicious behaviour beyond CVE DBs.
-      # This is the tooling that would have caught ClawHavoc-style attacks.
-      - name: Socket.dev scan
-        uses: SocketDev/socket-action@v1
-        with:
-          api-key: ${{ secrets.SOCKET_API_KEY }}
-        # No continue-on-error — findings block merge
 
       # ── Snyk — CVE scanning for code + dependencies ───────────────────────
       - name: Snyk scan
