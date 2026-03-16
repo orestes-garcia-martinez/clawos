@@ -52,7 +52,7 @@ jobs:
       # Detects typosquatting, malware, and suspicious behaviour beyond CVE DBs.
       # This is the tooling that would have caught ClawHavoc-style attacks.
       - name: Socket.dev scan
-        uses: socket-security/action@v1
+        uses: SocketDev/socket-action@v1
         with:
           api-key: ${{ secrets.SOCKET_API_KEY }}
         # No continue-on-error — findings block merge
