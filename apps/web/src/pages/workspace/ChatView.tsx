@@ -1,5 +1,5 @@
 /**
- * ChatView.tsx — CareerClaw chat workspace.
+ * ChatView.tsx — skill chat workspace.
  *
  * Renders:
  *   - Hero + quick actions when the thread is empty
@@ -7,10 +7,15 @@
  *   - Composer with resume upload (PDF dropzone) and send button
  *   - Inline ProUpsell when a 429 error is detected
  *   - SSE streaming via useSSEChat
+ *
+ * The active skill is derived from the URL path segment, not hardcoded.
+ * This component is currently only registered under /careerclaw/* routes;
+ * the pattern is in place for when additional skills have their own views.
  */
 
 import type { JSX } from 'react'
 import { useRef, useEffect, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useSSEChat } from '../../hooks/useSSEChat'
 import { MessageBubble } from '../../components/MessageBubble'
@@ -20,18 +25,18 @@ import { ProUpsell } from '../../components/ProUpsell'
 
 import { useState } from 'react'
 import { SKILL_MAP } from '../../skills'
+import type { SkillKey } from '../../skills'
 import { ClawLogo, IconSend, IconX } from '../../shell/icons.tsx'
-
-const SKILL = SKILL_MAP['careerclaw']
 
 // ── Empty state hero ───────────────────────────────────────────────────────
 
 interface HeroProps {
+  skill: (typeof SKILL_MAP)[SkillKey]
   onSuggestion: (text: string) => void
   isPro: boolean
 }
 
-function Hero({ onSuggestion, isPro }: HeroProps): JSX.Element {
+function Hero({ skill, onSuggestion, isPro }: HeroProps): JSX.Element {
   return (
     <div className="flex flex-col items-center justify-center h-full px-4 sm:px-8 py-12">
       <div className="max-w-2xl w-full space-y-8">
@@ -44,20 +49,20 @@ function Hero({ onSuggestion, isPro }: HeroProps): JSX.Element {
             <ClawLogo className="w-11 h-11" />
           </div>
           <h1 className="text-4xl sm:text-5xl font-display font-bold tracking-tight leading-none">
-            {SKILL.heroTitle}
+            {skill.heroTitle}
           </h1>
           <p className="text-text-muted leading-relaxed max-w-md mx-auto text-sm sm:text-base">
-            {SKILL.heroBody}
+            {skill.heroBody}
           </p>
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-2 border border-border text-xs font-mono text-text-muted">
             <span className="w-1.5 h-1.5 rounded-full bg-accent" aria-hidden="true" />
-            {SKILL.trustSignal}
+            {skill.trustSignal}
           </div>
         </div>
 
         {/* Quick actions */}
         <div className="grid sm:grid-cols-2 gap-2.5" role="list" aria-label="Suggested actions">
-          {SKILL.quickActions.map((action) => {
+          {skill.quickActions.map((action) => {
             const locked = action.pro && !isPro
             return (
               <button
@@ -123,7 +128,12 @@ function Hero({ onSuggestion, isPro }: HeroProps): JSX.Element {
 
 export function ChatView(): JSX.Element {
   const { user, session, tier } = useAuth()
+  const { pathname } = useLocation()
   const isPro = tier === 'pro'
+
+  // Derive skill from route — fallback to careerclaw as a safe default.
+  const skillKey = (pathname.split('/')[1] ?? 'careerclaw') as SkillKey
+  const skill = SKILL_MAP[skillKey] ?? SKILL_MAP['careerclaw']
 
   const jwt = session?.access_token ?? ''
   const userId = user?.id ?? ''
@@ -180,6 +190,7 @@ export function ChatView(): JSX.Element {
       >
         {isEmpty ? (
           <Hero
+            skill={skill}
             onSuggestion={(text) => {
               setInput(text)
               textareaRef.current?.focus()
@@ -233,7 +244,7 @@ export function ChatView(): JSX.Element {
               value={input}
               onChange={handleTextareaChange}
               onKeyDown={handleKeyDown}
-              placeholder={isStreaming ? 'CareerClaw is thinking…' : SKILL.composerPlaceholder}
+              placeholder={isStreaming ? `${skill.name} is thinking…` : skill.composerPlaceholder}
               rows={1}
               disabled={isStreaming}
               className="flex-1 bg-transparent text-sm text-text placeholder:text-text-muted resize-none focus:outline-none py-2 leading-relaxed disabled:opacity-50"
@@ -263,7 +274,7 @@ export function ChatView(): JSX.Element {
           </div>
 
           <p className="text-center text-[10px] font-mono text-text-muted/40 mt-2 select-none">
-            ClawOS · {isPro ? 'Pro' : 'Free'} · CareerClaw v1.0.4 · SSE transport
+            ClawOS · {isPro ? 'Pro' : 'Free'} · {skill.name} {skill.version ?? ''} · SSE transport
           </p>
         </div>
       </div>
