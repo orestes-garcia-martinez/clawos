@@ -85,6 +85,7 @@ CI runs on every push and PR. Three jobs:
 - `npm audit --audit-level=high` — known CVE detection
 - Socket.dev — supply chain, typosquatting, malicious package detection
 - Snyk — CVE scanning + license compliance
+- Dependabot — automated dependency and GitHub Actions update PRs
 
 **Quality**
 
