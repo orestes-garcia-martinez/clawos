@@ -4,13 +4,16 @@
  * Items change when the active skill changes. The path convention is
  * /<skillKey>/<navItemId> (e.g. /careerclaw/chat, /careerclaw/jobs).
  */
-
 import type { JSX } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import type { SkillDefinition } from './index.ts'
+import type { SkillDefinition } from '../skills'
 import { IconChat, IconJobs, IconHistory, IconMonitors } from './icons.tsx'
 
-const NAV_ICONS: Record<string, () => JSX.Element> = {
+interface IconProps {
+  className?: string
+}
+
+const NAV_ICONS: Record<string, (props: IconProps) => JSX.Element> = {
   chat: IconChat,
   jobs: IconJobs,
   history: IconHistory,
