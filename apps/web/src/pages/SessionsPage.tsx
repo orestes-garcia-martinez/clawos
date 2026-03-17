@@ -66,12 +66,13 @@ function ClearConfirmModal({
 }: ClearConfirmModalProps): JSX.Element {
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/50" aria-hidden="true" onClick={onCancel} />
+      <div className="fixed inset-0 z-50 bg-black/50" aria-hidden="true" />
       <div
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
         role="dialog"
         aria-modal="true"
         aria-labelledby="clear-session-title"
+        onClick={onCancel}
       >
         <div
           className="w-full max-w-sm rounded-2xl border border-border bg-surface shadow-xl p-6 space-y-4"
@@ -146,9 +147,14 @@ export function SessionsPage(): JSX.Element {
 
   async function handleClear(sessionId: string): Promise<void> {
     setClearingId(sessionId)
-    await supabase.from('sessions').update({ messages: [] }).eq('id', sessionId)
-    // Optimistically update message count to 0
-    setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, messageCount: 0 } : s)))
+    const { error } = await supabase.from('sessions').update({ messages: [] }).eq('id', sessionId)
+
+    if (error) {
+      console.error('[sessions] Failed to clear conversation:', error.message)
+      // TODO: surface a toast / inline error so the user knows it failed
+    } else {
+      setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, messageCount: 0 } : s)))
+    }
     setClearingId(null)
   }
 
