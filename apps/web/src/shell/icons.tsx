@@ -197,8 +197,6 @@ export function IconMonitors({ className = 'w-4 h-4' }: IconProps): JSX.Element 
   )
 }
 
-// ── Phase 2 additions ───────────────────────────────────────────────────────
-
 export function IconEllipsis({ className = 'w-4 h-4' }: IconProps): JSX.Element {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
@@ -215,6 +213,29 @@ export function IconPlus({ className = 'w-4 h-4' }: IconProps): JSX.Element {
         d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
         clipRule="evenodd"
       />
+    </svg>
+  )
+}
+
+// ── Phase 3 additions ───────────────────────────────────────────────────────
+
+export function IconLayers({ className = 'w-4 h-4' }: IconProps): JSX.Element {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M10 3.5L2 7.5l8 4 8-4-8-4zM2 11.5l8 4 8-4M2 15.5l8 4 8-4" />
+      <path
+        fillRule="evenodd"
+        d="M9.555 3.168a1 1 0 01.89 0l8 4a1 1 0 010 1.664L10.445 12.5a1 1 0 01-.89 0l-8-4a1 1 0 010-1.664l8-3.668zM2.618 11.223L10 14.893l7.382-3.67.894 1.789L10 16.893l-8.276-4.881.894-1.789zM2.618 15.223L10 18.893l7.382-3.67.894 1.789L10 20.893l-8.276-4.881.894-1.789z"
+        clipRule="evenodd"
+      />
+    </svg>
+  )
+}
+
+export function IconBell({ className = 'w-4 h-4' }: IconProps): JSX.Element {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
     </svg>
   )
 }

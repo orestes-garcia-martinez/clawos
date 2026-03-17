@@ -33,7 +33,7 @@ interface SkillsState {
 const SkillsContext = createContext<SkillsState | undefined>(undefined)
 
 export function SkillsProvider({ children }: { children: React.ReactNode }): JSX.Element {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [installedSlugs, setInstalledSlugs] = useState<SkillKey[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -51,6 +51,12 @@ export function SkillsProvider({ children }: { children: React.ReactNode }): JSX
   }, [])
 
   useEffect(() => {
+    // While auth is still resolving, keep skills in loading state
+    if (authLoading) {
+      setLoading(true)
+      return
+    }
+
     if (!user) {
       setInstalledSlugs([])
       setLoading(false)
@@ -70,7 +76,7 @@ export function SkillsProvider({ children }: { children: React.ReactNode }): JSX
         setInstalledSlugs((data ?? []).map((r) => r.skill_slug as SkillKey))
         setLoading(false)
       })
-  }, [user?.id, refreshKey])
+  }, [user?.id, authLoading, refreshKey])
 
   const installSkill = useCallback(
     async (slug: SkillKey): Promise<void> => {

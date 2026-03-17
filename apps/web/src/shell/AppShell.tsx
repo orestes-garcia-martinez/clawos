@@ -15,14 +15,13 @@
  * Guards:
  *   - Skills loading → spinner
  *   - Skill route for non-installed skill → /home
- *   - Platform routes (/settings, /) pass through without redirect
+ *   - Platform routes (/settings, /sessions, /notifications, /) pass through
  *
  * Behaviours:
  *   - last_used_at written to user_skills on every skill route change
- *   - Remove skill: navigate FIRST, then removeSkill() — prevents ghost render.
- *     If navigate() fired after removeSkill(), setInstalledSlugs() would trigger
- *     a re-render on the old skill route before navigation completed, causing
- *     the AppShell guard to produce a double-redirect to /home.
+ *   - 'clawos-last-skill' written to localStorage on every skill route change
+ *     so RootRedirect can restore the user's last workspace on re-entry
+ *   - Remove skill: navigate FIRST, then removeSkill() — prevents ghost render
  *
  * Hook discipline: all hook calls are unconditional and precede every early
  * return. Derived values (activeSkill, skill) are computed after guards.
@@ -33,7 +32,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { ClawLogo, IconMenu, IconX } from './icons.tsx'
 import { SkillSwitcher } from './SkillSwitcher.tsx'
-
+import { AddSkillsDrawer } from './AddSkillsDrawer.tsx'
 import { PlatformNav } from './PlatformNav.tsx'
 import { SkillNav } from './SkillNav.tsx'
 import { UserFooter } from './UserFooter.tsx'
@@ -42,7 +41,7 @@ import { useAuth } from '../context/AuthContext'
 import { useSkills } from '../context/SkillsContext.tsx'
 import type { SkillKey } from '../skills'
 import { SKILL_MAP } from '../skills'
-import { AddSkillsDrawer } from './AddSkillsDrawer.tsx'
+import { writeLastSkill } from '../App.tsx'
 
 export function AppShell(): JSX.Element {
   const { tier } = useAuth()
@@ -66,10 +65,11 @@ export function AppShell(): JSX.Element {
     [navigate],
   )
 
-  // Write last_used_at on skill route change
+  // Write last_used_at and localStorage on every valid skill route change
   useEffect(() => {
     if (tentativeSkill && isTentativeSkillRoute && installedSlugs.includes(tentativeSkill)) {
       void updateLastUsed(tentativeSkill)
+      writeLastSkill(tentativeSkill)
     }
   }, [tentativeSkill])
 
@@ -106,24 +106,14 @@ export function AppShell(): JSX.Element {
   const skill = activeSkill ? SKILL_MAP[activeSkill] : null
 
   // ── Remove handler — navigate FIRST to prevent ghost render ───────────────
-  //
-  // Order matters: if we called removeSkill() first, setInstalledSlugs() would
-  // fire synchronously inside the async op, triggering a re-render while still
-  // on the skill route. The AppShell guard would then redirect to /home
-  // independently, racing with the intended navigate() call below.
-  //
-  // By navigating first, the route changes before any state update, so there
-  // is no ghost render on the old skill route.
 
   function handleRemoveSkill(slug: SkillKey): void {
     const remaining = installedSlugs.filter((s) => s !== slug)
 
     if (slug === activeSkill) {
-      // Leave the skill route immediately — no ghost
       navigate(remaining.length > 0 ? `/${remaining[0]}/chat` : '/home', { replace: true })
     }
 
-    // Remove from DB + context after navigation is committed
     void removeSkill(slug)
   }
 
