@@ -4,15 +4,15 @@ Multi-channel AI agent platform — Web + Telegram. Node ≥22, npm ≥10, Turbo
 
 ## Apps & Packages
 
-| Path | Runtime | Deploy |
-|---|---|---|
-| `apps/api` | Hono + Anthropic SDK + SSE | Vercel serverless |
-| `apps/web` | React 19 + Vite 7 + Tailwind 4 + Router 7 | Vercel |
-| `apps/telegram` | Telegram Bot API adapter | Lightsail |
-| `apps/worker` | Express 5 + careerclaw-js CLI | Lightsail |
-| `packages/shared` | Supabase types, domain types, prompts | — |
-| `packages/security` | Zod schemas, rate-limit, audit log | — |
-| `packages/billing` | Polar.sh billing client | — |
+| Path                | Runtime                                   | Deploy            |
+| ------------------- | ----------------------------------------- | ----------------- |
+| `apps/api`          | Hono + Anthropic SDK + SSE                | Vercel serverless |
+| `apps/web`          | React 19 + Vite 7 + Tailwind 4 + Router 7 | Vercel            |
+| `apps/telegram`     | Telegram Bot API adapter                  | Lightsail         |
+| `apps/worker`       | Express 5 + careerclaw-js CLI             | Lightsail         |
+| `packages/shared`   | Supabase types, domain types, prompts     | —                 |
+| `packages/security` | Zod schemas, rate-limit, audit log        | —                 |
+| `packages/billing`  | Polar.sh billing client                   | —                 |
 
 ## Key Commands
 
