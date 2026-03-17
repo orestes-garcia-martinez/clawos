@@ -1,0 +1,72 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+
+    # On comment events, only run if it's a PR comment containing @claude
+    if: |
+      github.event_name == 'pull_request' ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request != null &&
+        contains(github.event.comment.body, '@claude') &&
+        github.event.comment.user.type != 'Bot'
+      )
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are a senior engineer reviewing a PR on ClawOS — a multi-channel AI agent platform (Web + Telegram).
+
+            Review only the files changed in this PR. Be concise, actionable, and cite specific line numbers.
+            Do not repeat what the code does — only flag problems or risks.
+
+            ## Checklist
+
+            **Architecture**
+            - [ ] LLM/Claude API calls exist only in `apps/api` — never in `apps/web` or `apps/telegram`
+            - [ ] Skill execution goes through `apps/worker` only — no direct careerclaw-js calls elsewhere
+            - [ ] No domain types duplicated across apps — shared types belong in `packages/shared`
+
+            **Security**
+            - [ ] All external inputs validated with Zod — prefer schemas from `@clawos/security`
+            - [ ] No secrets, tokens, or API keys hardcoded anywhere
+            - [ ] New Supabase tables have a corresponding RLS migration in `infra/supabase/migrations/`
+            - [ ] New API routes apply rate-limit middleware from `@clawos/security`
+            - [ ] `npm ci` used (not `npm install`) in any new scripts or workflows
+
+            **Code Quality**
+            - [ ] ESM-only — no `require()` or CommonJS patterns
+            - [ ] No implicit `any` — TypeScript strict compliance
+            - [ ] No business logic duplicated that already exists in `packages/shared` or `packages/security`
+
+            **Tests**
+            - [ ] New routes have a unit test (`*.test.ts`) with mocked dependencies
+            - [ ] New packages include a `vitest.config.ts`
+            - [ ] Integration tests (`*.integration.test.ts`) are not mixed into unit test runs
+
+            **Infra / Deploy**
+            - [ ] New Lightsail scripts follow the pattern in `infra/lightsail/deploy-*.sh`
+            - [ ] New env vars are documented in the relevant `.env.example` file
+
+            Post a single consolidated review comment. Use checkboxes to show pass/fail per item.
+            Skip items not relevant to the changed files.
+            End with a one-line summary: APPROVE, REQUEST CHANGES, or COMMENT.
