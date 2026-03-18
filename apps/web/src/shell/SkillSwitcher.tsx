@@ -66,13 +66,13 @@ function RemoveConfirmModal({
           <div className="flex gap-2.5 pt-1">
             <button
               onClick={onCancel}
-              className="flex-1 py-2 rounded-xl border border-border text-sm font-medium text-text-muted hover:text-text hover:bg-surface-2 transition-all"
+              className="flex-1 py-2 rounded-xl border border-border text-sm font-medium text-text-muted hover:text-text hover:bg-surface-2 transition-all cursor-pointer"
             >
               Cancel
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 py-2 rounded-xl bg-danger text-bg text-sm font-semibold hover:brightness-110 active:scale-95 transition-all"
+              className="flex-1 py-2 rounded-xl bg-danger text-bg text-sm font-semibold hover:brightness-110 active:scale-95 transition-all cursor-pointer"
             >
               Remove
             </button>
@@ -89,14 +89,14 @@ interface SkillSwitcherProps {
   activeSkill: SkillKey | null
   onSelectSkill: (key: SkillKey) => void
   onRemoveSkill: (key: SkillKey) => void
-  onOpenAddSkills: () => void
+  onAddSkills: () => void
 }
 
 export function SkillSwitcher({
   activeSkill,
   onSelectSkill,
   onRemoveSkill,
-  onOpenAddSkills,
+  onAddSkills,
 }: SkillSwitcherProps): JSX.Element {
   const { installedSlugs } = useSkills()
 
@@ -169,7 +169,7 @@ export function SkillSwitcher({
                   }}
                   className={[
                     'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left',
-                    'transition-all duration-150 pr-8',
+                    'transition-all duration-150 pr-8 cursor-pointer',
                     isActive
                       ? 'bg-surface-3 text-text'
                       : 'text-text-muted hover:bg-surface-2 hover:text-text',
@@ -191,7 +191,7 @@ export function SkillSwitcher({
                     }}
                     className={[
                       'absolute right-1.5 top-1/2 -translate-y-1/2',
-                      'p-1 rounded-md transition-all duration-100',
+                      'p-1 rounded-md transition-all duration-100 cursor-pointer',
                       isMenuOpen
                         ? 'bg-surface-3 text-text'
                         : 'text-text-muted hover:text-text hover:bg-surface-2',
@@ -215,7 +215,7 @@ export function SkillSwitcher({
                       <button
                         role="menuitem"
                         onClick={() => handleRemoveClick(slug)}
-                        className="w-full px-3 py-2 text-sm text-left text-danger hover:bg-surface-2 transition-colors"
+                        className="w-full px-3 py-2 text-sm text-left text-danger hover:bg-surface-2 transition-colors cursor-pointer"
                       >
                         Remove skill
                       </button>
@@ -229,8 +229,8 @@ export function SkillSwitcher({
 
         {/* Add Skills trigger */}
         <button
-          onClick={onOpenAddSkills}
-          className="w-full flex items-center gap-2 px-2.5 py-2 mt-1 rounded-xl text-xs text-text-muted hover:text-text hover:bg-surface-2 transition-all duration-150"
+          onClick={onAddSkills}
+          className="w-full flex items-center gap-2 px-2.5 py-2 mt-1 rounded-xl text-xs text-text-muted hover:text-text hover:bg-surface-2 transition-all duration-150 cursor-pointer"
           aria-label="Add another skill"
         >
           <IconPlus className="w-3.5 h-3.5 shrink-0" />

@@ -40,7 +40,7 @@ export function PlatformNav(): JSX.Element {
               key={id}
               onClick={() => navigate(path)}
               className={[
-                'w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-left',
+                'w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-left cursor-pointer',
                 'transition-all duration-150',
                 active
                   ? 'bg-surface-2 text-text'
