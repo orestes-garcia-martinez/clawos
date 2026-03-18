@@ -166,11 +166,11 @@ User (Web / Telegram)
 | Chat | Deliverable                     | Status  |
 | ---- | ------------------------------- | ------- |
 | 1    | Turborepo scaffold + CI/CD      | ✅ Done |
-| 2    | Supabase schema + RLS           | ⬜ Next |
-| 3    | Lightsail skill worker          | ⬜      |
-| 4    | Agent API (Hono + Claude + SSE) | ⬜      |
-| 5    | Telegram adapter                | ⬜      |
-| 6    | Web frontend                    | ⬜      |
+| 2    | Supabase schema + RLS           | ✅ Done |
+| 3    | Lightsail skill worker          | ✅ Done |
+| 4    | Agent API (Hono + Claude + SSE) | ✅ Done |
+| 5    | Telegram adapter                | ✅ Done |
+| 6    | Web frontend                    | ✅ Done |
 | 7    | Billing (Polar.sh)              | ⬜      |
 | 8    | E2E testing + security review   | ⬜      |
 

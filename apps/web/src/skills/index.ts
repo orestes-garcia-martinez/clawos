@@ -143,7 +143,8 @@ export const SKILL_MAP: Record<SkillKey, SkillDefinition> = {
   investclaw,
 }
 
-// Platform-level nav sections (ClawOS-owned, not skill-specific)
+// Platform-level nav sections (ClawOS-owned, not skill-specific).
+// Order: Sessions · Notifications · Settings
 export interface PlatformNavItem {
   id: string
   label: string
@@ -151,5 +152,7 @@ export interface PlatformNavItem {
 }
 
 export const PLATFORM_NAV: PlatformNavItem[] = [
+  { id: 'sessions', label: 'Sessions', path: '/sessions' },
+  { id: 'notifications', label: 'Notifications', path: '/notifications' },
   { id: 'settings', label: 'Settings', path: '/settings' },
 ]

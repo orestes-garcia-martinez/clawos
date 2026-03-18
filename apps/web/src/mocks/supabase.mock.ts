@@ -106,8 +106,6 @@ const MOCK_SESSION = {
 }
 
 // ── Auth state ────────────────────────────────────────────────────────────
-// For the 'new' persona, auth starts as null (unauthenticated).
-// For the 'returning' persona, auth starts with a valid session.
 
 let currentSession: typeof MOCK_SESSION | null = persona === 'new' ? null : MOCK_SESSION
 
@@ -125,8 +123,57 @@ interface UserSkillRow {
   updated_at: string
 }
 
+interface SessionRow {
+  id: string
+  user_id: string
+  channel: string
+  messages: Array<{ role: string; content: string; timestamp: string }>
+  last_active: string
+  created_at: string
+  deleted_at: string | null
+}
+
+// Mock messages — content is realistic but never surfaced in the Sessions UI
+const mockWebMessages = [
+  {
+    role: 'user',
+    content: "Run today's job briefing",
+    timestamp: new Date(Date.now() - 3_600_000).toISOString(),
+  },
+  {
+    role: 'assistant',
+    content: 'Found 12 matches. Top score: 94% — Senior TypeScript Engineer at Vercel.',
+    timestamp: new Date(Date.now() - 3_540_000).toISOString(),
+  },
+  {
+    role: 'user',
+    content: 'Draft outreach for the Vercel role',
+    timestamp: new Date(Date.now() - 3_480_000).toISOString(),
+  },
+  {
+    role: 'assistant',
+    content:
+      'Here is a personalised outreach draft for the Senior TypeScript Engineer role at Vercel…',
+    timestamp: new Date(Date.now() - 3_420_000).toISOString(),
+  },
+]
+
+const mockTelegramMessages = [
+  {
+    role: 'user',
+    content: 'Find remote React roles',
+    timestamp: new Date(Date.now() - 86_400_000).toISOString(),
+  },
+  {
+    role: 'assistant',
+    content: 'Found 8 remote React roles matching your profile.',
+    timestamp: new Date(Date.now() - 86_340_000).toISOString(),
+  },
+]
+
 const TABLES: Record<string, Record<string, unknown>[]> = {
   users: [{ id: MOCK_USER.id, tier: currentTier, created_at: new Date().toISOString() }],
+
   user_skills:
     persona === 'new'
       ? []
@@ -143,12 +190,34 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
             updated_at: new Date().toISOString(),
           } satisfies UserSkillRow,
         ],
+
+  // Sessions — only populated for the returning persona
+  sessions:
+    persona === 'new'
+      ? []
+      : ([
+          {
+            id: crypto.randomUUID(),
+            user_id: MOCK_USER.id,
+            channel: 'web',
+            messages: mockWebMessages,
+            last_active: new Date(Date.now() - 3_420_000).toISOString(),
+            created_at: new Date(Date.now() - 7_200_000).toISOString(),
+            deleted_at: null,
+          },
+          {
+            id: crypto.randomUUID(),
+            user_id: MOCK_USER.id,
+            channel: 'telegram',
+            messages: mockTelegramMessages,
+            last_active: new Date(Date.now() - 86_340_000).toISOString(),
+            created_at: new Date(Date.now() - 172_800_000).toISOString(),
+            deleted_at: null,
+          },
+        ] satisfies SessionRow[]),
 }
 
 // ── Chainable query builder ───────────────────────────────────────────────
-//
-// Mimics the Supabase PostgREST chain for queries used by AuthContext,
-// SkillsContext (select, insert, delete, update).
 
 type Operation = 'select' | 'insert' | 'delete' | 'update'
 
@@ -201,12 +270,10 @@ function applyOrders(
       const aVal = a[o.column]
       const bVal = b[o.column]
       if (aVal === bVal) continue
-      // booleans: true before false when descending (is_default desc)
       if (typeof aVal === 'boolean') {
         const cmp = aVal === bVal ? 0 : aVal ? -1 : 1
         return o.ascending ? cmp : -cmp
       }
-      // strings / dates
       const cmp = String(aVal ?? '').localeCompare(String(bVal ?? ''))
       return o.ascending ? cmp : -cmp
     }
@@ -228,7 +295,6 @@ function makeQueryChain(table: string): Record<string, unknown> {
 
   const chain: Record<string, unknown> = {}
 
-  // Filter methods
   chain.select = () => chain
   chain.eq = (col: string, val: unknown) => {
     state.filters.push({ column: col, op: 'eq', value: val })
@@ -260,7 +326,6 @@ function makeQueryChain(table: string): Record<string, unknown> {
   }
   chain.limit = () => chain
 
-  // Mutation methods — set operation flag, return chain for further filtering
   chain.delete = () => {
     state.operation = 'delete'
     return chain
@@ -272,7 +337,6 @@ function makeQueryChain(table: string): Record<string, unknown> {
   }
   chain.upsert = () => chain
 
-  // Terminal methods
   chain.single = () => {
     state.isSingle = true
     return resolveSelect()
@@ -282,13 +346,11 @@ function makeQueryChain(table: string): Record<string, unknown> {
     return resolveSelect()
   }
 
-  // Insert — handled separately (see makeInsertResult)
   chain.insert = (data: Record<string, unknown>) => {
     state.insertData = data
     return makeInsertResult(state)
   }
 
-  // Thenable — allows awaiting the chain directly
   chain.then = (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => {
     try {
       const rows = (TABLES[table] ?? []) as Record<string, unknown>[]
@@ -307,7 +369,6 @@ function makeQueryChain(table: string): Record<string, unknown> {
         return
       }
 
-      // Default: select
       const filtered = applyFilters(rows, state)
       const ordered = applyOrders(filtered, state)
       resolve({ data: ordered, error: null })
@@ -365,12 +426,9 @@ function makeInsertResult(state: QueryState): Record<string, unknown> {
 type AuthChangeCallback = (event: string, session: typeof MOCK_SESSION | null) => void
 const listeners: AuthChangeCallback[] = []
 
-/** Notify all auth listeners — used internally by sign-in / sign-out. */
 function notifyListeners(event: string, session: typeof MOCK_SESSION | null): void {
   listeners.forEach((cb) => cb(event, session))
 }
-
-// ── Auth helpers ──────────────────────────────────────────────────────────
 
 function validateCredentials(email: string, password: string): { error: Error | null } {
   if (email === MOCK_CREDENTIALS.email && password === MOCK_CREDENTIALS.password) {
@@ -398,28 +456,20 @@ export const supabase = {
     signInWithPassword: ({ email, password }: { email: string; password: string }) => {
       const { error } = validateCredentials(email, password)
       if (error) {
-        return Promise.resolve({
-          data: { session: null, user: null },
-          error,
-        })
+        return Promise.resolve({ data: { session: null, user: null }, error })
       }
       currentSession = MOCK_SESSION
       notifyListeners('SIGNED_IN', MOCK_SESSION)
-      return Promise.resolve({
-        data: { session: MOCK_SESSION, user: MOCK_USER },
-        error: null,
-      })
+      return Promise.resolve({ data: { session: MOCK_SESSION, user: MOCK_USER }, error: null })
     },
 
     signInWithOtp: ({ email }: { email: string; options?: Record<string, unknown> }) => {
-      // For the new persona, only accept the test email
       if (persona === 'new' && email !== MOCK_CREDENTIALS.email) {
         return Promise.resolve({
           data: { user: null, session: null },
           error: new Error(`Unknown email: ${email}`),
         })
       }
-      // Simulate magic link — immediately sign in (no real email sent)
       currentSession = MOCK_SESSION
       notifyListeners('SIGNED_IN', MOCK_SESSION)
       return Promise.resolve({ data: {}, error: null })
@@ -432,15 +482,9 @@ export const supabase = {
     },
 
     signUp: ({ email, password }: { email: string; password: string }) => {
-      // Simulate duplicate email error if signing up with existing credentials
       if (email === MOCK_CREDENTIALS.email) {
-        return Promise.resolve({
-          data: { session: null, user: MOCK_USER },
-          error: null,
-          // Supabase returns the user but no session until email is confirmed
-        })
+        return Promise.resolve({ data: { session: null, user: MOCK_USER }, error: null })
       }
-      // Accept any new email/password — "create" the account
       console.info(
         `[ClawOS mock] Sign-up for "${email}" accepted. Use test@clawos.local / clawos123 to sign in.`,
       )
@@ -458,7 +502,6 @@ export const supabase = {
 
     onAuthStateChange: (cb: AuthChangeCallback) => {
       listeners.push(cb)
-      // Fire initial state on next tick — null session for 'new', valid for 'returning'
       setTimeout(() => cb('INITIAL_SESSION', currentSession), 0)
       return {
         data: {
