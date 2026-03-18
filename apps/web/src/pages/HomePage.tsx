@@ -1,182 +1,268 @@
 /**
- * HomePage.tsx — ClawOS platform home.
+ * HomePage.tsx — ClawOS zero-state landing page.
  *
- * Two contexts, one page:
- *   - Zero installed skills: "Welcome to ClawOS" framing; user picks first skill.
- *   - Skills already installed: "Add another skill" framing; same card layout.
+ * Shown inside AppShell at /home when the user has no skills installed.
+ * When skills are installed the router sends the user to their last skill
+ * workspace — this page is not shown to returning users.
  *
- * Only 'available' skills show an Install button.
- * 'coming_soon' skills are rendered as inert cards with a badge.
+ * Main content: three platform advantage cards drawn from the Core Principles
+ * (owned distribution, tested engines, multi-channel). Skill discovery lives
+ * on the dedicated /skills page, reached via "Browse all skills →".
  *
- * After install, user is sent directly to the new skill's default route.
+ * Outlet context: AppShell passes { onOpenAddSkills: () => navigate('/skills') }
+ * so the CTA works without this page knowing about the router directly.
  */
 
 import type { JSX } from 'react'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ClawLogo } from '../shell/icons.tsx'
+import { useOutletContext, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.tsx'
 
-import { useSkills } from '../context/SkillsContext.tsx'
-import type { SkillKey } from '../skills'
-import { SKILLS } from '../skills'
+// ── Outlet context (matches AppShell's Outlet context prop) ─────────────────
 
-// ── Skill card ─────────────────────────────────────────────────────────────
-
-interface SkillCardProps {
-  skillKey: SkillKey
-  name: string
-  description: string
-  status: 'available' | 'coming_soon' | 'waitlist'
-  isInstalled: boolean
-  isInstalling: boolean
-  onInstall: () => void
+interface ShellOutletContext {
+  onOpenAddSkills: () => void
 }
 
-function SkillCard({
-  name,
-  description,
-  status,
-  isInstalled,
-  isInstalling,
-  onInstall,
-}: SkillCardProps): JSX.Element {
-  const canInstall = status === 'available' && !isInstalled
+// ── Platform advantage card data ────────────────────────────────────────────
+// Extracted from Platform Strategy v1.7 — Core Principles and Platform Vision.
 
+interface AdvantageCard {
+  id: string
+  icon: JSX.Element
+  title: string
+  body: string
+  tag: string
+}
+
+const ADVANTAGES: AdvantageCard[] = [
+  {
+    id: 'owned-distribution',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" aria-hidden="true">
+        <path
+          d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    ),
+    title: 'Owned Distribution',
+    body: 'ClawOS controls its own install surface. No dependency on third-party agent marketplaces — your skills, your channel, your data.',
+    tag: 'No marketplace risk',
+  },
+  {
+    id: 'tested-engines',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" aria-hidden="true">
+        <path
+          d="M9 12l2 2 4-4"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z" stroke="currentColor" strokeWidth="2" />
+      </svg>
+    ),
+    title: 'Production-Grade Engines',
+    body: 'Business logic lives in independently tested npm packages with CI — not in prompt files. CareerClaw ships with 246 passing tests.',
+    tag: '246 tests · CI on every commit',
+  },
+  {
+    id: 'multi-channel',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" aria-hidden="true">
+        <rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+        <path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <path d="M7 8h2M11 8h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <path d="M7 12h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    ),
+    title: 'Multi-Channel by Design',
+    body: 'Web and Telegram at launch. WhatsApp in Phase 2. One agent layer, every channel — context and history travel with you.',
+    tag: 'Web · Telegram · WhatsApp',
+  },
+]
+
+// ── Platform advantage card ─────────────────────────────────────────────────
+
+function AdvantageCard({ card }: { card: AdvantageCard }): JSX.Element {
   return (
-    <div
-      className={[
-        'flex items-start justify-between gap-4 p-5 rounded-2xl border transition-all duration-150',
-        canInstall
-          ? 'bg-surface border-border hover:border-accent-border hover:bg-surface-2'
-          : 'bg-surface border-border opacity-60',
-      ].join(' ')}
+    <article
+      className="relative flex flex-col rounded-2xl p-5 h-full"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+      }}
     >
-      <div className="flex items-start gap-4 min-w-0">
-        {/* Skill icon placeholder — consistent size for all cards */}
-        <div
-          className="flex items-center justify-center w-10 h-10 rounded-xl shrink-0"
-          style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent-border)' }}
-          aria-hidden="true"
-        >
-          <ClawLogo className="w-5 h-5 text-accent" />
-        </div>
-
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-display font-semibold text-sm text-text">{name}</span>
-            {status === 'coming_soon' && (
-              <span
-                className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold"
-                style={{ background: 'var(--surface-3)', color: 'var(--text-muted)' }}
-              >
-                Coming soon
-              </span>
-            )}
-            {isInstalled && (
-              <span
-                className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold"
-                style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}
-              >
-                Installed
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-text-muted mt-0.5 leading-relaxed">{description}</p>
-        </div>
+      {/* Icon */}
+      <div
+        className="flex items-center justify-center w-10 h-10 rounded-xl mb-4 shrink-0"
+        style={{
+          background: 'var(--accent-dim)',
+          border: '1px solid var(--accent-border)',
+          color: 'var(--accent)',
+        }}
+      >
+        {card.icon}
       </div>
 
-      {canInstall && (
-        <button
-          onClick={onInstall}
-          disabled={isInstalling}
-          className="shrink-0 px-4 py-2 rounded-xl bg-accent text-bg text-xs font-semibold hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isInstalling ? 'Installing…' : 'Install'}
-        </button>
-      )}
-    </div>
+      {/* Title */}
+      <h3 className="font-display font-bold text-sm text-text mb-2 leading-tight">{card.title}</h3>
+
+      {/* Body */}
+      <p className="text-sm text-text-dim leading-relaxed flex-1 mb-4">{card.body}</p>
+
+      {/* Tag */}
+      <span
+        className="self-start inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono text-text-muted"
+        style={{ background: 'var(--surface-3)', border: '1px solid var(--border)' }}
+      >
+        {card.tag}
+      </span>
+    </article>
   )
 }
 
-// ── HomePage ───────────────────────────────────────────────────────────────
+// ── HomePage ────────────────────────────────────────────────────────────────
 
 export function HomePage(): JSX.Element {
+  const { onOpenAddSkills } = useOutletContext<ShellOutletContext>()
+  const { tier } = useAuth()
   const navigate = useNavigate()
-  const { installedSlugs, installSkill } = useSkills()
-  const [installingSlug, setInstallingSlug] = useState<SkillKey | null>(null)
-
-  const isFirstInstall = installedSlugs.length === 0
-
-  async function handleInstall(slug: SkillKey): Promise<void> {
-    if (installingSlug) return
-    setInstallingSlug(slug)
-    await installSkill(slug)
-    setInstallingSlug(null)
-    navigate(`/${slug}/chat`, { replace: true })
-  }
 
   return (
-    <div className="h-screen bg-bg text-text font-sans flex flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-lg space-y-10">
-        {/* Brand */}
-        <div className="text-center space-y-4">
-          <div
-            className="inline-flex items-center justify-center w-16 h-16 rounded-2xl text-accent mb-2"
-            style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent-border)' }}
-            aria-hidden="true"
-          >
-            <ClawLogo className="w-9 h-9" />
-          </div>
+    <>
+      <style>{`
+        @keyframes clawos-fade-up {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .hp-in {
+          opacity: 0;
+          animation: clawos-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+      `}</style>
 
-          <div>
-            <h1 className="text-3xl font-display font-bold tracking-tight">
-              {isFirstInstall ? 'Welcome to ClawOS' : 'Add a skill'}
-            </h1>
-            <p className="text-text-muted text-sm mt-2 leading-relaxed max-w-sm mx-auto">
-              {isFirstInstall
-                ? 'Choose your first skill to get started. You can add more from the sidebar at any time.'
-                : 'Install another first-party skill. Only installed skills appear in your workspace.'}
-            </p>
-          </div>
-        </div>
-
-        {/* Skill catalog */}
-        <div className="space-y-2.5" role="list" aria-label="Available skills">
-          {SKILLS.map((skill) => (
-            <div key={skill.key} role="listitem">
-              <SkillCard
-                skillKey={skill.key}
-                name={skill.name}
-                description={skill.description}
-                status={skill.status}
-                isInstalled={installedSlugs.includes(skill.key)}
-                isInstalling={installingSlug === skill.key}
-                onInstall={() => void handleInstall(skill.key)}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Footer — only show when user has skills to go back to */}
-        {!isFirstInstall && (
-          <div className="text-center">
-            <button
-              onClick={() => navigate(`/${installedSlugs[0]}/chat`)}
-              className="text-xs text-text-muted hover:text-text transition-colors"
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-6 py-12 space-y-12">
+          {/* ── Hero ──────────────────────────────────────────────────────── */}
+          <section className="hp-in" style={{ animationDelay: '0ms' }}>
+            <h1
+              className="font-display font-bold text-[2.2rem] leading-[1.1] tracking-tight mb-4"
+              style={{ color: 'var(--accent)' }}
             >
-              ← Back to workspace
-            </button>
-          </div>
-        )}
+              Personal AI operating
+              <br />
+              system for professionals.
+            </h1>
+            <p className="text-text-dim text-base leading-relaxed max-w-lg mb-6">
+              One account. One billing relationship. Access to all Claw skills through whichever
+              channel you prefer — the agent is always on, always context-aware.
+            </p>
 
-        {/* Platform badge */}
-        <div className="flex justify-center">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface border border-border text-[10px] font-mono text-text-muted">
-            <span className="w-1.5 h-1.5 rounded-full bg-success" aria-hidden="true" />
-            ClawOS · first-party skills only
-          </div>
+            <button
+              onClick={onOpenAddSkills}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
+              style={{
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-dim)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--surface-3)'
+                e.currentTarget.style.color = 'var(--text)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--surface-2)'
+                e.currentTarget.style.color = 'var(--text-dim)'
+              }}
+            >
+              Browse all skills →
+            </button>
+          </section>
+
+          {/* ── Platform advantages ───────────────────────────────────────── */}
+          <section
+            className="hp-in space-y-4"
+            style={{ animationDelay: '80ms' }}
+            aria-label="Platform advantages"
+          >
+            <h2 className="text-[11px] font-mono font-semibold text-text-muted uppercase tracking-widest">
+              Why ClawOS
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+              {ADVANTAGES.map((card, i) => (
+                <div
+                  key={card.id}
+                  className="hp-in h-full"
+                  style={{ animationDelay: `${120 + i * 70}ms` }}
+                >
+                  <AdvantageCard card={card} />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Go Pro — free tier only ───────────────────────────────────── */}
+          {tier === 'free' && (
+            <section
+              className="hp-in rounded-2xl p-6 space-y-4"
+              style={{
+                animationDelay: '340ms',
+                background: 'linear-gradient(135deg, var(--accent-2-dim), var(--accent-dim))',
+                border: '1px solid var(--accent-border)',
+              }}
+            >
+              <div>
+                <div className="flex items-center gap-2.5 mb-2">
+                  <span className="font-display font-bold text-base text-text">Go Pro</span>
+                  <span
+                    className="text-[10px] font-mono px-2 py-0.5 rounded-full"
+                    style={{
+                      background: 'var(--accent-dim)',
+                      color: 'var(--accent)',
+                      border: '1px solid var(--accent-border)',
+                    }}
+                  >
+                    $9 / mo
+                  </span>
+                </div>
+                <p className="text-sm text-text-dim leading-relaxed max-w-lg">
+                  Unlock LLM-powered outreach, cover letter generation, resume gap analysis, and
+                  higher usage limits across all installed skills.
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/settings')}
+                className="px-5 py-2.5 rounded-xl font-semibold text-sm bg-accent text-bg hover:brightness-110 active:scale-95 transition-all duration-150"
+              >
+                Upgrade now
+              </button>
+            </section>
+          )}
+
+          {/* ── Footer ───────────────────────────────────────────────────── */}
+          <footer
+            className="hp-in flex items-center justify-between pt-2 pb-8"
+            style={{ animationDelay: '380ms' }}
+          >
+            <span className="text-[11px] font-mono text-text-muted">
+              © {new Date().getFullYear()} ClawOS
+            </span>
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-mono text-text-muted"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-success" aria-hidden="true" />
+              First-party skills only
+            </div>
+          </footer>
         </div>
       </div>
-    </div>
+    </>
   )
 }

@@ -3,7 +3,8 @@
  *
  * Route structure:
  *   /auth                    → AuthPage (public; skipped if signed in)
- *   /home                    → HomePage (auth-guarded; no AppShell)
+ *   /skills                  → SkillsPage (auth-guarded, no AppShell)
+ *   /home                    → HomePage (auth-guarded, inside AppShell)
  *   /careerclaw/chat         → ChatView    (inside AppShell, auth-guarded)
  *   /careerclaw/jobs         → JobsView
  *   /careerclaw/history      → HistoryView
@@ -30,6 +31,7 @@ import { AuthProvider, useAuth } from './context/AuthContext.tsx'
 import { SkillsProvider, useSkills } from './context/SkillsContext.tsx'
 import { AuthPage } from './pages/auth/AuthPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
+import { SkillsPage } from './pages/SkillsPage.tsx'
 import { SessionsPage } from './pages/SessionsPage.tsx'
 import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { AppShell } from './shell/AppShell.tsx'
@@ -123,17 +125,17 @@ function AppRoutes(): JSX.Element {
       {/* Public */}
       <Route path="/auth" element={<AuthRedirect />} />
 
-      {/* Platform home — auth-guarded, no AppShell sidebar */}
+      {/* Skill catalog — auth-guarded, no AppShell (full-page experience) */}
       <Route
-        path="/home"
+        path="/skills"
         element={
           <AuthGuard>
-            <HomePage />
+            <SkillsPage />
           </AuthGuard>
         }
       />
 
-      {/* Platform shell — auth-guarded, AppShell sidebar */}
+      {/* All other auth-guarded routes — wrapped by AppShell */}
       <Route
         element={
           <AuthGuard>
@@ -141,6 +143,9 @@ function AppRoutes(): JSX.Element {
           </AuthGuard>
         }
       >
+        {/* Platform home — zero-state welcome page */}
+        <Route path="/home" element={<HomePage />} />
+
         {/* CareerClaw workspace */}
         <Route path="/careerclaw/chat" element={<ChatView />} />
         <Route path="/careerclaw/jobs" element={<JobsView />} />
