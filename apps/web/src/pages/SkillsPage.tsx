@@ -55,9 +55,11 @@ export function SkillsPage(): JSX.Element {
 
       <div className="min-h-screen bg-bg text-text font-sans">
         <div className="max-w-4xl mx-auto px-6 py-10 space-y-10">
-
           {/* ── Header ──────────────────────────────────────────────────── */}
-          <header className="sp-in flex items-center justify-between" style={{ animationDelay: '0ms' }}>
+          <header
+            className="sp-in flex items-center justify-between"
+            style={{ animationDelay: '0ms' }}
+          >
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(-1)}
@@ -77,7 +79,10 @@ export function SkillsPage(): JSX.Element {
               <div className="flex items-center gap-2.5">
                 <div
                   className="flex items-center justify-center w-8 h-8 rounded-xl text-accent"
-                  style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent-border)' }}
+                  style={{
+                    background: 'var(--accent-dim)',
+                    border: '1px solid var(--accent-border)',
+                  }}
                 >
                   <ClawLogo className="w-4 h-4" />
                 </div>
@@ -95,12 +100,10 @@ export function SkillsPage(): JSX.Element {
 
           {/* ── Page title ──────────────────────────────────────────────── */}
           <section className="sp-in" style={{ animationDelay: '40ms' }}>
-            <h1 className="font-display font-bold text-2xl tracking-tight mb-1">
-              Add a skill
-            </h1>
+            <h1 className="font-display font-bold text-2xl tracking-tight mb-1">Add a skill</h1>
             <p className="text-sm text-text-dim leading-relaxed">
-              Each skill is a purpose-built AI engine — tested, production-grade, and delivered
-              over your preferred channel.
+              Each skill is a purpose-built AI engine — tested, production-grade, and delivered over
+              your preferred channel.
             </p>
           </section>
 
@@ -169,7 +172,12 @@ export function SkillsPage(): JSX.Element {
                             }}
                           >
                             {/* Checkmark for installed */}
-                            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+                            <svg
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                              className="w-4 h-4"
+                              aria-hidden="true"
+                            >
                               <path
                                 fillRule="evenodd"
                                 d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -177,9 +185,7 @@ export function SkillsPage(): JSX.Element {
                               />
                             </svg>
                           </div>
-                          <h3 className="font-display font-bold text-sm text-text">
-                            {skill.name}
-                          </h3>
+                          <h3 className="font-display font-bold text-sm text-text">{skill.name}</h3>
                         </div>
                         <span
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold"
@@ -230,7 +236,6 @@ export function SkillsPage(): JSX.Element {
               First-party skills only
             </div>
           </footer>
-
         </div>
       </div>
     </>
