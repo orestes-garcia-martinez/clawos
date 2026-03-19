@@ -14,7 +14,7 @@
  */
 
 import type { JSX } from 'react'
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useSSEChat } from '../../hooks/useSSEChat'
@@ -23,12 +23,10 @@ import { ProgressEvent } from '../../components/ProgressEvent'
 import { ResumeDropzone } from '../../components/ResumeDropzone'
 import { ProUpsell } from '../../components/ProUpsell'
 
+import { useState } from 'react'
 import { SKILL_MAP } from '../../skills'
 import type { SkillKey } from '../../skills'
 import { ClawLogo, IconSend, IconX } from '../../shell/icons.tsx'
-import { ProfileSetupFlow } from '../../components/ProfileSetupFlow.tsx'
-import type { WorkMode } from '../../components/ProfileSetupFlow.tsx'
-import { supabase } from '../../lib/supabase.ts'
 
 // ── Empty state hero ───────────────────────────────────────────────────────
 
@@ -145,71 +143,12 @@ export function ChatView(): JSX.Element {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const threadRef = useRef<HTMLDivElement>(null)
 
-  // ── Profile setup flow ─────────────────────────────────────────────────
-  // 'idle'    — no resume on file, normal empty state
-  // 'setup'   — resume just uploaded (or resume exists but work_mode is null)
-  // 'done'    — setup complete, normal chat
-  type SetupPhase = 'idle' | 'setup' | 'done'
-  const [setupPhase, setSetupPhase] = useState<SetupPhase>('idle')
-
-  // On mount: check if profile has a resume but is missing work_mode.
-  // This handles the case where the user refreshes mid-setup or uploaded
-  // before this flow existed (BUG-006 backfill case).
-  useEffect(() => {
-    if (!userId) return
-    void (async () => {
-      const { data } = await supabase
-        .from('careerclaw_profiles')
-        .select('resume_text, work_mode')
-        .eq('user_id', userId)
-        .maybeSingle()
-      if (data?.resume_text && !data.work_mode) {
-        setSetupPhase('setup')
-      }
-    })()
-  }, [userId])
-
   // Scroll to bottom on new messages
   useEffect(() => {
     if (threadRef.current) {
       threadRef.current.scrollTop = threadRef.current.scrollHeight
     }
   }, [messages])
-
-  // Called by ResumeDropzone when the PDF has been extracted and saved to Supabase.
-  // Transitions into the setup flow so we can collect work_mode + salary_min.
-  const handleResumeExtracted = useCallback((_text: string) => {
-    setSetupPhase('setup')
-  }, [])
-
-  // Called by ProfileSetupFlow once both questions are answered.
-  // Upserts profile fields, then auto-sends the first briefing as a user message.
-  const handleSetupComplete = useCallback(
-    async (workMode: WorkMode, salaryMin: number | null) => {
-      if (!userId) return
-
-      const update = {
-        user_id: userId,
-        work_mode: workMode,
-        ...(salaryMin !== null && { salary_min: salaryMin }),
-      }
-
-      const { error } = await supabase
-        .from('careerclaw_profiles')
-        .upsert(update, { onConflict: 'user_id' })
-
-      if (error) {
-        // Non-fatal: log and continue — the briefing will still run with what we have.
-        console.error('[ChatView] Failed to save profile fields:', error.message)
-      }
-
-      setSetupPhase('done')
-      // Auto-send first briefing. useSSEChat.send() adds this as a user message
-      // in the thread so the user sees the cause-and-effect of setup completing.
-      send('Run my first job briefing')
-    },
-    [userId, send],
-  )
 
   const handleSubmit = useCallback(() => {
     const text = input.trim()
@@ -249,7 +188,7 @@ export function ChatView(): JSX.Element {
         aria-label="Chat thread"
         aria-live="polite"
       >
-        {isEmpty && setupPhase !== 'setup' ? (
+        {isEmpty ? (
           <Hero
             skill={skill}
             onSuggestion={(text) => {
@@ -270,11 +209,6 @@ export function ChatView(): JSX.Element {
             {/* Inline Pro upsell after a rate limit error */}
             {hasRateLimitError && !isPro && (
               <ProUpsell reason="You have reached the free tier daily limit." />
-            )}
-
-            {/* Profile setup flow — rendered after resume upload, above the composer */}
-            {setupPhase === 'setup' && (
-              <ProfileSetupFlow onComplete={(wm, sal) => void handleSetupComplete(wm, sal)} />
             )}
           </div>
         )}
@@ -302,7 +236,7 @@ export function ChatView(): JSX.Element {
             style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
           >
             {/* Resume upload */}
-            <ResumeDropzone jwt={jwt} userId={userId} onExtracted={handleResumeExtracted} />
+            <ResumeDropzone jwt={jwt} userId={userId} />
 
             {/* Textarea */}
             <textarea
