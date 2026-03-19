@@ -63,7 +63,7 @@ export function UserFooter(): JSX.Element {
                 setMenuOpen(false)
                 void signOut()
               }}
-              className="w-full px-3 py-2 text-sm text-left text-danger hover:bg-surface-2 transition-colors"
+              className="w-full px-3 py-2 text-sm text-left text-danger hover:bg-surface-2 transition-colors cursor-pointer"
             >
               Sign out
             </button>
@@ -74,7 +74,7 @@ export function UserFooter(): JSX.Element {
       <div className="flex items-center gap-2.5">
         <button
           onClick={() => setMenuOpen((o) => !o)}
-          className="w-8 h-8 rounded-full bg-surface-3 border border-border flex items-center justify-center text-xs font-bold font-mono text-text-muted shrink-0 hover:border-accent-border hover:text-text transition-all"
+          className="w-8 h-8 rounded-full bg-surface-3 border border-border flex items-center justify-center text-xs font-bold font-mono text-text-muted shrink-0 hover:border-accent-border hover:text-text transition-all cursor-pointer"
           aria-label="Account menu"
           aria-expanded={menuOpen}
         >
@@ -87,7 +87,7 @@ export function UserFooter(): JSX.Element {
         </div>
         <button
           onClick={toggleTheme}
-          className="p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-surface-2 transition-all shrink-0"
+          className="p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-surface-2 transition-all shrink-0 cursor-pointer"
           aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
         >
           {theme === 'dark' ? <IconSun /> : <IconMoon />}

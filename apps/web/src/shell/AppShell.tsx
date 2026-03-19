@@ -4,13 +4,15 @@
  * Owns:
  *   - Brand/status area
  *   - Skill switcher (installed skills only, via SkillsContext)
- *   - Add Skills drawer (sidebar-scoped slide-over)
  *   - Active skill nav section
  *   - Platform nav section
  *   - Pro upgrade card
  *   - User footer
  *   - Mobile sidebar drawer + backdrop
  *   - Topbar with hamburger (mobile)
+ *
+ * "Add Skills" no longer opens a sidebar drawer — it navigates to /skills,
+ * a standalone full-page catalog. AddSkillsDrawer has been removed.
  *
  * Guards:
  *   - Skills loading → spinner
@@ -23,6 +25,11 @@
  *     so RootRedirect can restore the user's last workspace on re-entry
  *   - Remove skill: navigate FIRST, then removeSkill() — prevents ghost render
  *
+ * Outlet context:
+ *   { onOpenAddSkills: () => void }
+ *   Passed to child routes (e.g. HomePage) so they can trigger navigation
+ *   to /skills without knowing about the router directly.
+ *
  * Hook discipline: all hook calls are unconditional and precede every early
  * return. Derived values (activeSkill, skill) are computed after guards.
  */
@@ -32,7 +39,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { ClawLogo, IconMenu, IconX } from './icons.tsx'
 import { SkillSwitcher } from './SkillSwitcher.tsx'
-import { AddSkillsDrawer } from './AddSkillsDrawer.tsx'
 import { PlatformNav } from './PlatformNav.tsx'
 import { SkillNav } from './SkillNav.tsx'
 import { UserFooter } from './UserFooter.tsx'
@@ -50,7 +56,6 @@ export function AppShell(): JSX.Element {
   const { pathname } = useLocation()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const tentativeSkill = pathname.split('/')[1] as SkillKey | undefined
   const isTentativeSkillRoute = Boolean(tentativeSkill && tentativeSkill in SKILL_MAP)
@@ -124,36 +129,29 @@ export function AppShell(): JSX.Element {
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden cursor-pointer"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Sidebar — relative + overflow-hidden clips the AddSkillsDrawer slide */}
+      {/* Sidebar */}
       <aside
         className={[
           'fixed lg:static inset-y-0 left-0 z-30',
           'w-64 shrink-0 bg-surface border-r border-border',
-          'flex flex-col relative overflow-hidden',
+          'flex flex-col',
           'transition-transform duration-200 ease-in-out',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         ].join(' ')}
         aria-label="Platform navigation"
       >
-        {/* Add Skills drawer — covers the sidebar surface */}
-        <AddSkillsDrawer
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          onInstalled={(slug) => navigate(`/${slug}/chat`)}
-        />
-
         {/* Brand block */}
         <div className="h-16 px-4 flex items-center border-b border-border shrink-0">
           <div className="flex items-center justify-between w-full">
             <button
               onClick={() => navigate('/home')}
-              className="flex items-center gap-3 group"
+              className="flex items-center gap-3 group cursor-pointer"
               aria-label="ClawOS home"
             >
               <div className="text-accent group-hover:text-accent transition-colors">
@@ -170,7 +168,7 @@ export function AppShell(): JSX.Element {
             </button>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-1 rounded-lg text-text-muted hover:text-text hover:bg-surface-2 transition-colors"
+              className="lg:hidden p-1 rounded-lg text-text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
               aria-label="Close navigation"
             >
               <IconX />
@@ -178,48 +176,55 @@ export function AppShell(): JSX.Element {
           </div>
         </div>
 
-        {/* Installed skill switcher */}
-        <SkillSwitcher
-          activeSkill={activeSkill}
-          onSelectSkill={handleSelectSkill}
-          onRemoveSkill={handleRemoveSkill}
-          onOpenAddSkills={() => setDrawerOpen(true)}
-        />
+        <div className="flex-1 flex flex-col justify-between">
+          <div>
+            {/* Installed skill switcher — navigates to /skills to add more */}
+            <SkillSwitcher
+              activeSkill={activeSkill}
+              onSelectSkill={handleSelectSkill}
+              onRemoveSkill={handleRemoveSkill}
+              onAddSkills={() => navigate('/skills')}
+            />
 
-        {/* Active skill nav — only when on a skill route */}
-        {skill && <SkillNav skill={skill} onNavigate={() => setSidebarOpen(false)} />}
+            {/* Active skill nav — only when on a skill route */}
+            {skill && <SkillNav skill={skill} onNavigate={() => setSidebarOpen(false)} />}
+          </div>
+          <div>
+            {/* Platform nav */}
+            <PlatformNav />
 
-        {/* Platform nav */}
-        <PlatformNav />
-
-        {/* Pro upgrade card — free users only */}
-        {tier === 'free' && (
-          <div className="px-3 pb-2">
-            <div
-              className="p-4 rounded-2xl space-y-3"
-              style={{
-                background: 'linear-gradient(135deg, var(--accent-2-dim), var(--accent-dim))',
-                border: '1px solid var(--accent-border)',
-              }}
-            >
-              <div>
-                <div className="text-sm font-semibold font-display">Go Pro · $9/mo</div>
-                <p className="text-xs text-text-muted mt-1 leading-relaxed">
-                  LLM outreach, cover letters, resume gap analysis.
-                </p>
+            {/* Pro upgrade card — free users only */}
+            {tier === 'free' && (
+              <div className="px-3 pb-2">
+                <div
+                  className="p-4 rounded-2xl space-y-3"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--accent-2-dim), var(--accent-dim))',
+                    border: '1px solid var(--accent-border)',
+                  }}
+                >
+                  <div>
+                    <div className="text-sm font-semibold font-display">Go Pro · $9/mo</div>
+                    <p className="text-xs text-text-muted mt-1 leading-relaxed">
+                      LLM outreach, cover letters, resume gap analysis.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate('/settings')}
+                    className="w-full py-2 rounded-xl bg-accent text-bg text-xs font-bold hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Upgrade now
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => navigate('/settings')}
-                className="w-full py-2 rounded-xl bg-accent text-bg text-xs font-bold hover:brightness-110 active:scale-95 transition-all"
-              >
-                Upgrade now
-              </button>
+            )}
+
+            {/* User footer */}
+            <div className="py-6">
+              <UserFooter />
             </div>
           </div>
-        )}
-
-        {/* User footer */}
-        <UserFooter />
+        </div>
       </aside>
 
       {/* Main panel */}
@@ -228,7 +233,7 @@ export function AppShell(): JSX.Element {
         <header className="h-16 shrink-0 border-b border-border bg-surface flex items-center px-4 gap-3">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-surface-2 transition-all"
+            className="lg:hidden p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-surface-2 transition-all cursor-pointer"
             aria-label="Open navigation"
           >
             <IconMenu />
@@ -247,7 +252,7 @@ export function AppShell(): JSX.Element {
                 )}
               </>
             ) : (
-              <span className="font-display font-semibold text-sm">ClawOS</span>
+              <span className="font-display font-semibold text-sm">v1.0.0</span>
             )}
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -260,7 +265,8 @@ export function AppShell(): JSX.Element {
 
         {/* Workspace */}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden" id="main-content">
-          <Outlet />
+          {/* Pass onOpenAddSkills to child routes via outlet context */}
+          <Outlet context={{ onOpenAddSkills: () => navigate('/skills') }} />
         </main>
       </div>
     </div>
