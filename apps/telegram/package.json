@@ -19,7 +19,7 @@
     "@clawos/shared": "*",
     "express": "^5.0.0",
     "pdf-parse": "^1.1.1",
-    "zod": "^3.24.0"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
