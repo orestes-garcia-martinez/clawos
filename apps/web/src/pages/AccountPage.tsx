@@ -91,8 +91,8 @@ function TelegramLinkSection({ jwt }: { jwt: string }): JSX.Element {
       {!token ? (
         <div className="space-y-3">
           <p className="text-sm text-text-muted leading-relaxed">
-            Generate a single-use token, then send the command below to the ClawOS Telegram bot.
-            The token expires in 10 minutes.
+            Generate a single-use token, then send the command below to the ClawOS Telegram bot. The
+            token expires in 10 minutes.
           </p>
           {error && (
             <p className="text-xs text-danger flex items-center gap-1.5" role="alert">
@@ -101,7 +101,9 @@ function TelegramLinkSection({ jwt }: { jwt: string }): JSX.Element {
             </p>
           )}
           <button
-            onClick={() => { void handleGenerate() }}
+            onClick={() => {
+              void handleGenerate()
+            }}
             disabled={generating}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-accent text-bg hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all"
           >
@@ -112,8 +114,7 @@ function TelegramLinkSection({ jwt }: { jwt: string }): JSX.Element {
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-text-muted">
-            Send this command to the <strong className="text-text">@ClawOS_bot</strong> on
-            Telegram:
+            Send this command to the <strong className="text-text">@ClawOS_bot</strong> on Telegram:
           </p>
           <div
             className="flex items-center gap-3 p-3 rounded-xl"
@@ -121,7 +122,9 @@ function TelegramLinkSection({ jwt }: { jwt: string }): JSX.Element {
           >
             <code className="flex-1 text-sm font-mono text-accent break-all">/link {token}</code>
             <button
-              onClick={() => { void handleCopy(`/link ${token}`) }}
+              onClick={() => {
+                void handleCopy(`/link ${token}`)
+              }}
               className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
               style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}
               aria-label="Copy link command"
@@ -156,9 +159,7 @@ function BillingSection({ tier }: { tier: string }): JSX.Element {
     >
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium">
-            {tier === 'pro' ? 'Pro Plan — $9/mo' : 'Free Plan'}
-          </p>
+          <p className="text-sm font-medium">{tier === 'pro' ? 'Pro Plan — $9/mo' : 'Free Plan'}</p>
           <p className="text-xs text-text-muted mt-0.5">
             {tier === 'pro'
               ? 'All features unlocked.'

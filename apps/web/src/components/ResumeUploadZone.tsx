@@ -90,20 +90,18 @@ export function ResumeUploadZone({
       setState('saving')
       const now = new Date().toISOString()
 
-      const { error: dbErr } = await supabase
-        .from('careerclaw_profiles')
-        .upsert(
-          {
-            user_id: userId,
-            resume_text: text,
-            skills: skills.length > 0 ? skills : null,
-            target_roles: targetRoles.length > 0 ? targetRoles : null,
-            experience_years: experienceYears,
-            resume_summary: resumeSummary,
-            resume_uploaded_at: now,
-          },
-          { onConflict: 'user_id' },
-        )
+      const { error: dbErr } = await supabase.from('careerclaw_profiles').upsert(
+        {
+          user_id: userId,
+          resume_text: text,
+          skills: skills.length > 0 ? skills : null,
+          target_roles: targetRoles.length > 0 ? targetRoles : null,
+          experience_years: experienceYears,
+          resume_summary: resumeSummary,
+          resume_uploaded_at: now,
+        },
+        { onConflict: 'user_id' },
+      )
 
       if (dbErr) {
         setState('error')
@@ -135,8 +133,7 @@ export function ResumeUploadZone({
 
   const isLoading = state === 'uploading' || state === 'saving'
 
-  const loadingLabel =
-    state === 'uploading' ? 'Extracting resume text…' : 'Saving to your profile…'
+  const loadingLabel = state === 'uploading' ? 'Extracting resume text…' : 'Saving to your profile…'
 
   return (
     <div className="space-y-3">
@@ -246,7 +243,10 @@ export function ResumeUploadZone({
           <IconWarning className="w-3.5 h-3.5 shrink-0" />
           {errorMsg}
           <button
-            onClick={() => { setState('idle'); setErrorMsg('') }}
+            onClick={() => {
+              setState('idle')
+              setErrorMsg('')
+            }}
             className="ml-auto underline underline-offset-2 hover:no-underline"
           >
             Dismiss

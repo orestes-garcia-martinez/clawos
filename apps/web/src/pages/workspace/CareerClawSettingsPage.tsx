@@ -53,7 +53,13 @@ function Section({
 
 // ── Field helpers ──────────────────────────────────────────────────────────
 
-function FieldLabel({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }): JSX.Element {
+function FieldLabel({
+  htmlFor,
+  children,
+}: {
+  htmlFor: string
+  children: React.ReactNode
+}): JSX.Element {
   return (
     <label htmlFor={htmlFor} className="block text-xs font-medium text-text-muted mb-1">
       {children}
@@ -135,7 +141,10 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
     const salaryNum = form.salary_min ? parseInt(form.salary_min, 10) : null
 
     const [userRes, profileRes] = await Promise.all([
-      supabase.from('users').update({ name: form.name || null }).eq('id', userId),
+      supabase
+        .from('users')
+        .update({ name: form.name || null })
+        .eq('id', userId),
       supabase.from('careerclaw_profiles').upsert(
         {
           user_id: userId,
@@ -164,7 +173,12 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
       <div className="space-y-3">
         <div>
           <FieldLabel htmlFor="name">Name</FieldLabel>
-          <TextInput id="name" value={form.name} onChange={setField('name')} placeholder="Your name" />
+          <TextInput
+            id="name"
+            value={form.name}
+            onChange={setField('name')}
+            placeholder="Your name"
+          />
         </div>
 
         <div>
@@ -202,8 +216,8 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
             placeholder="e.g. New York, NY or Remote US"
           />
           <p className="text-[11px] text-text-muted mt-1">
-            Required when work mode is On-site. You can list multiple locations, e.g.
-            "Miami, FL or Tampa, FL".
+            Required when work mode is On-site. You can list multiple locations, e.g. "Miami, FL or
+            Tampa, FL".
           </p>
         </div>
 
@@ -214,12 +228,16 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
         )}
 
         <button
-          onClick={() => { void handleSave() }}
+          onClick={() => {
+            void handleSave()
+          }}
           disabled={saving}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent text-bg text-sm font-semibold hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all"
         >
           {saved ? (
-            <><IconCheck className="w-4 h-4" /> Saved</>
+            <>
+              <IconCheck className="w-4 h-4" /> Saved
+            </>
           ) : saving ? (
             'Saving…'
           ) : (
@@ -339,7 +357,9 @@ function ResumeSection({ userId, jwt }: { userId: string; jwt: string }): JSX.El
               )}
 
               <button
-                onClick={() => { void handleClear() }}
+                onClick={() => {
+                  void handleClear()
+                }}
                 disabled={clearing}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
                 style={{
@@ -349,7 +369,9 @@ function ResumeSection({ userId, jwt }: { userId: string; jwt: string }): JSX.El
                 }}
               >
                 {cleared ? (
-                  <><IconCheck className="w-4 h-4" /> Cleared</>
+                  <>
+                    <IconCheck className="w-4 h-4" /> Cleared
+                  </>
                 ) : clearing ? (
                   'Clearing…'
                 ) : (
