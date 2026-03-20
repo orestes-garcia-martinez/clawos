@@ -138,9 +138,60 @@ export async function chatHandler(c: Context): Promise<Response> {
       const supabase = createServerClient()
       const { data: profileRow } = await supabase
         .from('careerclaw_profiles')
-        .select('resume_text, work_mode, salary_min, location_pref')
+        .select(
+          'resume_text, work_mode, salary_min, location_pref, skills, target_roles, experience_years, resume_summary',
+        )
         .eq('user_id', userId)
         .maybeSingle()
+
+      // ── Profile gate ─────────────────────────────────────────────────────
+      // Block the search if required profile fields are missing.
+      // work_mode and skills are always required.
+      // location_pref is additionally required when work_mode is 'onsite'.
+      const profileSkills = (profileRow?.skills as string[] | null) ?? []
+      const missingFields: string[] = []
+
+      if (profileSkills.length === 0) {
+        missingFields.push('a resume (so I can match your skills and experience)')
+      }
+      if (!profileRow?.work_mode) {
+        missingFields.push('your preferred work mode (Remote, Hybrid, or On-site)')
+      }
+      if (profileRow?.work_mode === 'onsite' && !profileRow?.location_pref) {
+        missingFields.push('your location preference (required for On-site searches)')
+      }
+
+      if (missingFields.length > 0) {
+        const list = missingFields.map((f, i) => `${i + 1}. ${f}`).join('\n')
+        const gateMessage =
+          `Before I can run your job search, I still need a few things from you.\n\n` +
+          `Please head to **Settings** and provide the following:\n\n${list}\n\n` +
+          `Once those are saved, come back and I'll run your search right away.`
+
+        const savedId = await saveSession(
+          userId,
+          channel as Channel,
+          [
+            ...history,
+            { role: 'user', content: message, timestamp: new Date().toISOString() },
+            { role: 'assistant', content: gateMessage, timestamp: new Date().toISOString() },
+          ],
+          activeSessionId,
+        )
+
+        logAudit({
+          userId,
+          skill: 'careerclaw',
+          channel,
+          status: 'success',
+          statusCode: 200,
+          durationMs: Date.now() - startMs,
+        })
+
+        await sendDone(savedId, gateMessage)
+        return
+      }
+      // ── End profile gate ──────────────────────────────────────────────────
 
       await sendProgress('fetching', 'Fetching jobs...')
 
@@ -149,7 +200,11 @@ export async function chatHandler(c: Context): Promise<Response> {
         workerResult = await runWorkerCareerclaw({
           userId,
           profile: {
-            workMode: profileRow?.work_mode ?? undefined,
+            skills: (profileRow?.skills as string[] | null) ?? undefined,
+            targetRoles: (profileRow?.target_roles as string[] | null) ?? undefined,
+            experienceYears: profileRow?.experience_years ?? undefined,
+            resumeSummary: (profileRow?.resume_summary as string | null) ?? undefined,
+            workMode: (profileRow?.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
             salaryMin: profileRow?.salary_min ?? undefined,
             locationPref: profileRow?.location_pref ?? undefined,
           },

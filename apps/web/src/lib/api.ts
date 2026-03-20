@@ -152,13 +152,21 @@ export function chatSSE(
 
 // ── extractResume ──────────────────────────────────────────────────────────
 
+export interface ExtractedProfile {
+  skills: string[]
+  targetRoles: string[]
+  experienceYears: number | null
+  resumeSummary: string | null
+}
+
 export interface ExtractResumeResult {
   text: string
+  extractedProfile: ExtractedProfile
 }
 
 /**
- * Upload a PDF to the API and receive extracted plain text.
- * Raw PDF is discarded server-side — never stored.
+ * Upload a PDF to the API and receive extracted plain text plus structured
+ * profile fields parsed by Claude Haiku. Raw PDF is discarded server-side.
  */
 export async function extractResume(jwt: string, file: File): Promise<ExtractResumeResult> {
   const form = new FormData()
