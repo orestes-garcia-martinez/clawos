@@ -38,7 +38,8 @@ import { AppShell } from './shell/AppShell.tsx'
 import { ChatView } from './pages/workspace/ChatView.tsx'
 import { JobsView } from './pages/workspace/JobsView.tsx'
 import { HistoryView } from './pages/workspace/HistoryView.tsx'
-import { SettingsPage } from './pages/SettingsPage.tsx'
+import { AccountPage } from './pages/AccountPage.tsx'
+import { CareerClawSettingsPage } from './pages/workspace/CareerClawSettingsPage.tsx'
 import type { SkillKey } from './skills'
 import { SKILL_MAP } from './skills'
 
@@ -150,11 +151,14 @@ function AppRoutes(): JSX.Element {
         <Route path="/careerclaw/chat" element={<ChatView />} />
         <Route path="/careerclaw/jobs" element={<JobsView />} />
         <Route path="/careerclaw/history" element={<HistoryView />} />
+        <Route path="/careerclaw/settings" element={<CareerClawSettingsPage />} />
 
         {/* Platform pages */}
         <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/account" element={<AccountPage />} />
+        {/* Legacy redirect — keep old /settings links working */}
+        <Route path="/settings" element={<AccountPage />} />
 
         {/* Root and catch-all */}
         <Route path="/" element={<RootRedirect />} />
