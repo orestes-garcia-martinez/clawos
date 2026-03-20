@@ -1,20 +1,20 @@
 /**
- * SettingsPage.tsx — ClawOS user settings.
+ * CareerClawSettingsPage.tsx — CareerClaw skill profile and resume.
  *
- * Sections:
- *   1. Profile        — name, work mode, salary min, location
- *   2. Resume         — upload dropzone, last updated date, extracted text viewer
- *   3. Link Telegram  — generate link token, display /link <token> instruction
- *   4. Billing        — Polar portal link (static URL for MVP)
+ * Skill-owned content only:
+ *   1. Profile form — name, work mode, salary min, location
+ *   2. Resume — ResumeUploadZone + extracted text viewer + clear button
+ *
+ * Platform content (Telegram linking, billing) lives at /account.
+ * Accessible from the CareerClaw skill nav: /careerclaw/settings.
  */
 
 import type { JSX } from 'react'
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
-import { createLinkToken } from '../lib/api'
-import { useAuth } from '../context/AuthContext'
-import { ResumeDropzone } from '../components/ResumeDropzone'
-import { IconCheck, IconLink, IconWarning } from '../shell/icons.tsx'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
+import { ResumeUploadZone } from '../../components/ResumeUploadZone'
+import { IconCheck, IconWarning } from '../../shell/icons.tsx'
 
 // ── Section wrapper ────────────────────────────────────────────────────────
 
@@ -53,13 +53,7 @@ function Section({
 
 // ── Field helpers ──────────────────────────────────────────────────────────
 
-function FieldLabel({
-  htmlFor,
-  children,
-}: {
-  htmlFor: string
-  children: React.ReactNode
-}): JSX.Element {
+function FieldLabel({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }): JSX.Element {
   return (
     <label htmlFor={htmlFor} className="block text-xs font-medium text-text-muted mb-1">
       {children}
@@ -141,10 +135,7 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
     const salaryNum = form.salary_min ? parseInt(form.salary_min, 10) : null
 
     const [userRes, profileRes] = await Promise.all([
-      supabase
-        .from('users')
-        .update({ name: form.name || null })
-        .eq('id', userId),
+      supabase.from('users').update({ name: form.name || null }).eq('id', userId),
       supabase.from('careerclaw_profiles').upsert(
         {
           user_id: userId,
@@ -173,12 +164,7 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
       <div className="space-y-3">
         <div>
           <FieldLabel htmlFor="name">Name</FieldLabel>
-          <TextInput
-            id="name"
-            value={form.name}
-            onChange={setField('name')}
-            placeholder="Your name"
-          />
+          <TextInput id="name" value={form.name} onChange={setField('name')} placeholder="Your name" />
         </div>
 
         <div>
@@ -216,8 +202,8 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
             placeholder="e.g. New York, NY or Remote US"
           />
           <p className="text-[11px] text-text-muted mt-1">
-            Required when work mode is On-site. You can list multiple locations, e.g. "Miami, FL or
-            Tampa, FL".
+            Required when work mode is On-site. You can list multiple locations, e.g.
+            "Miami, FL or Tampa, FL".
           </p>
         </div>
 
@@ -228,16 +214,12 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
         )}
 
         <button
-          onClick={() => {
-            void handleSave()
-          }}
+          onClick={() => { void handleSave() }}
           disabled={saving}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-accent text-bg text-sm font-semibold hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all"
         >
           {saved ? (
-            <>
-              <IconCheck className="w-4 h-4" /> Saved
-            </>
+            <><IconCheck className="w-4 h-4" /> Saved</>
           ) : saving ? (
             'Saving…'
           ) : (
@@ -263,7 +245,6 @@ function ResumeSection({ userId, jwt }: { userId: string; jwt: string }): JSX.El
     resumeUploadedAt: null,
     loading: true,
   })
-  const [uploadFeedback, setUploadFeedback] = useState<'success' | 'error' | null>(null)
   const [clearing, setClearing] = useState(false)
   const [cleared, setCleared] = useState(false)
   const [clearError, setClearError] = useState('')
@@ -289,35 +270,8 @@ function ResumeSection({ userId, jwt }: { userId: string; jwt: string }): JSX.El
     load()
   }, [load])
 
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  }
-
-  function handleExtracted(text: string) {
-    // Reload profile row to get the fresh resume_uploaded_at from the DB
-    void supabase
-      .from('careerclaw_profiles')
-      .select('resume_text, resume_uploaded_at')
-      .eq('user_id', userId)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (error || !data) {
-          setUploadFeedback('error')
-        } else {
-          setState({
-            resumeText: text,
-            resumeUploadedAt:
-              (data as { resume_uploaded_at?: string | null })?.resume_uploaded_at ?? null,
-            loading: false,
-          })
-          setUploadFeedback('success')
-        }
-        setTimeout(() => setUploadFeedback(null), 4000)
-      })
+  function handleUploaded(text: string, uploadedAt: string) {
+    setState({ resumeText: text, resumeUploadedAt: uploadedAt, loading: false })
   }
 
   async function handleClear() {
@@ -356,57 +310,19 @@ function ResumeSection({ userId, jwt }: { userId: string; jwt: string }): JSX.El
         <p className="text-xs text-text-muted">Loading…</p>
       ) : (
         <div className="space-y-4">
-          {/* Upload area */}
-          <div className="flex items-center gap-3">
-            <ResumeDropzone jwt={jwt} userId={userId} onExtracted={handleExtracted} />
-            <div className="text-sm text-text-muted">
-              {state.resumeText
-                ? 'Drop a new PDF to replace your current resume.'
-                : 'Upload a PDF resume to enable job matching.'}
-            </div>
-          </div>
+          <ResumeUploadZone
+            jwt={jwt}
+            userId={userId}
+            uploadedAt={state.resumeUploadedAt}
+            onUploaded={handleUploaded}
+          />
 
-          {/* Upload feedback */}
-          {uploadFeedback === 'success' && (
-            <div
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium"
-              style={{
-                background: 'rgba(34,197,94,0.08)',
-                color: 'var(--success)',
-                border: '1px solid rgba(34,197,94,0.2)',
-              }}
-              role="status"
-            >
-              <IconCheck className="w-3.5 h-3.5 shrink-0" />
-              Resume uploaded and profile extracted successfully.
-            </div>
-          )}
-          {uploadFeedback === 'error' && (
-            <div
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium"
-              style={{
-                background: 'rgba(239,68,68,0.08)',
-                color: 'var(--danger)',
-                border: '1px solid rgba(239,68,68,0.2)',
-              }}
-              role="alert"
-            >
-              <IconWarning className="w-3.5 h-3.5 shrink-0" />
-              Upload succeeded but profile could not be refreshed. Try re-uploading.
-            </div>
-          )}
-
-          {/* Stored resume preview */}
+          {/* Extracted text preview */}
           {state.resumeText && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-mono text-text-muted">
-                  {state.resumeText.length.toLocaleString()} characters stored
-                  {state.resumeUploadedAt && (
-                    <> · Last updated: {formatDate(state.resumeUploadedAt)}</>
-                  )}
-                </p>
-              </div>
+              <p className="text-[11px] font-mono text-text-muted">
+                {state.resumeText.length.toLocaleString()} characters stored
+              </p>
               <div
                 className="rounded-xl p-3 text-xs font-mono text-text-dim leading-relaxed overflow-y-auto max-h-40 whitespace-pre-wrap"
                 style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
@@ -423,9 +339,7 @@ function ResumeSection({ userId, jwt }: { userId: string; jwt: string }): JSX.El
               )}
 
               <button
-                onClick={() => {
-                  void handleClear()
-                }}
+                onClick={() => { void handleClear() }}
                 disabled={clearing}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
                 style={{
@@ -435,9 +349,7 @@ function ResumeSection({ userId, jwt }: { userId: string; jwt: string }): JSX.El
                 }}
               >
                 {cleared ? (
-                  <>
-                    <IconCheck className="w-4 h-4" /> Cleared
-                  </>
+                  <><IconCheck className="w-4 h-4" /> Cleared</>
                 ) : clearing ? (
                   'Clearing…'
                 ) : (
@@ -452,143 +364,10 @@ function ResumeSection({ userId, jwt }: { userId: string; jwt: string }): JSX.El
   )
 }
 
-// ── Telegram link section ──────────────────────────────────────────────────
+// ── CareerClawSettingsPage ─────────────────────────────────────────────────
 
-function TelegramLinkSection({ jwt }: { jwt: string }): JSX.Element {
-  const [token, setToken] = useState<string | null>(null)
-  const [generating, setGenerating] = useState(false)
-  const [error, setError] = useState('')
-  const [copied, setCopied] = useState(false)
-
-  async function handleGenerate() {
-    setGenerating(true)
-    setError('')
-    setToken(null)
-    try {
-      const result = await createLinkToken(jwt)
-      setToken(result.token)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate token.')
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  async function handleCopy(text: string) {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      /* ignore */
-    }
-  }
-
-  return (
-    <Section
-      title="Link Telegram Account"
-      description="Connect your Telegram account to continue conversations across channels."
-    >
-      {!token ? (
-        <div className="space-y-3">
-          <p className="text-sm text-text-muted leading-relaxed">
-            Generate a single-use token, then send the command below to the ClawOS Telegram bot. The
-            token expires in 10 minutes.
-          </p>
-          {error && (
-            <p className="text-xs text-danger flex items-center gap-1.5" role="alert">
-              <IconWarning className="w-3.5 h-3.5" />
-              {error}
-            </p>
-          )}
-          <button
-            onClick={() => {
-              void handleGenerate()
-            }}
-            disabled={generating}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-accent text-bg hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all"
-          >
-            <IconLink className="w-4 h-4" />
-            {generating ? 'Generating…' : 'Generate link token'}
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <p className="text-sm text-text-muted">
-            Send this command to the <strong className="text-text">@ClawOS_bot</strong> on Telegram:
-          </p>
-          <div
-            className="flex items-center gap-3 p-3 rounded-xl"
-            style={{ background: 'var(--bg)', border: '1px solid var(--accent-border)' }}
-          >
-            <code className="flex-1 text-sm font-mono text-accent break-all">/link {token}</code>
-            <button
-              onClick={() => {
-                void handleCopy(`/link ${token}`)
-              }}
-              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}
-              aria-label="Copy link command"
-            >
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
-          </div>
-          <p className="text-xs font-mono text-text-muted">
-            Token expires in 10 minutes · single use
-          </p>
-          <button
-            onClick={() => setToken(null)}
-            className="text-xs text-text-muted hover:text-text transition-colors"
-          >
-            Generate a new token
-          </button>
-        </div>
-      )}
-    </Section>
-  )
-}
-
-// ── Billing section ────────────────────────────────────────────────────────
-
-function BillingSection({ tier }: { tier: string }): JSX.Element {
-  const POLAR_PORTAL = 'https://polar.sh'
-
-  return (
-    <Section
-      title="Billing"
-      description="Polar.sh is the authoritative source for your subscription. Supabase stores a cached snapshot."
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">{tier === 'pro' ? 'Pro Plan — $9/mo' : 'Free Plan'}</p>
-          <p className="text-xs text-text-muted mt-0.5">
-            {tier === 'pro'
-              ? 'All features unlocked.'
-              : 'Upgrade to Pro for LLM outreach, cover letters, and gap analysis.'}
-          </p>
-        </div>
-        <a
-          href={POLAR_PORTAL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-          style={{
-            background: tier === 'pro' ? 'var(--surface-2)' : 'var(--accent)',
-            color: tier === 'pro' ? 'var(--text-muted)' : 'var(--bg)',
-            border: tier === 'pro' ? '1px solid var(--border)' : 'none',
-          }}
-        >
-          {tier === 'pro' ? 'Manage billing' : 'Upgrade to Pro'}
-        </a>
-      </div>
-    </Section>
-  )
-}
-
-// ── SettingsPage ───────────────────────────────────────────────────────────
-
-export function SettingsPage(): JSX.Element {
-  const { user, session, tier } = useAuth()
+export function CareerClawSettingsPage(): JSX.Element {
+  const { user, session } = useAuth()
   const jwt = session?.access_token ?? ''
 
   if (!user) return <></>
@@ -597,14 +376,14 @@ export function SettingsPage(): JSX.Element {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
         <div>
-          <h1 className="text-2xl font-display font-bold tracking-tight">Settings</h1>
-          <p className="text-sm text-text-muted mt-1">{user.email}</p>
+          <h1 className="text-2xl font-display font-bold tracking-tight">CareerClaw Profile</h1>
+          <p className="text-sm text-text-muted mt-1">
+            Used to match jobs, score results, and personalise outreach.
+          </p>
         </div>
 
         <ProfileSection userId={user.id} />
         <ResumeSection userId={user.id} jwt={jwt} />
-        <TelegramLinkSection jwt={jwt} />
-        <BillingSection tier={tier} />
       </div>
     </div>
   )
