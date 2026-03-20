@@ -8,33 +8,135 @@ export type Database = {
   }
   public: {
     Tables: {
-      // ── Platform tables (skill-agnostic) ─────────────────────────────────
-      link_tokens: {
+      careerclaw_job_tracking: {
         Row: {
-          id: string
-          token_hash: string
-          web_user_id: string
-          expires_at: string
+          company: string
           created_at: string
+          id: string
+          job_id: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
         }
         Insert: {
-          id?: string
-          token_hash: string
-          web_user_id: string
-          expires_at: string
+          company: string
           created_at?: string
+          id?: string
+          job_id: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
         }
         Update: {
-          id?: string
-          token_hash?: string
-          web_user_id?: string
-          expires_at?: string
+          company?: string
           created_at?: string
+          id?: string
+          job_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: 'link_tokens_web_user_id_fkey'
-            columns: ['web_user_id']
+            foreignKeyName: 'careerclaw_job_tracking_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      careerclaw_profiles: {
+        Row: {
+          created_at: string
+          experience_years: number | null
+          id: string
+          location_pref: string | null
+          resume_summary: string | null
+          resume_text: string | null
+          resume_uploaded_at: string | null
+          salary_min: number | null
+          skills: string[] | null
+          target_roles: string[] | null
+          updated_at: string
+          user_id: string
+          work_mode: string | null
+        }
+        Insert: {
+          created_at?: string
+          experience_years?: number | null
+          id?: string
+          location_pref?: string | null
+          resume_summary?: string | null
+          resume_text?: string | null
+          resume_uploaded_at?: string | null
+          salary_min?: number | null
+          skills?: string[] | null
+          target_roles?: string[] | null
+          updated_at?: string
+          user_id: string
+          work_mode?: string | null
+        }
+        Update: {
+          created_at?: string
+          experience_years?: number | null
+          id?: string
+          location_pref?: string | null
+          resume_summary?: string | null
+          resume_text?: string | null
+          resume_uploaded_at?: string | null
+          salary_min?: number | null
+          skills?: string[] | null
+          target_roles?: string[] | null
+          updated_at?: string
+          user_id?: string
+          work_mode?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'careerclaw_profiles_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: true
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      careerclaw_runs: {
+        Row: {
+          duration_ms: number | null
+          id: string
+          job_count: number
+          run_at: string
+          status: string
+          top_score: number | null
+          user_id: string
+        }
+        Insert: {
+          duration_ms?: number | null
+          id?: string
+          job_count?: number
+          run_at?: string
+          status: string
+          top_score?: number | null
+          user_id: string
+        }
+        Update: {
+          duration_ms?: number | null
+          id?: string
+          job_count?: number
+          run_at?: string
+          status?: string
+          top_score?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'careerclaw_runs_user_id_fkey'
+            columns: ['user_id']
             isOneToOne: false
             referencedRelation: 'users'
             referencedColumns: ['id']
@@ -67,6 +169,38 @@ export type Database = {
           {
             foreignKeyName: 'channel_identities_user_id_fkey'
             columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      link_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          token_hash: string
+          web_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          token_hash: string
+          web_user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token_hash?: string
+          web_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'link_tokens_web_user_id_fkey'
+            columns: ['web_user_id']
             isOneToOne: false
             referencedRelation: 'users'
             referencedColumns: ['id']
@@ -111,6 +245,50 @@ export type Database = {
           },
         ]
       }
+      user_skills: {
+        Row: {
+          created_at: string
+          id: string
+          installed_at: string
+          is_default: boolean
+          last_used_at: string | null
+          skill_slug: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          installed_at?: string
+          is_default?: boolean
+          last_used_at?: string | null
+          skill_slug: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          installed_at?: string
+          is_default?: boolean
+          last_used_at?: string | null
+          skill_slug?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'user_skills_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       users: {
         Row: {
           created_at: string
@@ -137,177 +315,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-
-      user_skills: {
-        Row: {
-          id: string
-          user_id: string
-          skill_slug: string
-          status: string
-          installed_at: string
-          last_used_at: string | null
-          is_default: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          skill_slug: string
-          status?: string
-          installed_at?: string
-          last_used_at?: string | null
-          is_default?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          skill_slug?: string
-          status?: string
-          installed_at?: string
-          last_used_at?: string | null
-          is_default?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: 'user_skills_user_id_fkey'
-            columns: ['user_id']
-            isOneToOne: false
-            referencedRelation: 'users'
-            referencedColumns: ['id']
-          },
-        ]
-      }
-
-      // ── CareerClaw skill tables (skill-owned, prefixed) ──────────────────
-      // A user with no CareerClaw activity has zero careerclaw_* rows.
-      // Adding ScrapeClaw = new scrapeclaw_* tables, zero changes here.
-
-      careerclaw_profiles: {
-        Row: {
-          id: string
-          user_id: string
-          /** Extracted plain text only — raw PDF never stored. 50k char max. */
-          resume_text: string | null
-          work_mode: 'remote' | 'hybrid' | 'onsite' | null
-          salary_min: number | null
-          location_pref: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          resume_text?: string | null
-          work_mode?: 'remote' | 'hybrid' | 'onsite' | null
-          salary_min?: number | null
-          location_pref?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          resume_text?: string | null
-          work_mode?: 'remote' | 'hybrid' | 'onsite' | null
-          salary_min?: number | null
-          location_pref?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: 'careerclaw_profiles_user_id_fkey'
-            columns: ['user_id']
-            isOneToOne: true
-            referencedRelation: 'users'
-            referencedColumns: ['id']
-          },
-        ]
-      }
-      careerclaw_runs: {
-        Row: {
-          id: string
-          user_id: string
-          run_at: string
-          job_count: number
-          top_score: number | null
-          status: 'success' | 'error' | 'no_matches'
-          duration_ms: number | null
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          run_at?: string
-          job_count?: number
-          top_score?: number | null
-          status: 'success' | 'error' | 'no_matches'
-          duration_ms?: number | null
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          run_at?: string
-          job_count?: number
-          top_score?: number | null
-          status?: 'success' | 'error' | 'no_matches'
-          duration_ms?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: 'careerclaw_runs_user_id_fkey'
-            columns: ['user_id']
-            isOneToOne: false
-            referencedRelation: 'users'
-            referencedColumns: ['id']
-          },
-        ]
-      }
-      careerclaw_job_tracking: {
-        Row: {
-          id: string
-          user_id: string
-          job_id: string
-          title: string
-          company: string
-          status: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          job_id: string
-          title: string
-          company: string
-          status?: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          job_id?: string
-          title?: string
-          company?: string
-          status?: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: 'careerclaw_job_tracking_user_id_fkey'
-            columns: ['user_id']
-            isOneToOne: false
-            referencedRelation: 'users'
-            referencedColumns: ['id']
-          },
-        ]
       }
     }
     Views: {

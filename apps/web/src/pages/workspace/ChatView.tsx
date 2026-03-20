@@ -4,7 +4,7 @@
  * Renders:
  *   - Hero + quick actions when the thread is empty
  *   - Chat thread with user / assistant / progress / error messages
- *   - Composer with resume upload (PDF dropzone) and send button
+ *   - Composer with send button (resume upload moved to Settings)
  *   - Inline ProUpsell when a 429 error is detected
  *   - SSE streaming via useSSEChat
  *
@@ -20,7 +20,6 @@ import { useAuth } from '../../context/AuthContext'
 import { useSSEChat } from '../../hooks/useSSEChat'
 import { MessageBubble } from '../../components/MessageBubble'
 import { ProgressEvent } from '../../components/ProgressEvent'
-import { ResumeDropzone } from '../../components/ResumeDropzone'
 import { ProUpsell } from '../../components/ProUpsell'
 
 import { useState } from 'react'
@@ -235,16 +234,13 @@ export function ChatView(): JSX.Element {
             className="flex items-end gap-2 p-2 rounded-2xl transition-all duration-150"
             style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
           >
-            {/* Resume upload */}
-            <ResumeDropzone jwt={jwt} userId={userId} />
-
             {/* Textarea */}
             <textarea
               ref={textareaRef}
               value={input}
               onChange={handleTextareaChange}
               onKeyDown={handleKeyDown}
-              placeholder={isStreaming ? `${skill.name} is thinking…` : skill.composerPlaceholder}
+              placeholder={isStreaming ? `${skill.name} is thinking…` : "Ask for today's briefing"}
               rows={1}
               disabled={isStreaming}
               className="flex-1 bg-transparent text-sm text-text placeholder:text-text-muted resize-none focus:outline-none py-2 leading-relaxed disabled:opacity-50"

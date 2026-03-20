@@ -172,6 +172,10 @@ function buildSupabaseMock(opts: {
           work_mode: 'remote',
           salary_min: 120000,
           location_pref: null,
+          skills: ['TypeScript', 'React', 'Node.js'],
+          target_roles: ['Senior Engineer', 'Staff Engineer'],
+          experience_years: 8,
+          resume_summary: 'Experienced fullstack engineer.',
         },
         error: null,
       })
@@ -492,6 +496,45 @@ describe('POST /chat -- tool use path (CareerClaw)', () => {
     const workerCall = mockRunWorkerCareerclaw.mock.calls[0]?.[0] as { resumeText?: string }
     expect(workerCall).toBeDefined()
     expect(workerCall.resumeText).toBe('Senior fullstack engineer...')
+  })
+
+  it('passes skills, targetRoles, experienceYears, resumeSummary to the worker', async () => {
+    buildSupabaseMock({
+      userId: RESUME_USER,
+      tier: 'free',
+      resumeText: 'Senior fullstack engineer...',
+    })
+    mockCallLLM.mockResolvedValue({
+      type: 'tool_use',
+      toolName: 'run_careerclaw',
+      toolUseId: 'tool_profile_fields',
+      toolInput: {
+        topK: 3,
+        includeOutreach: false,
+        includeCoverLetter: false,
+        includeGapAnalysis: false,
+      },
+      provider: 'anthropic',
+    })
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({ ...VALID_BODY, userId: RESUME_USER }),
+    })
+    await res.text()
+    const workerCall = mockRunWorkerCareerclaw.mock.calls[0]?.[0] as {
+      profile: {
+        skills?: string[]
+        targetRoles?: string[]
+        experienceYears?: number
+        resumeSummary?: string
+      }
+    }
+    expect(workerCall).toBeDefined()
+    expect(workerCall.profile.skills).toEqual(['TypeScript', 'React', 'Node.js'])
+    expect(workerCall.profile.targetRoles).toEqual(['Senior Engineer', 'Staff Engineer'])
+    expect(workerCall.profile.experienceYears).toBe(8)
+    expect(workerCall.profile.resumeSummary).toBe('Experienced fullstack engineer.')
   })
 })
 
