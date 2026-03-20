@@ -20,7 +20,14 @@
 import type { JSX } from 'react'
 import { createContext, useContext, useState, useRef, useCallback } from 'react'
 import { chatSSE } from '../lib/api.ts'
-import type { ThreadMessage, UserMessage, AssistantMessage, ProgressMessage, ErrorMessage, ApiProgressEvent } from '../hooks/useSSEChat.ts'
+import type {
+  ThreadMessage,
+  UserMessage,
+  AssistantMessage,
+  ProgressMessage,
+  ErrorMessage,
+  ApiProgressEvent,
+} from '../hooks/useSSEChat.ts'
 import type { SkillKey } from '../skills'
 
 // ── Thread state per skill ─────────────────────────────────────────────────
@@ -147,10 +154,7 @@ export function ChatSessionProvider({
             }
             updateThread(skillKey, (prev) => ({
               sessionId: event.sessionId,
-              messages: [
-                ...prev.messages.filter((m) => m.role !== 'progress'),
-                assistantMsg,
-              ],
+              messages: [...prev.messages.filter((m) => m.role !== 'progress'), assistantMsg],
             }))
           },
 
@@ -165,10 +169,7 @@ export function ChatSessionProvider({
             }
             updateThread(skillKey, (prev) => ({
               ...prev,
-              messages: [
-                ...prev.messages.filter((m) => m.role !== 'progress'),
-                errMsg,
-              ],
+              messages: [...prev.messages.filter((m) => m.role !== 'progress'), errMsg],
             }))
           },
 
@@ -183,10 +184,7 @@ export function ChatSessionProvider({
             }
             updateThread(skillKey, (prev) => ({
               ...prev,
-              messages: [
-                ...prev.messages.filter((m) => m.role !== 'progress'),
-                errMsg,
-              ],
+              messages: [...prev.messages.filter((m) => m.role !== 'progress'), errMsg],
             }))
           },
         },
@@ -220,7 +218,7 @@ export function ChatSessionProvider({
   // ChatView passes its skillKey to send/reset; messages/sessionId are
   // derived from the active skill at render time via useChatSession(skillKey).
   const value: ChatSessionContextValue = {
-    messages: [],     // placeholder — consumers use useChatSession(skillKey)
+    messages: [], // placeholder — consumers use useChatSession(skillKey)
     isStreaming,
     sessionId: undefined,
     send,
@@ -231,9 +229,7 @@ export function ChatSessionProvider({
   return (
     <ChatSessionContext.Provider value={value}>
       {/* Expose threads map via a separate ref-like mechanism via child hook */}
-      <ThreadsContext.Provider value={threads}>
-        {children}
-      </ThreadsContext.Provider>
+      <ThreadsContext.Provider value={threads}>{children}</ThreadsContext.Provider>
     </ChatSessionContext.Provider>
   )
 }
