@@ -8,8 +8,8 @@
 
 import type { JSX } from 'react'
 import { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../../lib/supabase.ts'
+import { useAuth } from '../../../context/AuthContext.tsx'
 
 interface RunRow {
   id: string
