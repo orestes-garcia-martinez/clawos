@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { ResumeUploadZone } from '../../components/ResumeUploadZone'
-import { IconCheck, IconWarning } from '../../shell/icons.tsx'
+import { IconCheck } from '../../shell/icons.tsx'
 
 // ── Section wrapper ────────────────────────────────────────────────────────
 

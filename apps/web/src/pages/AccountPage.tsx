@@ -11,10 +11,9 @@
 
 import type { JSX } from 'react'
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { createLinkToken } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
-import { IconCheck, IconLink, IconWarning } from '../shell/icons.tsx'
+import { IconLink, IconWarning } from '../shell/icons.tsx'
 
 // ── Section wrapper ────────────────────────────────────────────────────────
 

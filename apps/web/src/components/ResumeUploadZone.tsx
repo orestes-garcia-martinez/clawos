@@ -68,24 +68,19 @@ export function ResumeUploadZone({
 
       setState('uploading')
 
-      let text: string
-      let skills: string[] = []
-      let targetRoles: string[] = []
-      let experienceYears: number | null = null
-      let resumeSummary: string | null = null
-
+      let result: Awaited<ReturnType<typeof extractResume>>
       try {
-        const result = await extractResume(jwt, file)
-        text = result.text
-        skills = result.extractedProfile.skills
-        targetRoles = result.extractedProfile.targetRoles
-        experienceYears = result.extractedProfile.experienceYears
-        resumeSummary = result.extractedProfile.resumeSummary
+        result = await extractResume(jwt, file)
       } catch (err) {
         setState('error')
         setErrorMsg(err instanceof Error ? err.message : 'Extraction failed. Try again.')
         return
       }
+      const text = result.text
+      const skills = result.extractedProfile.skills
+      const targetRoles = result.extractedProfile.targetRoles
+      const experienceYears = result.extractedProfile.experienceYears
+      const resumeSummary = result.extractedProfile.resumeSummary
 
       setState('saving')
       const now = new Date().toISOString()
