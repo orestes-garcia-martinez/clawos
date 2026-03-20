@@ -4,13 +4,16 @@
  * Full request lifecycle:
  *   1. Validate input (Zod — ChatRequestSchema from @clawos/security).
  *   2. Load session context from Supabase; prune to 20 msgs / 8k tokens.
- *   3. Open SSE stream to caller — first event within ~100ms.
- *   4. Call Claude with CareerClaw system prompt + run_careerclaw tool.
- *   5a. Direct text response → stream final event, save session, done.
- *   5b. Tool use → stream progress events → invoke Lightsail worker →
+ *   3. Load CareerClaw profile from Supabase.
+ *   4. Profile gate — if required fields are missing, return block message
+ *      immediately. Claude and the worker are never invoked.
+ *   5. Open SSE stream to caller — first event within ~100ms.
+ *   6. Call Claude with CareerClaw system prompt + run_careerclaw tool.
+ *   7a. Direct text response → stream final event, save session, done.
+ *   7b. Tool use → stream progress events → invoke Lightsail worker →
  *       second Claude call to format results → stream final event.
- *   6. Save updated session (summary of skill output, never raw payloads).
- *   7. Write audit log (metadata only — no message bodies).
+ *   8. Save updated session (summary of skill output, never raw payloads).
+ *   9. Write audit log (metadata only — no message bodies).
  *
  * SSE event format:
  *   data: {"type":"progress","step":"fetching","message":"Fetching jobs..."}
@@ -85,56 +88,9 @@ export async function chatHandler(c: Context): Promise<Response> {
       const history: Message[] = session ? pruneMessages(session.messages) : []
       const activeSessionId = session?.id
 
-      // Append the new user message to history for Claude
-      const messagesForClaude: Message[] = [
-        ...history,
-        { role: 'user', content: message, timestamp: new Date().toISOString() },
-      ]
-
-      // ── 4. First Claude call ─────────────────────────────────────────────
-      await sendProgress('thinking', 'Thinking...')
-
-      const llmResult = await callLLM(CAREERCLAW_SYSTEM_PROMPT, messagesForClaude, [
-        RUN_CAREERCLAW_TOOL,
-      ])
-
-      // ── 5a. Direct text response ─────────────────────────────────────────
-      if (llmResult.type === 'text') {
-        const updatedMessages: Message[] = [
-          ...history,
-          { role: 'user', content: message, timestamp: new Date().toISOString() },
-          { role: 'assistant', content: llmResult.content, timestamp: new Date().toISOString() },
-        ]
-
-        const savedId = await saveSession(
-          userId,
-          channel as Channel,
-          updatedMessages,
-          activeSessionId,
-        )
-
-        logAudit({
-          userId,
-          skill: 'none',
-          channel,
-          status: 'success',
-          statusCode: 200,
-          durationMs: Date.now() - startMs,
-        })
-
-        await sendDone(savedId, llmResult.content)
-        return
-      }
-
-      // ── 5b. Tool use path ────────────────────────────────────────────────
-      const toolInput = llmResult.toolInput as RunCareerClawInput
-
-      // Enforce tier limits — Claude may have requested more than allowed
-      const maxTopK = TOP_K_LIMITS[tier]
-      const topK = Math.min(toolInput.topK ?? maxTopK, maxTopK)
-      const isPro = tier === 'pro'
-
-      // Load CareerClaw profile from Supabase
+      // ── 4. Load CareerClaw profile ───────────────────────────────────────
+      // Profile is loaded here — before Claude — so the gate can block the
+      // entire LLM + worker chain without incurring any cost.
       const supabase = createServerClient()
       const { data: profileRow } = await supabase
         .from('careerclaw_profiles')
@@ -144,9 +100,9 @@ export async function chatHandler(c: Context): Promise<Response> {
         .eq('user_id', userId)
         .maybeSingle()
 
-      // ── Profile gate ─────────────────────────────────────────────────────
+      // ── 5. Profile gate ──────────────────────────────────────────────────
       // Block the search if required profile fields are missing.
-      // work_mode and skills are always required.
+      // skills and work_mode are always required.
       // location_pref is additionally required when work_mode is 'onsite'.
       const profileSkills = (profileRow?.skills as string[] | null) ?? []
       const missingFields: string[] = []
@@ -191,7 +147,55 @@ export async function chatHandler(c: Context): Promise<Response> {
         await sendDone(savedId, gateMessage)
         return
       }
-      // ── End profile gate ──────────────────────────────────────────────────
+
+      // Append the new user message to history for Claude
+      const messagesForClaude: Message[] = [
+        ...history,
+        { role: 'user', content: message, timestamp: new Date().toISOString() },
+      ]
+
+      // ── 6. First Claude call ─────────────────────────────────────────────
+      await sendProgress('thinking', 'Thinking...')
+
+      const llmResult = await callLLM(CAREERCLAW_SYSTEM_PROMPT, messagesForClaude, [
+        RUN_CAREERCLAW_TOOL,
+      ])
+
+      // ── 7a. Direct text response ─────────────────────────────────────────
+      if (llmResult.type === 'text') {
+        const updatedMessages: Message[] = [
+          ...history,
+          { role: 'user', content: message, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: llmResult.content, timestamp: new Date().toISOString() },
+        ]
+
+        const savedId = await saveSession(
+          userId,
+          channel as Channel,
+          updatedMessages,
+          activeSessionId,
+        )
+
+        logAudit({
+          userId,
+          skill: 'none',
+          channel,
+          status: 'success',
+          statusCode: 200,
+          durationMs: Date.now() - startMs,
+        })
+
+        await sendDone(savedId, llmResult.content)
+        return
+      }
+
+      // ── 7b. Tool use path ────────────────────────────────────────────────
+      const toolInput = llmResult.toolInput as RunCareerClawInput
+
+      // Enforce tier limits — Claude may have requested more than allowed
+      const maxTopK = TOP_K_LIMITS[tier]
+      const topK = Math.min(toolInput.topK ?? maxTopK, maxTopK)
+      const isPro = tier === 'pro'
 
       await sendProgress('fetching', 'Fetching jobs...')
 
