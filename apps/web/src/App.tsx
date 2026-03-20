@@ -29,17 +29,18 @@ import type { JSX } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext.tsx'
 import { SkillsProvider, useSkills } from './context/SkillsContext.tsx'
+import { ChatSessionProvider } from './context/ChatSessionContext.tsx'
 import { AuthPage } from './pages/auth/AuthPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
 import { SkillsPage } from './pages/SkillsPage.tsx'
 import { SessionsPage } from './pages/SessionsPage.tsx'
 import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { AppShell } from './shell/AppShell.tsx'
-import { ChatView } from './pages/workspace/ChatView.tsx'
-import { JobsView } from './pages/workspace/JobsView.tsx'
-import { HistoryView } from './pages/workspace/HistoryView.tsx'
+import { ChatView } from './pages/workspace/careerclaw/ChatView.tsx'
+import { JobsView } from './pages/workspace/careerclaw/JobsView.tsx'
+import { HistoryView } from './pages/workspace/careerclaw/HistoryView.tsx'
 import { AccountPage } from './pages/AccountPage.tsx'
-import { CareerClawSettingsPage } from './pages/workspace/CareerClawSettingsPage.tsx'
+import { CareerClawSettingsPage } from './pages/workspace/careerclaw/CareerClawSettingsPage.tsx'
 import type { SkillKey } from './skills'
 import { SKILL_MAP } from './skills'
 
@@ -118,6 +119,22 @@ function RootRedirect(): JSX.Element {
   return <Navigate to={`/${destination}/chat`} replace />
 }
 
+// ── ChatSessionWrapper ──────────────────────────────────────────────────────
+// Thin component that reads auth state and supplies it to ChatSessionProvider.
+// Must be a child of AuthProvider (to call useAuth) and AuthGuard (user is
+// guaranteed non-null here). Keeps App() free of hook calls.
+
+function ChatSessionWrapper({ children }: { children: JSX.Element }): JSX.Element {
+  const { user, session } = useAuth()
+  const jwt = session?.access_token ?? ''
+  const userId = user?.id ?? ''
+  return (
+    <ChatSessionProvider jwt={jwt} userId={userId}>
+      {children}
+    </ChatSessionProvider>
+  )
+}
+
 // ── App ─────────────────────────────────────────────────────────────────────
 
 function AppRoutes(): JSX.Element {
@@ -140,7 +157,9 @@ function AppRoutes(): JSX.Element {
       <Route
         element={
           <AuthGuard>
-            <AppShell />
+            <ChatSessionWrapper>
+              <AppShell />
+            </ChatSessionWrapper>
           </AuthGuard>
         }
       >

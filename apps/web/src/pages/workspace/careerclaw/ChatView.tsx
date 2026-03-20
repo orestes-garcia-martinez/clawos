@@ -16,16 +16,16 @@
 import type { JSX } from 'react'
 import { useRef, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
-import { useSSEChat } from '../../hooks/useSSEChat'
-import { MessageBubble } from '../../components/MessageBubble'
-import { ProgressEvent } from '../../components/ProgressEvent'
-import { ProUpsell } from '../../components/ProUpsell'
+import { useAuth } from '../../../context/AuthContext'
+import { useChatSession } from '../../../context/ChatSessionContext'
+import { MessageBubble } from '../../../components/MessageBubble'
+import { ProgressEvent } from '../../../components/ProgressEvent'
+import { ProUpsell } from '../../../components/ProUpsell'
 
 import { useState } from 'react'
-import { SKILL_MAP } from '../../skills'
-import type { SkillKey } from '../../skills'
-import { ClawLogo, IconSend, IconX } from '../../shell/icons.tsx'
+import { SKILL_MAP } from '../../../skills'
+import type { SkillKey } from '../../../skills'
+import { ClawLogo, IconSend, IconX } from '../../../shell/icons.tsx'
 
 // ── Empty state hero ───────────────────────────────────────────────────────
 
@@ -126,7 +126,7 @@ function Hero({ skill, onSuggestion, isPro }: HeroProps): JSX.Element {
 // ── ChatView ───────────────────────────────────────────────────────────────
 
 export function ChatView(): JSX.Element {
-  const { user, session, tier } = useAuth()
+  const { tier } = useAuth()
   const { pathname } = useLocation()
   const isPro = tier === 'pro'
 
@@ -134,10 +134,7 @@ export function ChatView(): JSX.Element {
   const skillKey = (pathname.split('/')[1] ?? 'careerclaw') as SkillKey
   const skill = SKILL_MAP[skillKey] ?? SKILL_MAP['careerclaw']
 
-  const jwt = session?.access_token ?? ''
-  const userId = user?.id ?? ''
-
-  const { messages, isStreaming, send, abort, reset } = useSSEChat({ jwt, userId })
+  const { messages, isStreaming, send, abort, reset } = useChatSession(skillKey)
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const threadRef = useRef<HTMLDivElement>(null)
