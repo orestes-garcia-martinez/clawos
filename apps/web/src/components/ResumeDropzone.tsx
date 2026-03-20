@@ -3,9 +3,10 @@
  *
  * Policy (Section 5.6 / chat 6 prompt):
  *   - Accepts PDF only, max 5MB.
- *   - Sends file to POST /resume/extract (server-side pdf-parse).
+ *   - Sends file to POST /resume/extract (server-side pdf-parse + Haiku extraction).
  *   - Raw PDF is discarded after extraction — never stored anywhere.
- *   - Extracted text is saved to careerclaw_profiles.resume_text via Supabase.
+ *   - Extracted text AND structured profile fields are saved to
+ *     careerclaw_profiles via Supabase (upsert, one row per user).
  *   - On success, calls onExtracted(text) so the parent can surface it.
  */
 
@@ -47,21 +48,35 @@ export function ResumeDropzone({ jwt, userId, onExtracted }: ResumeDropzoneProps
       }
 
       setState('uploading')
-      let text: string
+
+      let result: Awaited<ReturnType<typeof extractResume>>
       try {
-        const result = await extractResume(jwt, file)
-        text = result.text
+        result = await extractResume(jwt, file)
       } catch (err) {
         setState('error')
         setErrorMsg(err instanceof Error ? err.message : 'Extraction failed. Try again.')
         return
       }
+      const text = result.text
+      const skills = result.extractedProfile.skills
+      const targetRoles = result.extractedProfile.targetRoles
+      const experienceYears = result.extractedProfile.experienceYears
+      const resumeSummary = result.extractedProfile.resumeSummary
 
-      // Save extracted text to Supabase (upsert — one profile row per user)
+      // Save extracted text + structured fields to Supabase (upsert — one profile row per user)
       setState('saving')
-      const { error: dbErr } = await supabase
-        .from('careerclaw_profiles')
-        .upsert({ user_id: userId, resume_text: text }, { onConflict: 'user_id' })
+      const { error: dbErr } = await supabase.from('careerclaw_profiles').upsert(
+        {
+          user_id: userId,
+          resume_text: text,
+          skills: skills.length > 0 ? skills : null,
+          target_roles: targetRoles.length > 0 ? targetRoles : null,
+          experience_years: experienceYears,
+          resume_summary: resumeSummary,
+          resume_uploaded_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' },
+      )
 
       if (dbErr) {
         setState('error')

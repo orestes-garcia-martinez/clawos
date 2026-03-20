@@ -3,7 +3,7 @@
  *
  * Sections:
  *   1. Profile        — name, work mode, salary min, location
- *   2. Resume         — view extracted text, clear button
+ *   2. Resume         — upload dropzone, last updated date, extracted text viewer
  *   3. Link Telegram  — generate link token, display /link <token> instruction
  *   4. Billing        — Polar portal link (static URL for MVP)
  */
@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { createLinkToken } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import { ResumeDropzone } from '../components/ResumeDropzone'
 import { IconCheck, IconLink, IconWarning } from '../shell/icons.tsx'
 
 // ── Section wrapper ────────────────────────────────────────────────────────
@@ -111,7 +112,6 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
 
-  // Load existing profile
   useEffect(() => {
     void Promise.all([
       supabase.from('users').select('name').eq('id', userId).single(),
@@ -215,6 +215,10 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
             onChange={setField('location_pref')}
             placeholder="e.g. New York, NY or Remote US"
           />
+          <p className="text-[11px] text-text-muted mt-1">
+            Required when work mode is On-site. You can list multiple locations, e.g. "Miami, FL or
+            Tampa, FL".
+          </p>
         </div>
 
         {error && (
@@ -247,23 +251,37 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
 
 // ── Resume section ─────────────────────────────────────────────────────────
 
-function ResumeSection({ userId }: { userId: string }): JSX.Element {
-  const [resumeText, setResumeText] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+interface ResumeState {
+  resumeText: string | null
+  resumeUploadedAt: string | null
+  loading: boolean
+}
+
+function ResumeSection({ userId, jwt }: { userId: string; jwt: string }): JSX.Element {
+  const [state, setState] = useState<ResumeState>({
+    resumeText: null,
+    resumeUploadedAt: null,
+    loading: true,
+  })
+  const [uploadFeedback, setUploadFeedback] = useState<'success' | 'error' | null>(null)
   const [clearing, setClearing] = useState(false)
   const [cleared, setCleared] = useState(false)
-  const [error, setError] = useState('')
+  const [clearError, setClearError] = useState('')
 
   const load = useCallback(() => {
-    setLoading(true)
+    setState((s) => ({ ...s, loading: true }))
     void supabase
       .from('careerclaw_profiles')
-      .select('resume_text')
+      .select('resume_text, resume_uploaded_at')
       .eq('user_id', userId)
       .maybeSingle()
       .then(({ data }) => {
-        setResumeText(data?.resume_text ?? null)
-        setLoading(false)
+        setState({
+          resumeText: data?.resume_text ?? null,
+          resumeUploadedAt:
+            (data as { resume_uploaded_at?: string | null } | null)?.resume_uploaded_at ?? null,
+          loading: false,
+        })
       })
   }, [userId])
 
@@ -271,22 +289,60 @@ function ResumeSection({ userId }: { userId: string }): JSX.Element {
     load()
   }, [load])
 
+  function formatDate(iso: string): string {
+    return new Date(iso).toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
+  function handleExtracted(text: string) {
+    // Reload profile row to get the fresh resume_uploaded_at from the DB
+    void supabase
+      .from('careerclaw_profiles')
+      .select('resume_text, resume_uploaded_at')
+      .eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error || !data) {
+          setUploadFeedback('error')
+        } else {
+          setState({
+            resumeText: text,
+            resumeUploadedAt:
+              (data as { resume_uploaded_at?: string | null })?.resume_uploaded_at ?? null,
+            loading: false,
+          })
+          setUploadFeedback('success')
+        }
+        setTimeout(() => setUploadFeedback(null), 4000)
+      })
+  }
+
   async function handleClear() {
     setClearing(true)
-    setError('')
+    setClearError('')
     const { error } = await supabase
       .from('careerclaw_profiles')
-      .update({ resume_text: null })
+      .update({
+        resume_text: null,
+        skills: null,
+        target_roles: null,
+        experience_years: null,
+        resume_summary: null,
+        resume_uploaded_at: null,
+      } as Record<string, null>)
       .eq('user_id', userId)
 
     setClearing(false)
 
     if (error) {
-      setError('Could not clear resume. Please try again.')
+      setClearError('Could not clear resume. Please try again.')
       return
     }
 
-    setResumeText(null)
+    setState({ resumeText: null, resumeUploadedAt: null, loading: false })
     setCleared(true)
     setTimeout(() => setCleared(false), 2500)
   }
@@ -296,53 +352,101 @@ function ResumeSection({ userId }: { userId: string }): JSX.Element {
       title="Resume"
       description="Only extracted plain text is stored. Your raw PDF is never saved."
     >
-      {loading ? (
+      {state.loading ? (
         <p className="text-xs text-text-muted">Loading…</p>
-      ) : resumeText ? (
-        <div className="space-y-3">
-          <div
-            className="rounded-xl p-3 text-xs font-mono text-text-dim leading-relaxed overflow-y-auto max-h-40 whitespace-pre-wrap"
-            style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
-            aria-label="Extracted resume text"
-          >
-            {resumeText.slice(0, 1200)}
-            {resumeText.length > 1200 ? '…' : ''}
-          </div>
-          <p className="text-[11px] font-mono text-text-muted">
-            {resumeText.length.toLocaleString()} characters stored
-          </p>
-          {error && (
-            <p className="text-xs text-danger" role="alert">
-              {error}
-            </p>
-          )}
-          <button
-            onClick={() => {
-              void handleClear()
-            }}
-            disabled={clearing}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-            style={{
-              background: 'rgba(239,68,68,0.08)',
-              color: 'var(--danger)',
-              border: '1px solid rgba(239,68,68,0.2)',
-            }}
-          >
-            {cleared ? (
-              <>
-                <IconCheck className="w-4 h-4" /> Cleared
-              </>
-            ) : clearing ? (
-              'Clearing…'
-            ) : (
-              'Clear resume text'
-            )}
-          </button>
-        </div>
       ) : (
-        <p className="text-sm text-text-muted">
-          No resume stored yet. Upload a PDF from the Chat tab.
-        </p>
+        <div className="space-y-4">
+          {/* Upload area */}
+          <div className="flex items-center gap-3">
+            <ResumeDropzone jwt={jwt} userId={userId} onExtracted={handleExtracted} />
+            <div className="text-sm text-text-muted">
+              {state.resumeText
+                ? 'Drop a new PDF to replace your current resume.'
+                : 'Upload a PDF resume to enable job matching.'}
+            </div>
+          </div>
+
+          {/* Upload feedback */}
+          {uploadFeedback === 'success' && (
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium"
+              style={{
+                background: 'rgba(34,197,94,0.08)',
+                color: 'var(--success)',
+                border: '1px solid rgba(34,197,94,0.2)',
+              }}
+              role="status"
+            >
+              <IconCheck className="w-3.5 h-3.5 shrink-0" />
+              Resume uploaded and profile extracted successfully.
+            </div>
+          )}
+          {uploadFeedback === 'error' && (
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium"
+              style={{
+                background: 'rgba(239,68,68,0.08)',
+                color: 'var(--danger)',
+                border: '1px solid rgba(239,68,68,0.2)',
+              }}
+              role="alert"
+            >
+              <IconWarning className="w-3.5 h-3.5 shrink-0" />
+              Upload succeeded but profile could not be refreshed. Try re-uploading.
+            </div>
+          )}
+
+          {/* Stored resume preview */}
+          {state.resumeText && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-mono text-text-muted">
+                  {state.resumeText.length.toLocaleString()} characters stored
+                  {state.resumeUploadedAt && (
+                    <> · Last updated: {formatDate(state.resumeUploadedAt)}</>
+                  )}
+                </p>
+              </div>
+              <div
+                className="rounded-xl p-3 text-xs font-mono text-text-dim leading-relaxed overflow-y-auto max-h-40 whitespace-pre-wrap"
+                style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}
+                aria-label="Extracted resume text"
+              >
+                {state.resumeText.slice(0, 1200)}
+                {state.resumeText.length > 1200 ? '…' : ''}
+              </div>
+
+              {clearError && (
+                <p className="text-xs text-danger" role="alert">
+                  {clearError}
+                </p>
+              )}
+
+              <button
+                onClick={() => {
+                  void handleClear()
+                }}
+                disabled={clearing}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                style={{
+                  background: 'rgba(239,68,68,0.08)',
+                  color: 'var(--danger)',
+                  border: '1px solid rgba(239,68,68,0.2)',
+                }}
+              >
+                {cleared ? (
+                  <>
+                    <IconCheck className="w-4 h-4" /> Cleared
+                  </>
+                ) : clearing ? (
+                  'Clearing…'
+                ) : (
+                  'Clear resume text'
+                )}
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </Section>
   )
@@ -447,7 +551,6 @@ function TelegramLinkSection({ jwt }: { jwt: string }): JSX.Element {
 // ── Billing section ────────────────────────────────────────────────────────
 
 function BillingSection({ tier }: { tier: string }): JSX.Element {
-  // Polar.sh portal — static URL for MVP. Billing webhook is Chat 7.
   const POLAR_PORTAL = 'https://polar.sh'
 
   return (
@@ -499,7 +602,7 @@ export function SettingsPage(): JSX.Element {
         </div>
 
         <ProfileSection userId={user.id} />
-        <ResumeSection userId={user.id} />
+        <ResumeSection userId={user.id} jwt={jwt} />
         <TelegramLinkSection jwt={jwt} />
         <BillingSection tier={tier} />
       </div>

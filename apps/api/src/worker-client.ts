@@ -22,6 +22,10 @@ export interface WorkerRunInput {
     salaryMin?: number
     salaryMax?: number
     locationPref?: string
+    skills?: string[]
+    targetRoles?: string[]
+    experienceYears?: number
+    resumeSummary?: string
   }
   resumeText?: string
   topK: number
