@@ -2,16 +2,18 @@
  * App.tsx — ClawOS route tree.
  *
  * Route structure:
- *   /auth                    → AuthPage (public; skipped if signed in)
- *   /skills                  → SkillsPage (auth-guarded, no AppShell)
- *   /home                    → HomePage (auth-guarded, inside AppShell)
- *   /careerclaw/chat         → ChatView    (inside AppShell, auth-guarded)
- *   /careerclaw/jobs         → JobsView
- *   /careerclaw/history      → HistoryView
- *   /sessions                → SessionsPage
- *   /notifications           → NotificationsPage
- *   /settings                → SettingsPage
- *   / and *                  → RootRedirect (skills-aware, localStorage-backed)
+ *   /auth                          → AuthPage (public; skipped if signed in)
+ *   /skills                        → SkillsPage (auth-guarded, no AppShell)
+ *   /home                          → HomePage (auth-guarded, inside AppShell)
+ *   /careerclaw/chat               → ChatView    (inside AppShell, auth-guarded)
+ *   /careerclaw/jobs               → JobsView
+ *   /careerclaw/applications       → ApplicationsView
+ *   /careerclaw/history            → HistoryView
+ *   /careerclaw/settings           → CareerClawSettingsPage
+ *   /sessions                      → SessionsPage
+ *   /notifications                 → NotificationsPage
+ *   /settings                      → AccountPage (legacy redirect)
+ *   / and *                        → RootRedirect (skills-aware, localStorage-backed)
  *
  * Auth redirect rules (skills-aware):
  *   0 installed skills   → /home
@@ -38,9 +40,10 @@ import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { AppShell } from './shell/AppShell.tsx'
 import { ChatView } from './pages/workspace/careerclaw/ChatView.tsx'
 import { JobsView } from './pages/workspace/careerclaw/JobsView.tsx'
+import { ApplicationsView } from './pages/workspace/careerclaw/ApplicationsView.tsx'
 import { HistoryView } from './pages/workspace/careerclaw/HistoryView.tsx'
 import { AccountPage } from './pages/AccountPage.tsx'
-import { CareerClawSettingsPage } from './pages/workspace/careerclaw/CareerClawSettingsPage.tsx'
+import { SettingsView } from './pages/workspace/careerclaw/SettingsView.tsx'
 import type { SkillKey } from './skills'
 import { SKILL_MAP } from './skills'
 
@@ -169,8 +172,9 @@ function AppRoutes(): JSX.Element {
         {/* CareerClaw workspace */}
         <Route path="/careerclaw/chat" element={<ChatView />} />
         <Route path="/careerclaw/jobs" element={<JobsView />} />
+        <Route path="/careerclaw/applications" element={<ApplicationsView />} />
         <Route path="/careerclaw/history" element={<HistoryView />} />
-        <Route path="/careerclaw/settings" element={<CareerClawSettingsPage />} />
+        <Route path="/careerclaw/settings" element={<SettingsView />} />
 
         {/* Platform pages */}
         <Route path="/sessions" element={<SessionsPage />} />

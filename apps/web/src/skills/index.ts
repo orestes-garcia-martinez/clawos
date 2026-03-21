@@ -63,6 +63,7 @@ const careerclaw: SkillDefinition = {
   nav: [
     { id: 'chat', label: 'Chat' },
     { id: 'jobs', label: 'Jobs' },
+    { id: 'applications', label: 'Applications' },
     { id: 'history', label: 'History' },
     { id: 'settings', label: 'Settings' },
   ],

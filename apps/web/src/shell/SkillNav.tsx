@@ -7,7 +7,14 @@
 import type { JSX } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import type { SkillDefinition } from '../skills'
-import { IconChat, IconJobs, IconHistory, IconMonitors, IconSettings } from './icons.tsx'
+import {
+  IconChat,
+  IconJobs,
+  IconHistory,
+  IconApplications,
+  IconMonitors,
+  IconSettings,
+} from './icons.tsx'
 
 interface IconProps {
   className?: string
@@ -17,6 +24,7 @@ const NAV_ICONS: Record<string, (props: IconProps) => JSX.Element> = {
   chat: IconChat,
   jobs: IconJobs,
   history: IconHistory,
+  applications: IconApplications,
   monitors: IconMonitors,
   results: IconMonitors,
   watchlist: IconJobs,
