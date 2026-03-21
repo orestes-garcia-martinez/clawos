@@ -18,8 +18,9 @@
  */
 
 import type { JSX } from 'react'
-import { createContext, useContext, useState, useRef, useCallback } from 'react'
+import { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react'
 import { chatSSE } from '../lib/api.ts'
+import { supabase } from '../lib/supabase.ts'
 import type {
   ThreadMessage,
   UserMessage,
@@ -92,6 +93,57 @@ export function ChatSessionProvider({
     },
     [],
   )
+
+  // ── Session re-hydration on mount ─────────────────────────────────────────
+  // On first mount (or when userId becomes available), fetch the existing web
+  // session row from Supabase and populate the careerclaw thread. This restores
+  // the UI after a hard reload without waiting for the user to send a message.
+  // Guard: only runs once per provider lifetime via hydratedRef.
+  const hydratedRef = useRef(false)
+
+  useEffect(() => {
+    if (!userId || hydratedRef.current) return
+    hydratedRef.current = true
+
+    void (async () => {
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, messages')
+        .eq('user_id', userId)
+        .eq('channel', 'web')
+        .is('deleted_at', null)
+        .maybeSingle()
+
+      if (error || !data) return
+
+      const raw = Array.isArray(data.messages) ? data.messages : []
+
+      // Filter to persisted roles only — progress and error are ephemeral
+      const messages = raw
+        .filter(
+          (m): m is { role: 'user' | 'assistant'; content: string; timestamp: string } =>
+            typeof m === 'object' &&
+            m !== null &&
+            !Array.isArray(m) &&
+            ((m as Record<string, unknown>)['role'] === 'user' ||
+              (m as Record<string, unknown>)['role'] === 'assistant') &&
+            typeof (m as Record<string, unknown>)['content'] === 'string',
+        )
+        .map((m) => ({
+          id: nextId(),
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp ?? new Date().toISOString(),
+        }))
+
+      if (messages.length === 0) return
+
+      updateThread('careerclaw', () => ({
+        messages,
+        sessionId: data.id,
+      }))
+    })()
+  }, [userId, updateThread])
 
   const send = useCallback(
     (text: string, skillKey: SkillKey) => {
