@@ -415,6 +415,29 @@ function makeQueryChain(table: string): Record<string, unknown> {
 
   function resolveSelect() {
     const rows = (TABLES[table] ?? []) as Record<string, unknown>[]
+
+    // Apply mutation if this is an update operation
+    if (state.operation === 'update' && state.updateData) {
+      const toUpdate = applyFilters(rows, state)
+      toUpdate.forEach((r) => Object.assign(r, state.updateData))
+      const ordered = applyOrders(toUpdate, state)
+      if (state.isSingle || state.isMaybeSingle) {
+        return Promise.resolve({ data: ordered[0] ?? null, error: null })
+      }
+      return Promise.resolve({ data: ordered, error: null })
+    }
+
+    // Apply mutation if this is a delete operation (returning deleted rows)
+    if (state.operation === 'delete') {
+      const toRemove = applyFilters(rows, state)
+      TABLES[table] = rows.filter((r) => !toRemove.includes(r))
+      if (state.isSingle || state.isMaybeSingle) {
+        return Promise.resolve({ data: toRemove[0] ?? null, error: null })
+      }
+      return Promise.resolve({ data: toRemove, error: null })
+    }
+
+    // Default select behavior
     const filtered = applyFilters(rows, state)
     const ordered = applyOrders(filtered, state)
     if (state.isSingle || state.isMaybeSingle) {
@@ -428,30 +451,76 @@ function makeQueryChain(table: string): Record<string, unknown> {
 
 function makeInsertResult(state: QueryState): Record<string, unknown> {
   const data = state.insertData
-  if (data && state.table === 'user_skills') {
-    const existing = (TABLES.user_skills as unknown as UserSkillRow[]).find(
-      (r) => r.user_id === data.user_id && r.skill_slug === data.skill_slug,
-    )
-    if (!existing) {
-      const now = new Date().toISOString()
-      const row: UserSkillRow = {
-        id: crypto.randomUUID(),
-        user_id: data.user_id as string,
-        skill_slug: data.skill_slug as string,
-        status: (data.status as string) ?? 'installed',
-        installed_at: now,
-        last_used_at: null,
-        is_default: (data.is_default as boolean) ?? false,
-        created_at: now,
-        updated_at: now,
-      }
-      TABLES.user_skills.push({ ...row })
+  const table = state.table
+
+  // Actually insert the row into the mock table
+  if (data) {
+    const now = new Date().toISOString()
+    const newRow: Record<string, unknown> = {
+      id: crypto.randomUUID(),
+      ...data,
+      created_at: now,
+      updated_at: now,
     }
+
+    // Special handling for user_skills (existing logic)
+    if (table === 'user_skills') {
+      const existing = (TABLES.user_skills as unknown as UserSkillRow[]).find(
+        (r) => r.user_id === data.user_id && r.skill_slug === data.skill_slug,
+      )
+      if (!existing) {
+        const row: UserSkillRow = {
+          id: crypto.randomUUID(),
+          user_id: data.user_id as string,
+          skill_slug: data.skill_slug as string,
+          status: (data.status as string) ?? 'installed',
+          installed_at: now,
+          last_used_at: null,
+          is_default: (data.is_default as boolean) ?? false,
+          created_at: now,
+          updated_at: now,
+        }
+        TABLES.user_skills.push({ ...row })
+      }
+    } else {
+      // Generic insert for other tables
+      if (!TABLES[table]) TABLES[table] = []
+      TABLES[table].push(newRow)
+    }
+
+    // Return chainable result with the inserted row
+    const insertedRow = table === 'user_skills' ? data : newRow
+
+    const selectChain: Record<string, unknown> = {
+      single: () => Promise.resolve({ data: insertedRow, error: null }),
+      maybeSingle: () => Promise.resolve({ data: insertedRow, error: null }),
+      then: (cb: (v: unknown) => void) => {
+        cb({ data: [insertedRow], error: null })
+        return Promise.resolve()
+      },
+    }
+
+    return {
+      select: () => selectChain,
+      then: (cb: (v: unknown) => void) => {
+        cb({ data: insertedRow, error: null })
+        return Promise.resolve()
+      },
+    } as Record<string, unknown>
   }
+
+  // Fallback if no data
   return {
-    select: () => Promise.resolve({ data, error: null }),
+    select: () => ({
+      single: () => Promise.resolve({ data: null, error: null }),
+      maybeSingle: () => Promise.resolve({ data: null, error: null }),
+      then: (cb: (v: unknown) => void) => {
+        cb({ data: null, error: null })
+        return Promise.resolve()
+      },
+    }),
     then: (cb: (v: unknown) => void) => {
-      cb({ data, error: null })
+      cb({ data: null, error: null })
       return Promise.resolve()
     },
   } as Record<string, unknown>
