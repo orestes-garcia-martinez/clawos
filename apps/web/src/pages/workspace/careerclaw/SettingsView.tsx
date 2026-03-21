@@ -388,7 +388,7 @@ function ResumeSection({ userId, jwt }: { userId: string; jwt: string }): JSX.El
 
 // ── CareerClawSettingsPage ─────────────────────────────────────────────────
 
-export function CareerClawSettingsPage(): JSX.Element {
+export function SettingsView(): JSX.Element {
   const { user, session } = useAuth()
   const jwt = session?.access_token ?? ''
 

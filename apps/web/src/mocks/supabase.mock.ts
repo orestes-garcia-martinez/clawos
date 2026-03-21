@@ -171,6 +171,39 @@ const mockTelegramMessages = [
   },
 ]
 
+// Mock job tracking data
+const mockJobTrackingRows =
+  persona === 'new'
+    ? []
+    : [
+        {
+          id: crypto.randomUUID(),
+          user_id: MOCK_USER.id,
+          job_id: crypto.randomUUID(),
+          title: 'Senior Frontend Engineer',
+          company: 'Vercel',
+          status: 'interviewing' as const,
+          url: 'https://vercel.com/careers/senior-frontend-engineer',
+          notes:
+            'Phone screen completed. Technical interview scheduled for next Tuesday. Recruiter: Sarah Chen.',
+          created_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+          updated_at: new Date(Date.now() - 1 * 86_400_000).toISOString(),
+        },
+        {
+          id: crypto.randomUUID(),
+          user_id: MOCK_USER.id,
+          job_id: crypto.randomUUID(),
+          title: 'Staff Software Engineer, Platform',
+          company: 'Stripe',
+          status: 'applied' as const,
+          url: 'https://stripe.com/jobs/listing/staff-software-engineer',
+          notes:
+            'Applied via referral from Mike. Strong match on TypeScript and distributed systems experience.',
+          created_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+          updated_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+        },
+      ]
+
 const TABLES: Record<string, Record<string, unknown>[]> = {
   users: [{ id: MOCK_USER.id, tier: currentTier, created_at: new Date().toISOString() }],
 
@@ -215,6 +248,9 @@ const TABLES: Record<string, Record<string, unknown>[]> = {
             deleted_at: null,
           },
         ] satisfies SessionRow[]),
+
+  // Job tracking — only populated for the returning persona
+  careerclaw_job_tracking: mockJobTrackingRows,
 }
 
 // ── Chainable query builder ───────────────────────────────────────────────
