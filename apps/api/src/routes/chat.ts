@@ -8,10 +8,12 @@
  *   4. Profile gate — if required fields are missing, return block message
  *      immediately. Claude and the worker are never invoked.
  *   5. Open SSE stream to caller — first event within ~100ms.
- *   6. Call Claude with CareerClaw system prompt + run_careerclaw tool.
+ *   6. Call Claude with CareerClaw system prompt + both tools.
  *   7a. Direct text response → stream final event, save session, done.
- *   7b. Tool use → stream progress events → invoke Lightsail worker →
+ *   7b. run_careerclaw tool → stream progress events → invoke Lightsail worker →
  *       second Claude call to format results → stream final event.
+ *   7c. track_application tool → direct Supabase upsert/update →
+ *       second Claude call to format confirmation → stream final event.
  *   8. Save updated session (summary of skill output, never raw payloads).
  *   9. Write audit log (metadata only — no message bodies).
  *
@@ -28,9 +30,14 @@
 import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import { ChatRequestSchema, buildAuditEntry, TOP_K_LIMITS } from '@clawos/security'
-import { CAREERCLAW_SYSTEM_PROMPT, RUN_CAREERCLAW_TOOL, createServerClient } from '@clawos/shared'
+import {
+  CAREERCLAW_SYSTEM_PROMPT,
+  RUN_CAREERCLAW_TOOL,
+  TRACK_APPLICATION_TOOL,
+  createServerClient,
+} from '@clawos/shared'
 import type { Channel, Message } from '@clawos/shared'
-import type { RunCareerClawInput } from '@clawos/shared'
+import type { RunCareerClawInput, TrackApplicationInput } from '@clawos/shared'
 import { callLLM, callLLMWithToolResult } from '../llm.js'
 import { runWorkerCareerclaw, WorkerError } from '../worker-client.js'
 import { loadSession, pruneMessages, saveSession, summariseSkillOutput } from '../session.js'
@@ -89,8 +96,6 @@ export async function chatHandler(c: Context): Promise<Response> {
       const activeSessionId = session?.id
 
       // ── 4. Load CareerClaw profile ───────────────────────────────────────
-      // Profile is loaded here — before Claude — so the gate can block the
-      // entire LLM + worker chain without incurring any cost.
       const supabase = createServerClient()
       const { data: profileRow } = await supabase
         .from('careerclaw_profiles')
@@ -101,9 +106,6 @@ export async function chatHandler(c: Context): Promise<Response> {
         .maybeSingle()
 
       // ── 5. Profile gate ──────────────────────────────────────────────────
-      // Block the search if required profile fields are missing.
-      // skills and work_mode are always required.
-      // location_pref is additionally required when work_mode is 'onsite'.
       const profileSkills = (profileRow?.skills as string[] | null) ?? []
       const missingFields: string[] = []
 
@@ -117,7 +119,16 @@ export async function chatHandler(c: Context): Promise<Response> {
         missingFields.push('your location preference (required for On-site searches)')
       }
 
-      if (missingFields.length > 0) {
+      // Profile gate only blocks job searches, not tracking requests.
+      // Claude will decide whether to run_careerclaw or track_application;
+      // if the user is just tracking something, the gate must not fire.
+      // We therefore only apply the gate when the message appears to be a
+      // search intent — Claude's first call will handle routing cleanly.
+      const isSearchIntent =
+        missingFields.length > 0 &&
+        /briefing|find jobs|job search|search|openings|matches|what.s out there/i.test(message)
+
+      if (isSearchIntent) {
         const list = missingFields.map((f, i) => `${i + 1}. ${f}`).join('\n')
         const gateMessage =
           `Before I can run your job search, I still need a few things from you.\n\n` +
@@ -154,11 +165,12 @@ export async function chatHandler(c: Context): Promise<Response> {
         { role: 'user', content: message, timestamp: new Date().toISOString() },
       ]
 
-      // ── 6. First Claude call ─────────────────────────────────────────────
+      // ── 6. First Claude call — both tools available ───────────────────────
       await sendProgress('thinking', 'Thinking...')
 
       const llmResult = await callLLM(CAREERCLAW_SYSTEM_PROMPT, messagesForClaude, [
         RUN_CAREERCLAW_TOOL,
+        TRACK_APPLICATION_TOOL,
       ])
 
       // ── 7a. Direct text response ─────────────────────────────────────────
@@ -189,145 +201,293 @@ export async function chatHandler(c: Context): Promise<Response> {
         return
       }
 
-      // ── 7b. Tool use path ────────────────────────────────────────────────
-      const toolInput = llmResult.toolInput as RunCareerClawInput
+      // ── 7b. run_careerclaw tool ──────────────────────────────────────────
+      if (llmResult.toolName === 'run_careerclaw') {
+        const toolInput = llmResult.toolInput as RunCareerClawInput
 
-      // Enforce tier limits — Claude may have requested more than allowed
-      const maxTopK = TOP_K_LIMITS[tier]
-      const topK = Math.min(toolInput.topK ?? maxTopK, maxTopK)
-      const isPro = tier === 'pro'
+        const maxTopK = TOP_K_LIMITS[tier]
+        const topK = Math.min(toolInput.topK ?? maxTopK, maxTopK)
+        const isPro = tier === 'pro'
 
-      await sendProgress('fetching', 'Fetching jobs...')
+        await sendProgress('fetching', 'Fetching jobs...')
 
-      let workerResult
-      try {
-        workerResult = await runWorkerCareerclaw({
-          userId,
-          profile: {
-            skills: (profileRow?.skills as string[] | null) ?? undefined,
-            targetRoles: (profileRow?.target_roles as string[] | null) ?? undefined,
-            experienceYears: profileRow?.experience_years ?? undefined,
-            resumeSummary: (profileRow?.resume_summary as string | null) ?? undefined,
-            workMode: (profileRow?.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
-            salaryMin: profileRow?.salary_min ?? undefined,
-            locationPref: profileRow?.location_pref ?? undefined,
-          },
-          resumeText: profileRow?.resume_text ?? undefined,
-          topK,
-        })
-      } catch (err) {
-        const isTimeout = err instanceof WorkerError && err.isTimeout
-        logAudit({
-          userId,
-          skill: 'careerclaw',
-          channel,
-          status: 'error',
-          statusCode: isTimeout ? 504 : 500,
-          durationMs: Date.now() - startMs,
-        })
-        await sendError(
-          isTimeout ? 'WORKER_TIMEOUT' : 'WORKER_ERROR',
-          isTimeout
-            ? 'The job search timed out. Please try again in a moment.'
-            : 'The job search encountered an error. Please try again.',
-        )
-        return
-      }
-
-      await sendProgress('scoring', 'Scoring matches...')
-
-      // Log the run to careerclaw_runs (fire and forget — don't block SSE)
-      const briefing = workerResult.briefing
-      const jobCount = (briefing['matches'] as unknown[])?.length ?? 0
-      const topMatch = (briefing['matches'] as Array<{ score?: number }>)?.[0]
-      const topScore = topMatch?.score ?? null
-
-      supabase
-        .from('careerclaw_runs')
-        .insert({
-          user_id: userId,
-          job_count: jobCount,
-          top_score: topScore,
-          status: jobCount > 0 ? 'success' : 'no_matches',
-          duration_ms: workerResult.durationMs,
-        })
-        .then(({ error }) => {
-          if (error) console.error('[chat] Failed to log careerclaw run:', error.message)
-        })
-
-      await sendProgress('drafting', 'Drafting outreach...')
-
-      // ── Second Claude call: format the tool result ───────────────────────
-      let formattedResponse: string
-      try {
-        const formatResult = await callLLMWithToolResult(
-          CAREERCLAW_SYSTEM_PROMPT,
-          messagesForClaude,
-          llmResult.toolUseId,
-          llmResult.toolName,
-          toolInput,
-          {
-            ...workerResult.briefing,
-            _meta: {
-              tier,
-              isPro,
-              topK,
-              includeOutreach: isPro && toolInput.includeOutreach,
-              includeCoverLetter: isPro && toolInput.includeCoverLetter,
-              includeGapAnalysis: isPro && toolInput.includeGapAnalysis,
+        let workerResult
+        try {
+          workerResult = await runWorkerCareerclaw({
+            userId,
+            profile: {
+              skills: (profileRow?.skills as string[] | null) ?? undefined,
+              targetRoles: (profileRow?.target_roles as string[] | null) ?? undefined,
+              experienceYears: profileRow?.experience_years ?? undefined,
+              resumeSummary: (profileRow?.resume_summary as string | null) ?? undefined,
+              workMode:
+                (profileRow?.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
+              salaryMin: profileRow?.salary_min ?? undefined,
+              locationPref: profileRow?.location_pref ?? undefined,
             },
-          },
+            resumeText: profileRow?.resume_text ?? undefined,
+            topK,
+          })
+        } catch (err) {
+          const isTimeout = err instanceof WorkerError && err.isTimeout
+          logAudit({
+            userId,
+            skill: 'careerclaw',
+            channel,
+            status: 'error',
+            statusCode: isTimeout ? 504 : 500,
+            durationMs: Date.now() - startMs,
+          })
+          await sendError(
+            isTimeout ? 'WORKER_TIMEOUT' : 'WORKER_ERROR',
+            isTimeout
+              ? 'The job search timed out. Please try again in a moment.'
+              : 'The job search encountered an error. Please try again.',
+          )
+          return
+        }
+
+        await sendProgress('scoring', 'Scoring matches...')
+
+        const briefing = workerResult.briefing
+        const jobCount = (briefing['matches'] as unknown[])?.length ?? 0
+        const topMatch = (briefing['matches'] as Array<{ score?: number }>)?.[0]
+        const topScore = topMatch?.score ?? null
+
+        // Log run (fire and forget — don't block SSE)
+        supabase
+          .from('careerclaw_runs')
+          .insert({
+            user_id: userId,
+            job_count: jobCount,
+            top_score: topScore,
+            status: jobCount > 0 ? 'success' : 'no_matches',
+            duration_ms: workerResult.durationMs,
+          })
+          .then(({ error }) => {
+            if (error) console.error('[chat] Failed to log careerclaw run:', error.message)
+          })
+
+        await sendProgress('drafting', 'Drafting outreach...')
+
+        let formattedResponse: string
+        try {
+          const formatResult = await callLLMWithToolResult(
+            CAREERCLAW_SYSTEM_PROMPT,
+            messagesForClaude,
+            llmResult.toolUseId,
+            llmResult.toolName,
+            toolInput,
+            {
+              ...workerResult.briefing,
+              _meta: {
+                tier,
+                isPro,
+                topK,
+                includeOutreach: isPro && toolInput.includeOutreach,
+                includeCoverLetter: isPro && toolInput.includeCoverLetter,
+                includeGapAnalysis: isPro && toolInput.includeGapAnalysis,
+              },
+            },
+          )
+          formattedResponse = formatResult.content
+        } catch (err) {
+          console.error(
+            '[chat] Second Claude call (run_careerclaw format) error:',
+            err instanceof Error ? err.message : String(err),
+          )
+          logAudit({
+            userId,
+            skill: 'careerclaw',
+            channel,
+            status: 'error',
+            statusCode: 500,
+            durationMs: Date.now() - startMs,
+          })
+          await sendError('LLM_ERROR', 'Failed to format job results. Please try again.')
+          return
+        }
+
+        const sessionSummary = summariseSkillOutput('careerclaw', formattedResponse, {
+          jobCount,
+          topScore: topScore ?? undefined,
+        })
+
+        const updatedMessages: Message[] = [
+          ...history,
+          { role: 'user', content: message, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: sessionSummary, timestamp: new Date().toISOString() },
+        ]
+
+        const savedId = await saveSession(
+          userId,
+          channel as Channel,
+          updatedMessages,
+          activeSessionId,
         )
-        formattedResponse = formatResult.content
-      } catch (err) {
-        // Unexpected error — log and send generic error event
-        console.error(
-          '[chat] Second Claude call: format the tool result error:',
-          err instanceof Error ? err.message : String(err),
-        )
+
         logAudit({
           userId,
           skill: 'careerclaw',
           channel,
-          status: 'error',
-          statusCode: 500,
+          status: 'success',
+          statusCode: 200,
           durationMs: Date.now() - startMs,
         })
-        await sendError('LLM_ERROR', 'Failed to format job results. Please try again.')
+
+        await sendDone(savedId, formattedResponse)
         return
       }
 
-      // ── Save session (summary only) ──────────────────────────────────────
-      const sessionSummary = summariseSkillOutput('careerclaw', formattedResponse, {
-        jobCount,
-        topScore: topScore ?? undefined,
-      })
+      // ── 7c. track_application tool ───────────────────────────────────────
+      // Direct Supabase write — no worker involved. Fast path.
+      if (llmResult.toolName === 'track_application') {
+        const trackInput = llmResult.toolInput as TrackApplicationInput
 
-      const updatedMessages: Message[] = [
-        ...history,
-        { role: 'user', content: message, timestamp: new Date().toISOString() },
-        { role: 'assistant', content: sessionSummary, timestamp: new Date().toISOString() },
-      ]
+        await sendProgress('tracking', 'Updating your tracker...')
 
-      const savedId = await saveSession(
-        userId,
-        channel as Channel,
-        updatedMessages,
-        activeSessionId,
-      )
+        type TrackResult = {
+          success: boolean
+          action: string
+          title: string
+          company: string
+          status: string
+          message: string
+        }
 
-      logAudit({
-        userId,
-        skill: 'careerclaw',
-        channel,
-        status: 'success',
-        statusCode: 200,
-        durationMs: Date.now() - startMs,
-      })
+        let trackResult: TrackResult
 
-      await sendDone(savedId, formattedResponse)
+        try {
+          if (trackInput.action === 'save') {
+            // Upsert — safe to call even if the job was already saved
+            const { error } = await supabase
+              .from('careerclaw_job_tracking')
+              .upsert(
+                {
+                  user_id: userId,
+                  job_id: trackInput.job_id,
+                  title: trackInput.title,
+                  company: trackInput.company,
+                  status: trackInput.status,
+                  url: trackInput.url ?? null,
+                },
+                { onConflict: 'user_id,job_id' },
+              )
+
+            trackResult = error
+              ? {
+                  success: false,
+                  action: 'save',
+                  title: trackInput.title,
+                  company: trackInput.company,
+                  status: trackInput.status,
+                  message: 'Database write failed.',
+                }
+              : {
+                  success: true,
+                  action: 'save',
+                  title: trackInput.title,
+                  company: trackInput.company,
+                  status: trackInput.status,
+                  message: `Saved "${trackInput.title}" at ${trackInput.company} with status "${trackInput.status}".`,
+                }
+          } else {
+            // update_status — find by (user_id, job_id) and update status
+            const { error } = await supabase
+              .from('careerclaw_job_tracking')
+              .update({ status: trackInput.status })
+              .eq('user_id', userId)
+              .eq('job_id', trackInput.job_id)
+
+            trackResult = error
+              ? {
+                  success: false,
+                  action: 'update_status',
+                  title: trackInput.title,
+                  company: trackInput.company,
+                  status: trackInput.status,
+                  message: 'Database update failed.',
+                }
+              : {
+                  success: true,
+                  action: 'update_status',
+                  title: trackInput.title,
+                  company: trackInput.company,
+                  status: trackInput.status,
+                  message: `Updated "${trackInput.title}" at ${trackInput.company} to status "${trackInput.status}".`,
+                }
+          }
+        } catch (err) {
+          console.error('[chat] track_application Supabase error:', err instanceof Error ? err.message : String(err))
+          trackResult = {
+            success: false,
+            action: trackInput.action,
+            title: trackInput.title,
+            company: trackInput.company,
+            status: trackInput.status,
+            message: 'An unexpected error occurred during tracking.',
+          }
+        }
+
+        // Second Claude call to format the confirmation naturally
+        let formattedResponse: string
+        try {
+          const formatResult = await callLLMWithToolResult(
+            CAREERCLAW_SYSTEM_PROMPT,
+            messagesForClaude,
+            llmResult.toolUseId,
+            llmResult.toolName,
+            trackInput,
+            trackResult,
+          )
+          formattedResponse = formatResult.content
+        } catch (err) {
+          console.error(
+            '[chat] Second Claude call (track_application format) error:',
+            err instanceof Error ? err.message : String(err),
+          )
+          // Fallback: surface the raw result message rather than a generic error
+          formattedResponse = trackResult.success
+            ? trackResult.message
+            : "I wasn't able to update your tracker right now — please try adding it manually in your Applications tab."
+        }
+
+        // Save session with a brief summary (audit only — no job details in session)
+        const sessionSummary = trackResult.success
+          ? `Tracker ${trackInput.action === 'save' ? 'save' : 'status update'}: ${trackInput.title} at ${trackInput.company} → ${trackInput.status}.`
+          : `Tracker action failed for ${trackInput.title} at ${trackInput.company}.`
+
+        const updatedMessages: Message[] = [
+          ...history,
+          { role: 'user', content: message, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: sessionSummary, timestamp: new Date().toISOString() },
+        ]
+
+        const savedId = await saveSession(
+          userId,
+          channel as Channel,
+          updatedMessages,
+          activeSessionId,
+        )
+
+        logAudit({
+          userId,
+          skill: 'careerclaw',
+          channel,
+          status: trackResult.success ? 'success' : 'error',
+          statusCode: trackResult.success ? 200 : 500,
+          durationMs: Date.now() - startMs,
+        })
+
+        await sendDone(savedId, formattedResponse)
+        return
+      }
+
+      // ── Unknown tool — should not happen but guard defensively ────────────
+      console.error('[chat] Claude invoked unknown tool:', llmResult.toolName)
+      await sendError('UNKNOWN_TOOL', 'An unexpected error occurred. Please try again.')
+
     } catch (err) {
-      // Unexpected error — log and send generic error event
       console.error('[chat] Unhandled error:', err instanceof Error ? err.message : String(err))
       logAudit({
         userId,
