@@ -64,28 +64,27 @@ describe.skipIf(missingVars.length > 0)(
     // Stable job IDs for this run -- unique suffix prevents collision with
     // prior runs if teardown was skipped.
     const RUN_ID = Date.now()
-    const JOB_ID_SAVE   = `test-track-save-${RUN_ID}`
+    const JOB_ID_SAVE = `test-track-save-${RUN_ID}`
     const JOB_ID_UPDATE = `test-track-update-${RUN_ID}`
 
-    const TEST_TITLE   = 'Staff Software Engineer'
+    const TEST_TITLE = 'Staff Software Engineer'
     const TEST_COMPANY = 'Acme Corp'
 
-    const TEST_EMAIL    = `clawos-track-integration-${RUN_ID}@example.com`
+    const TEST_EMAIL = `clawos-track-integration-${RUN_ID}@example.com`
     const TEST_PASSWORD = `Test_${crypto.randomUUID()}` // ggignore
 
     let testUserId = ''
-    let testJwt    = ''
+    let testJwt = ''
 
     // ── Setup ────────────────────────────────────────────────────────────────
 
     beforeAll(async () => {
       // Create throw-away user
-      const { data: createData, error: createError } =
-        await supabaseAdmin.auth.admin.createUser({
-          email: TEST_EMAIL,
-          password: TEST_PASSWORD,
-          email_confirm: true,
-        })
+      const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email: TEST_EMAIL,
+        password: TEST_PASSWORD,
+        email_confirm: true,
+      })
 
       if (createError || !createData.user) {
         throw new Error(`Failed to create test user: ${createError?.message}`)
@@ -104,16 +103,14 @@ describe.skipIf(missingVars.length > 0)(
 
       // Seed a careerclaw_profiles row with skills so the profile gate does
       // not block non-search messages -- skills must be non-empty.
-      const { error: profileError } = await supabaseAdmin
-        .from('careerclaw_profiles')
-        .upsert({
-          user_id:          testUserId,
-          work_mode:        'remote',
-          skills:           ['TypeScript', 'React', 'Node.js'],
-          target_roles:     ['Staff Engineer', 'Senior Engineer'],
-          experience_years: 8,
-          resume_summary:   'Integration test profile -- do not use in production.',
-        })
+      const { error: profileError } = await supabaseAdmin.from('careerclaw_profiles').upsert({
+        user_id: testUserId,
+        work_mode: 'remote',
+        skills: ['TypeScript', 'React', 'Node.js'],
+        target_roles: ['Staff Engineer', 'Senior Engineer'],
+        experience_years: 8,
+        resume_summary: 'Integration test profile -- do not use in production.',
+      })
 
       if (profileError) {
         throw new Error(`Failed to seed careerclaw_profiles: ${profileError.message}`)
@@ -121,32 +118,27 @@ describe.skipIf(missingVars.length > 0)(
 
       // Pre-seed a tracking row for the update-status tests so there is
       // an existing row to update -- status starts at 'saved'.
-      const { error: trackError } = await supabaseAdmin
-        .from('careerclaw_job_tracking')
-        .upsert({
-          user_id: testUserId,
-          job_id:  JOB_ID_UPDATE,
-          title:   TEST_TITLE,
-          company: TEST_COMPANY,
-          status:  'saved',
-        })
+      const { error: trackError } = await supabaseAdmin.from('careerclaw_job_tracking').upsert({
+        user_id: testUserId,
+        job_id: JOB_ID_UPDATE,
+        title: TEST_TITLE,
+        company: TEST_COMPANY,
+        status: 'saved',
+      })
 
       if (trackError) {
         throw new Error(`Failed to seed careerclaw_job_tracking: ${trackError.message}`)
       }
 
       // Sign in and get a real JWT
-      const anonClient = createClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_ANON_KEY!,
-        { auth: { autoRefreshToken: false, persistSession: false } },
-      )
+      const anonClient = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      })
 
-      const { data: signInData, error: signInError } =
-        await anonClient.auth.signInWithPassword({
-          email: TEST_EMAIL,
-          password: TEST_PASSWORD,
-        })
+      const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({
+        email: TEST_EMAIL,
+        password: TEST_PASSWORD,
+      })
 
       if (signInError || !signInData.session) {
         throw new Error(`Failed to sign in test user: ${signInError?.message}`)
@@ -220,7 +212,7 @@ describe.skipIf(missingVars.length > 0)(
             Authorization: `Bearer ${testJwt}`,
           },
           body: JSON.stringify({
-            userId:  testUserId,
+            userId: testUserId,
             channel: 'web',
             // Explicit instruction so Claude reliably calls the tool.
             message: `Please save this job to my Applications tracker right now using the track_application tool:
@@ -239,7 +231,7 @@ status: saved`,
         expect(steps).toContain('tracking')
 
         // Must end with a done event, not an error
-        const doneEvent  = events.find((e) => e['type'] === 'done')
+        const doneEvent = events.find((e) => e['type'] === 'done')
         const errorEvent = events.find((e) => e['type'] === 'error')
         expect(errorEvent).toBeUndefined()
         expect(doneEvent).toBeDefined()
@@ -269,7 +261,7 @@ status: saved`,
             Authorization: `Bearer ${testJwt}`,
           },
           body: JSON.stringify({
-            userId:  testUserId,
+            userId: testUserId,
             channel: 'web',
             message: `Save this to my tracker using the track_application tool:
 job_id: "${JOB_ID_SAVE}-b"
@@ -297,7 +289,7 @@ status: saved`,
             Authorization: `Bearer ${testJwt}`,
           },
           body: JSON.stringify({
-            userId:  testUserId,
+            userId: testUserId,
             channel: 'web',
             message: `Save this to my tracker again using the track_application tool:
 job_id: "${JOB_ID_SAVE}"
@@ -309,7 +301,7 @@ status: saved`,
 
         const events = parseSSEEvents(await res.text())
         const errorEvent = events.find((e) => e['type'] === 'error')
-        const doneEvent  = events.find((e) => e['type'] === 'done')
+        const doneEvent = events.find((e) => e['type'] === 'done')
         expect(errorEvent).toBeUndefined()
         expect(doneEvent).toBeDefined()
 
@@ -338,7 +330,7 @@ status: saved`,
             Authorization: `Bearer ${testJwt}`,
           },
           body: JSON.stringify({
-            userId:  testUserId,
+            userId: testUserId,
             channel: 'web',
             message: `I have an interview lined up. Please update my tracker using the track_application tool:
 action: update_status
@@ -353,7 +345,7 @@ status: interviewing`,
         const events = parseSSEEvents(await res.text())
 
         const errorEvent = events.find((e) => e['type'] === 'error')
-        const doneEvent  = events.find((e) => e['type'] === 'done')
+        const doneEvent = events.find((e) => e['type'] === 'done')
         expect(errorEvent).toBeUndefined()
         expect(doneEvent).toBeDefined()
         expect(doneEvent!['sessionId']).toBeDefined()
@@ -383,7 +375,7 @@ status: interviewing`,
             Authorization: `Bearer ${testJwt}`,
           },
           body: JSON.stringify({
-            userId:  testUserId,
+            userId: testUserId,
             channel: 'web',
             message: `Great news -- I received an offer. Please update my tracker using the track_application tool:
 action: update_status
@@ -401,8 +393,7 @@ status: offer`,
         // Message should reference either the status word or the company
         const message = (doneEvent!['message'] as string).toLowerCase()
         const mentionsStatusOrCompany =
-          message.includes('offer') ||
-          message.includes(TEST_COMPANY.toLowerCase())
+          message.includes('offer') || message.includes(TEST_COMPANY.toLowerCase())
         expect(mentionsStatusOrCompany).toBe(true)
       })
 
@@ -426,7 +417,7 @@ status: offer`,
             Authorization: `Bearer ${testJwt}`,
           },
           body: JSON.stringify({
-            userId:  testUserId,
+            userId: testUserId,
             channel: 'web',
             message: `Save this with the track_application tool:
 job_id: "test-track-sse-${RUN_ID}"
@@ -436,7 +427,7 @@ status: saved`,
           }),
         })
 
-        const text   = await res.text()
+        const text = await res.text()
         const events = parseSSEEvents(text)
 
         // Locate the positions of tracking-progress and done events
@@ -459,7 +450,7 @@ status: saved`,
             Authorization: `Bearer ${testJwt}`,
           },
           body: JSON.stringify({
-            userId:  testUserId,
+            userId: testUserId,
             channel: 'web',
             message: `Save this with the track_application tool:
 job_id: "test-track-shape-${RUN_ID}"
@@ -469,7 +460,7 @@ status: saved`,
           }),
         })
 
-        const events    = parseSSEEvents(await res.text())
+        const events = parseSSEEvents(await res.text())
         const doneEvent = events.find((e) => e['type'] === 'done')
 
         expect(doneEvent).toBeDefined()
