@@ -176,7 +176,7 @@ export async function saveSession(
   // Create new session
   const { data, error } = await supabase
     .from('sessions')
-    .insert({
+    .upsert({
       user_id: userId,
       channel,
       messages: toStore as unknown as Json,
