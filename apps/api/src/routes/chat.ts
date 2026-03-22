@@ -360,19 +360,17 @@ export async function chatHandler(c: Context): Promise<Response> {
         try {
           if (trackInput.action === 'save') {
             // Upsert — safe to call even if the job was already saved
-            const { error } = await supabase
-              .from('careerclaw_job_tracking')
-              .upsert(
-                {
-                  user_id: userId,
-                  job_id: trackInput.job_id,
-                  title: trackInput.title,
-                  company: trackInput.company,
-                  status: trackInput.status,
-                  url: trackInput.url ?? null,
-                },
-                { onConflict: 'user_id,job_id' },
-              )
+            const { error } = await supabase.from('careerclaw_job_tracking').upsert(
+              {
+                user_id: userId,
+                job_id: trackInput.job_id,
+                title: trackInput.title,
+                company: trackInput.company,
+                status: trackInput.status,
+                url: trackInput.url ?? null,
+              },
+              { onConflict: 'user_id,job_id' },
+            )
 
             trackResult = error
               ? {
@@ -418,7 +416,10 @@ export async function chatHandler(c: Context): Promise<Response> {
                 }
           }
         } catch (err) {
-          console.error('[chat] track_application Supabase error:', err instanceof Error ? err.message : String(err))
+          console.error(
+            '[chat] track_application Supabase error:',
+            err instanceof Error ? err.message : String(err),
+          )
           trackResult = {
             success: false,
             action: trackInput.action,
@@ -486,7 +487,6 @@ export async function chatHandler(c: Context): Promise<Response> {
       // ── Unknown tool — should not happen but guard defensively ────────────
       console.error('[chat] Claude invoked unknown tool:', llmResult.toolName)
       await sendError('UNKNOWN_TOOL', 'An unexpected error occurred. Please try again.')
-
     } catch (err) {
       console.error('[chat] Unhandled error:', err instanceof Error ? err.message : String(err))
       logAudit({
