@@ -42,6 +42,62 @@ import { callLLM, callLLMWithToolResult } from '../llm.js'
 import { runWorkerCareerclaw, WorkerError } from '../worker-client.js'
 import { loadSession, pruneMessages, saveSession, summariseSkillOutput } from '../session.js'
 
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Build the profile-gate block message shown when required fields are missing. */
+function buildProfileGateMessage(missingFields: string[]): string {
+  const list = missingFields.map((f, i) => `${i + 1}. ${f}`).join('\n')
+  return (
+    `Before I can run your job search, I still need a few things from you.\n\n` +
+    `Please head to **Settings** and provide the following:\n\n${list}\n\n` +
+    `Once those are saved, come back and I'll run your search right away.`
+  )
+}
+
+/**
+ * Handle the profile gate: save session with the block message, write audit
+ * log, and stream the done event. Returns true if the gate fired (caller
+ * should `return`), false if profile is complete.
+ */
+async function handleProfileGate(opts: {
+  missingFields: string[]
+  userId: string
+  channel: string
+  message: string
+  history: Message[]
+  activeSessionId: string | undefined
+  startMs: number
+  sendDone: (sessionId: string, message: string) => Promise<void>
+}): Promise<boolean> {
+  if (opts.missingFields.length === 0) return false
+
+  const gateMessage = buildProfileGateMessage(opts.missingFields)
+
+  const savedId = await saveSession(
+    opts.userId,
+    opts.channel as Channel,
+    [
+      ...opts.history,
+      { role: 'user', content: opts.message, timestamp: new Date().toISOString() },
+      { role: 'assistant', content: gateMessage, timestamp: new Date().toISOString() },
+    ],
+    opts.activeSessionId,
+  )
+
+  logAudit({
+    userId: opts.userId,
+    skill: 'careerclaw',
+    channel: opts.channel,
+    status: 'success',
+    statusCode: 200,
+    durationMs: Date.now() - opts.startMs,
+  })
+
+  await opts.sendDone(savedId, gateMessage)
+  return true
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function chatHandler(c: Context): Promise<Response> {
@@ -134,41 +190,20 @@ export async function chatHandler(c: Context): Promise<Response> {
       ])
 
       // ── 6. Profile gate — keyed on Claude's tool decision ────────────────
-      // The gate fires only when Claude actually chose run_careerclaw, making
-      // it impossible to bypass through message phrasing. track_application
-      // and direct text responses are never affected.
       if (
         llmResult.type === 'tool_use' &&
         llmResult.toolName === 'run_careerclaw' &&
-        missingFields.length > 0
-      ) {
-        const list = missingFields.map((f, i) => `${i + 1}. ${f}`).join('\n')
-        const gateMessage =
-          `Before I can run your job search, I still need a few things from you.\n\n` +
-          `Please head to **Settings** and provide the following:\n\n${list}\n\n` +
-          `Once those are saved, come back and I'll run your search right away.`
-
-        const savedId = await saveSession(
+        (await handleProfileGate({
+          missingFields,
           userId,
-          channel as Channel,
-          [
-            ...history,
-            { role: 'user', content: message, timestamp: new Date().toISOString() },
-            { role: 'assistant', content: gateMessage, timestamp: new Date().toISOString() },
-          ],
-          activeSessionId,
-        )
-
-        logAudit({
-          userId,
-          skill: 'careerclaw',
           channel,
-          status: 'success',
-          statusCode: 200,
-          durationMs: Date.now() - startMs,
-        })
-
-        await sendDone(savedId, gateMessage)
+          message,
+          history,
+          activeSessionId,
+          startMs,
+          sendDone,
+        }))
+      ) {
         return
       }
 
@@ -202,6 +237,24 @@ export async function chatHandler(c: Context): Promise<Response> {
 
       // ── 7b. run_careerclaw tool ──────────────────────────────────────────
       if (llmResult.toolName === 'run_careerclaw') {
+        // Defense-in-depth: reject if required profile fields are still
+        // missing (should have been caught by the gate above, but guards
+        // against future code paths that might skip it).
+        if (
+          await handleProfileGate({
+            missingFields,
+            userId,
+            channel,
+            message,
+            history,
+            activeSessionId,
+            startMs,
+            sendDone,
+          })
+        ) {
+          return
+        }
+
         const toolInput = llmResult.toolInput as RunCareerClawInput
 
         const maxTopK = TOP_K_LIMITS[tier]
