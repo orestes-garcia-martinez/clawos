@@ -358,7 +358,9 @@ export async function chatHandler(c: Context): Promise<Response> {
 
         try {
           if (trackInput.action === 'save') {
-            // Upsert — safe to call even if the job was already saved
+            // Insert if new; on conflict, update title/company (metadata may
+            // have been corrected) but preserve the existing status and url
+            // so a duplicate save never downgrades progress or clears data.
             const { error } = await supabase.from('careerclaw_job_tracking').upsert(
               {
                 user_id: userId,
@@ -368,7 +370,10 @@ export async function chatHandler(c: Context): Promise<Response> {
                 status: trackInput.status,
                 url: trackInput.url ?? null,
               },
-              { onConflict: 'user_id,job_id' },
+              {
+                onConflict: 'user_id,job_id',
+                ignoreDuplicates: true,
+              },
             )
 
             trackResult = error
