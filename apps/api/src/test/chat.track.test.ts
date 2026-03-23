@@ -571,7 +571,6 @@ describe('POST /chat -- track_application: update_status action (zero rows match
   })
 })
 
-
 describe('POST /chat -- track_application: second LLM call failure', () => {
   beforeEach(() => {
     upsertShouldFail = false
