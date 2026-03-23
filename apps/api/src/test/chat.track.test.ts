@@ -91,7 +91,7 @@ const TRACK_ERR_USER = 'aaaaaaaa-0000-0000-0000-000000000003'
 const TRACK_LLM_ERR_USER = 'aaaaaaaa-0000-0000-0000-000000000004'
 const TRACK_AUDIT_USER = 'aaaaaaaa-0000-0000-0000-000000000005'
 const TRACK_URL_USER = 'aaaaaaaa-0000-0000-0000-000000000006'
-const TRACK_UPDERR_USER = 'aaaaaaaa-0000-0000-0000-000000000007'
+// const TRACK_UPDERR_USER = 'aaaaaaaa-0000-0000-0000-000000000007'
 
 const TEST_SESSION_ID = 'session00-0000-0000-0000-000000000001'
 
@@ -210,10 +210,13 @@ function buildTrackingSupabaseMock(userId: string): void {
           lastUpdateArgs = fields
           return {
             eq: (_col1: string, _val1: unknown) => ({
-              eq: (_col2: string, _val2: unknown) =>
-                Promise.resolve({
-                  error: updateShouldFail ? { message: 'DB update failed' } : null,
-                }),
+              eq: (_col2: string, _val2: unknown) => ({
+                select: () =>
+                  Promise.resolve({
+                    data: updateShouldFail ? null : [{ id: 'row-1', ...fields }],
+                    error: updateShouldFail ? { message: 'DB update failed' } : null,
+                  }),
+              }),
             }),
           }
         },
@@ -487,42 +490,87 @@ describe('POST /chat -- track_application: update_status action (success)', () =
   })
 })
 
-describe('POST /chat -- track_application: update_status action (Supabase failure)', () => {
+describe('POST /chat -- track_application: update_status action (zero rows matched)', () => {
   beforeEach(() => {
-    updateShouldFail = true
-    buildTrackingSupabaseMock(TRACK_UPDERR_USER)
+    updateShouldFail = false
+    buildTrackingSupabaseMock(TRACK_UPDATE_USER)
+
+    // Override the job_tracking mock to return an empty array (no matching row)
+    const originalImpl = mockFrom.getMockImplementation()!
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'careerclaw_job_tracking') {
+        return {
+          upsert: () => Promise.resolve({ error: null }),
+          update: (fields: { status: string }) => {
+            lastUpdateArgs = fields
+            return {
+              eq: (_col1: string, _val1: unknown) => ({
+                eq: (_col2: string, _val2: unknown) => ({
+                  select: () =>
+                    Promise.resolve({
+                      data: [],
+                      error: null,
+                    }),
+                }),
+              }),
+            }
+          },
+          select: () => ({
+            eq: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
+          }),
+          eq: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
+        }
+      }
+      return originalImpl(table)
+    })
+
     mockCallLLM.mockResolvedValue({
       type: 'tool_use',
       toolName: 'track_application',
-      toolUseId: 'track_tool_updfail',
-      toolInput: MOCK_UPDATE_TOOL_INPUT,
+      toolUseId: 'track_tool_noop',
+      toolInput: {
+        ...MOCK_UPDATE_TOOL_INPUT,
+        job_id: 'nonexistent-job-id',
+      },
       provider: 'anthropic',
     })
     mockCallLLMWithToolResult.mockResolvedValue({
       type: 'text',
-      content: "Couldn't update the status right now.",
+      content: "I couldn't find that job in your tracker.",
       provider: 'anthropic',
     })
   })
 
   afterEach(() => {
     vi.clearAllMocks()
-    updateShouldFail = false
   })
 
-  it('emits done (not error) and passes success:false to second LLM call', async () => {
+  it('passes success:false when update matches zero rows', async () => {
     const res = await app.request('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
-      body: JSON.stringify({ ...BASE_MESSAGE, userId: TRACK_UPDERR_USER }),
+      body: JSON.stringify({ ...BASE_MESSAGE, userId: TRACK_UPDATE_USER }),
+    })
+    await res.text()
+    expect(mockCallLLMWithToolResult).toHaveBeenCalledOnce()
+    const passedResult = mockCallLLMWithToolResult.mock.calls[0]![5] as Record<string, unknown>
+    expect(passedResult['success']).toBe(false)
+    expect(passedResult['action']).toBe('update_status')
+    expect(passedResult['message'] as string).toContain('No tracked application found')
+  })
+
+  it('emits a done event (not error) for zero-row updates', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({ ...BASE_MESSAGE, userId: TRACK_UPDATE_USER }),
     })
     const events = parseSSEEvents(await res.text())
     expect(events.find((e) => e['type'] === 'error')).toBeUndefined()
     expect(events.find((e) => e['type'] === 'done')).toBeDefined()
-    const passedResult = mockCallLLMWithToolResult.mock.calls[0]![5] as Record<string, unknown>
-    expect(passedResult['success']).toBe(false)
   })
 })
+
 
 describe('POST /chat -- track_application: second LLM call failure', () => {
   beforeEach(() => {

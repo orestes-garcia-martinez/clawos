@@ -5,10 +5,10 @@
  *   1. Validate input (Zod — ChatRequestSchema from @clawos/security).
  *   2. Load session context from Supabase; prune to 20 msgs / 8k tokens.
  *   3. Load CareerClaw profile from Supabase.
- *   4. Profile gate — if required fields are missing, return block message
- *      immediately. Claude and the worker are never invoked.
- *   5. Open SSE stream to caller — first event within ~100ms.
- *   6. Call Claude with CareerClaw system prompt + both tools.
+ *   4. Open SSE stream to caller — first event within ~100ms.
+ *   5. Call Claude with CareerClaw system prompt + both tools.
+ *   6. Profile gate — if Claude decided to run_careerclaw and required fields
+ *      are missing, return block message immediately. The worker is never invoked.
  *   7a. Direct text response → stream final event, save session, done.
  *   7b. run_careerclaw tool → stream progress events → invoke Lightsail worker →
  *       second Claude call to format results → stream final event.
@@ -105,7 +105,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         .eq('user_id', userId)
         .maybeSingle()
 
-      // ── 5. Profile gate ──────────────────────────────────────────────────
+      // Compute missing required fields up front — used by the profile gate below.
       const profileSkills = (profileRow?.skills as string[] | null) ?? []
       const missingFields: string[] = []
 
@@ -119,16 +119,29 @@ export async function chatHandler(c: Context): Promise<Response> {
         missingFields.push('your location preference (required for On-site searches)')
       }
 
-      // Profile gate only blocks job searches, not tracking requests.
-      // Claude will decide whether to run_careerclaw or track_application;
-      // if the user is just tracking something, the gate must not fire.
-      // We therefore only apply the gate when the message appears to be a
-      // search intent — Claude's first call will handle routing cleanly.
-      const isSearchIntent =
-        missingFields.length > 0 &&
-        /briefing|find jobs|job search|search|openings|matches|what.s out there/i.test(message)
+      // Append the new user message to history for Claude
+      const messagesForClaude: Message[] = [
+        ...history,
+        { role: 'user', content: message, timestamp: new Date().toISOString() },
+      ]
 
-      if (isSearchIntent) {
+      // ── 5. First Claude call — both tools available ───────────────────────
+      await sendProgress('thinking', 'Thinking...')
+
+      const llmResult = await callLLM(CAREERCLAW_SYSTEM_PROMPT, messagesForClaude, [
+        RUN_CAREERCLAW_TOOL,
+        TRACK_APPLICATION_TOOL,
+      ])
+
+      // ── 6. Profile gate — keyed on Claude's tool decision ────────────────
+      // The gate fires only when Claude actually chose run_careerclaw, making
+      // it impossible to bypass through message phrasing. track_application
+      // and direct text responses are never affected.
+      if (
+        llmResult.type === 'tool_use' &&
+        llmResult.toolName === 'run_careerclaw' &&
+        missingFields.length > 0
+      ) {
         const list = missingFields.map((f, i) => `${i + 1}. ${f}`).join('\n')
         const gateMessage =
           `Before I can run your job search, I still need a few things from you.\n\n` +
@@ -158,20 +171,6 @@ export async function chatHandler(c: Context): Promise<Response> {
         await sendDone(savedId, gateMessage)
         return
       }
-
-      // Append the new user message to history for Claude
-      const messagesForClaude: Message[] = [
-        ...history,
-        { role: 'user', content: message, timestamp: new Date().toISOString() },
-      ]
-
-      // ── 6. First Claude call — both tools available ───────────────────────
-      await sendProgress('thinking', 'Thinking...')
-
-      const llmResult = await callLLM(CAREERCLAW_SYSTEM_PROMPT, messagesForClaude, [
-        RUN_CAREERCLAW_TOOL,
-        TRACK_APPLICATION_TOOL,
-      ])
 
       // ── 7a. Direct text response ─────────────────────────────────────────
       if (llmResult.type === 'text') {
@@ -391,11 +390,14 @@ export async function chatHandler(c: Context): Promise<Response> {
                 }
           } else {
             // update_status — find by (user_id, job_id) and update status
-            const { error } = await supabase
+            const { data: updatedRows, error } = await supabase
               .from('careerclaw_job_tracking')
               .update({ status: trackInput.status })
               .eq('user_id', userId)
               .eq('job_id', trackInput.job_id)
+              .select()
+
+            const rowsAffected = updatedRows?.length ?? 0
 
             trackResult = error
               ? {
@@ -406,14 +408,23 @@ export async function chatHandler(c: Context): Promise<Response> {
                   status: trackInput.status,
                   message: 'Database update failed.',
                 }
-              : {
-                  success: true,
-                  action: 'update_status',
-                  title: trackInput.title,
-                  company: trackInput.company,
-                  status: trackInput.status,
-                  message: `Updated "${trackInput.title}" at ${trackInput.company} to status "${trackInput.status}".`,
-                }
+              : rowsAffected === 0
+                ? {
+                    success: false,
+                    action: 'update_status',
+                    title: trackInput.title,
+                    company: trackInput.company,
+                    status: trackInput.status,
+                    message: `No tracked application found for job "${trackInput.job_id}". Save it first before updating its status.`,
+                  }
+                : {
+                    success: true,
+                    action: 'update_status',
+                    title: trackInput.title,
+                    company: trackInput.company,
+                    status: trackInput.status,
+                    message: `Updated "${trackInput.title}" at ${trackInput.company} to status "${trackInput.status}".`,
+                  }
           }
         } catch (err) {
           console.error(
