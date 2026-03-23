@@ -12,8 +12,12 @@ export type { Database, TypedSupabaseClient } from './supabase.js'
 export type { Json } from './types/database.types.js'
 
 // ── Prompts ───────────────────────────────────────────────────────────────────
-export { CAREERCLAW_SYSTEM_PROMPT, RUN_CAREERCLAW_TOOL } from './prompts/careerclaw.js'
-export type { RunCareerClawInput } from './prompts/careerclaw.js'
+export {
+  CAREERCLAW_SYSTEM_PROMPT,
+  RUN_CAREERCLAW_TOOL,
+  TRACK_APPLICATION_TOOL,
+} from './prompts/careerclaw.js'
+export type { RunCareerClawInput, TrackApplicationInput } from './prompts/careerclaw.js'
 
 import type { Database } from './types/database.types.js'
 

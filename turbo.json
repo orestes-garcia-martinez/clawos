@@ -22,6 +22,10 @@
       "dependsOn": ["^build"],
       "inputs": ["src/**", "vitest.config.*"],
       "outputs": []
+    },
+    "test:integration": {
+      "cache": false,
+      "inputs": ["src/e2e/**", "vitest.integration.config.ts", ".env.test"]
     }
   }
 }

@@ -5,7 +5,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
     test: {
-      include: ['src/**/*.integration.test.ts'],
+      include: ['src/e2e/*.integration.test.ts'],
       exclude: [],
       env,
       testTimeout: 30_000, // real LLM + network calls

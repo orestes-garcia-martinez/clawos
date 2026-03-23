@@ -23,7 +23,6 @@ import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { ENV } from './env.js'
 import type { Message } from '@clawos/shared'
-import type { RUN_CAREERCLAW_TOOL } from '@clawos/shared'
 
 // ── Clients ───────────────────────────────────────────────────────────────────
 
@@ -47,7 +46,21 @@ function getOpenAI(): OpenAI | null {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type LLMTool = typeof RUN_CAREERCLAW_TOOL
+/**
+ * Structural tool type — accepts any tool following the Anthropic tool schema.
+ * Widened from `typeof RUN_CAREERCLAW_TOOL` to support multiple tools
+ * (run_careerclaw, track_application) without type narrowing per-tool.
+ */
+export interface LLMTool {
+  name: string
+  description: string
+  input_schema: {
+    type: 'object'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    properties: Record<string, any>
+    required: readonly string[]
+  }
+}
 
 export interface LLMTextResult {
   type: 'text'
