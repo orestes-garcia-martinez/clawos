@@ -42,7 +42,6 @@ import { callLLM, callLLMWithToolResult } from '../llm.js'
 import { runWorkerCareerclaw, WorkerError } from '../worker-client.js'
 import { loadSession, pruneMessages, saveSession, summariseSkillOutput } from '../session.js'
 
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Build the profile-gate block message shown when required fields are missing. */
