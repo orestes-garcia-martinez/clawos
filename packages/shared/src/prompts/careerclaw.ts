@@ -76,6 +76,16 @@ If the user mentions they have applied, are interviewing, received an offer, or 
 
 If the user says "save this", "track this application", "add this to my tracker", or similar — invoke \`track_application\` immediately without asking for confirmation. Use the job details from the most recent search results in the conversation.
 
+## When to use track_application list
+
+Invoke \`track_application\` with action="list" when the user:
+- Asks how many applications they have saved ("how many applications do I have?")
+- Asks to see or review their tracker ("show me my applications", "what's in my tracker?")
+- Asks whether a specific company or job is already in their tracker ("is this in my tracker?", "have I saved this one?", "check if any of these are in my tracking")
+- Asks about the status of their applications ("what's the status of my applications?", "which ones am I interviewing for?")
+
+After receiving the list result, answer the user's specific question directly — do not dump the entire list if they only asked about one company or a specific status. If the tracker is empty, say so clearly and offer to save something from the current results if there are any. Never tell the user you cannot access their tracker — you have full read access via the list action.
+
 ## Formatting rules
 
 - Keep responses concise. No padding, no filler.
@@ -96,10 +106,11 @@ After \`run_careerclaw\` returns:
 ## Tool result handling — track_application
 
 After \`track_application\` returns:
-- If success: confirm briefly in a single sentence. Do not over-explain.
-- If the action was "save": "Done — [title] at [company] is saved to your tracker."
-- If the action was "update_status": "Updated — [title] at [company] is now marked as '[status]'."
-- If the save failed: say "I wasn't able to save that right now — please try adding it manually in your Applications tab."
+- If the action was "save" and success: confirm briefly. "Done — [title] at [company] is saved to your tracker."
+- If the action was "update_status" and success: "Updated — [title] at [company] is now marked as '[status]'."
+- If the action was "list" and success: answer the user's original question using the returned data. If they asked about a specific company, address that directly. If they asked for a count, give the number. If they asked about statuses, summarise them.
+- If the action was "list" and the list is empty: tell the user their tracker is empty and offer to save something if there are recent results in the conversation.
+- If any action failed: say "I wasn't able to do that right now — please try from your Applications tab."
 
 ## Profile context
 
@@ -159,60 +170,79 @@ export const RUN_CAREERCLAW_TOOL = {
   },
 } as const
 
-// track_application — direct Supabase write to careerclaw_job_tracking
-// Invoked by the agent to save or update an application without going through
-// the skill worker. The API handles the actual DB operation.
-export interface TrackApplicationInput {
-  /** "save" = upsert a new row with status "saved". "update_status" = update an existing row. */
-  action: 'save' | 'update_status'
-  /** Unique job identifier. From search results use the job_id field; for manual entries use a UUID. */
-  job_id: string
-  /** Job title. */
-  title: string
-  /** Company name. */
-  company: string
-  /** Application status. */
-  status: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
-  /** Job listing URL — optional. */
-  url?: string
-}
+// track_application — direct Supabase write/read for careerclaw_job_tracking
+// Invoked by the agent to save, update, or list applications without going
+// through the skill worker. The API handles the actual DB operation.
+export type TrackApplicationInput =
+  | {
+      /** Save or upsert a job to the tracker. */
+      action: 'save'
+      /** Unique job identifier. From search results use the job_id field; for manual entries use a slug. */
+      job_id: string
+      /** Job title. */
+      title: string
+      /** Company name. */
+      company: string
+      /** Application status. */
+      status: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
+      /** Job listing URL — optional. */
+      url?: string
+    }
+  | {
+      /** Update the status of an existing tracked application. */
+      action: 'update_status'
+      /** Unique job identifier matching the saved row. */
+      job_id: string
+      /** Job title. */
+      title: string
+      /** Company name. */
+      company: string
+      /** New application status. */
+      status: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
+      url?: string
+    }
+  | {
+      /** List all tracked applications for the current user. No other fields required. */
+      action: 'list'
+    }
 
 export const TRACK_APPLICATION_TOOL = {
   name: 'track_application',
   description:
-    "Save a job to the user's Applications tracker or update the status of an existing tracked application. This writes directly to the database — use it whenever the user confirms they want to save a job or update its status. Do not simulate this action; always invoke the tool.",
+    "Save a job to the user's Applications tracker, update the status of a tracked application, or list all tracked applications. Use 'save' when saving a new job, 'update_status' when the user's application status changes, and 'list' when the user asks about their tracker contents, application count, or whether a specific job is already saved. Always invoke this tool — never simulate or guess the tracker state.",
   input_schema: {
     type: 'object' as const,
     properties: {
       action: {
         type: 'string',
-        enum: ['save', 'update_status'],
+        enum: ['save', 'update_status', 'list'],
         description:
-          '"save" to add or upsert a job (sets status to "saved" unless overridden). "update_status" to change the status of a job already in the tracker.',
+          '"save" — add or upsert a job (requires job_id, title, company, status). "update_status" — change the status of an existing tracked job (requires job_id, title, company, status). "list" — return all tracked applications for the current user (no other fields required).',
       },
       job_id: {
         type: 'string',
         description:
-          'Unique job identifier. For jobs from search results, use the job_id field from the result. For manual tracking, generate a short unique slug (e.g. "stripe-staff-swe-2026").',
+          'Required for save and update_status. Unique job identifier. For jobs from search results, use the job_id field. For manual tracking, generate a short slug (e.g. "stripe-staff-swe-2026").',
       },
       title: {
         type: 'string',
-        description: 'Job title (e.g. "Staff Software Engineer").',
+        description:
+          'Required for save and update_status. Job title (e.g. "Staff Software Engineer").',
       },
       company: {
         type: 'string',
-        description: 'Company name (e.g. "Stripe").',
+        description: 'Required for save and update_status. Company name (e.g. "Stripe").',
       },
       status: {
         type: 'string',
         enum: ['saved', 'applied', 'interviewing', 'offer', 'rejected'],
-        description: 'Application status.',
+        description: 'Required for save and update_status. Application status.',
       },
       url: {
         type: 'string',
-        description: 'Job listing URL if available. Omit if unknown.',
+        description: 'Optional. Job listing URL. Omit if unknown.',
       },
     },
-    required: ['action', 'job_id', 'title', 'company', 'status'],
+    required: ['action'],
   },
 } as const

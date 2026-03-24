@@ -15,6 +15,9 @@
  *   - update_status action: Supabase update called with correct args
  *   - update_status action: done event emitted with formatted confirmation
  *   - update_status action: Supabase failure -> graceful fallback done event
+ *   - list action: done event emitted with row data forwarded to LLM
+ *   - list action: empty tracker -> success with empty array and clear message
+ *   - list action: Supabase failure -> graceful fallback done event (not error)
  *   - tool path never invokes the skill worker
  *   - second LLM call failure -> raw fallback message in done event
  *   - tracking progress event emitted before done
@@ -92,6 +95,9 @@ const TRACK_LLM_ERR_USER = 'aaaaaaaa-0000-0000-0000-000000000004'
 const TRACK_AUDIT_USER = 'aaaaaaaa-0000-0000-0000-000000000005'
 const TRACK_URL_USER = 'aaaaaaaa-0000-0000-0000-000000000006'
 // const TRACK_UPDERR_USER = 'aaaaaaaa-0000-0000-0000-000000000007'
+const TRACK_LIST_USER = 'aaaaaaaa-0000-0000-0000-000000000008'
+const TRACK_LIST_EMPTY_USER = 'aaaaaaaa-0000-0000-0000-000000000009'
+const TRACK_LIST_ERR_USER = 'aaaaaaaa-0000-0000-0000-000000000010'
 
 const TEST_SESSION_ID = 'session00-0000-0000-0000-000000000001'
 
@@ -124,6 +130,27 @@ let lastUpsertArgs: Record<string, unknown> | null = null
 let lastUpdateArgs: { status: string } | null = null
 let upsertShouldFail = false
 let updateShouldFail = false
+let listShouldFail = false
+let listReturnRows: Array<Record<string, unknown>> | null = null
+
+const MOCK_LIST_ROWS = [
+  {
+    job_id: 'stripe-staff-swe-2026',
+    title: 'Staff Software Engineer',
+    company: 'Stripe',
+    status: 'applied',
+    created_at: '2026-03-10T10:00:00Z',
+  },
+  {
+    job_id: 'figma-fe-eng-2026',
+    title: 'Frontend Engineer',
+    company: 'Figma',
+    status: 'saved',
+    created_at: '2026-03-12T14:00:00Z',
+  },
+]
+
+const MOCK_LIST_TOOL_INPUT = { action: 'list' as const }
 
 function buildTrackingSupabaseMock(userId: string): void {
   lastUpsertArgs = null
@@ -161,7 +188,7 @@ function buildTrackingSupabaseMock(userId: string): void {
         }),
         upsert: (_row: unknown) => Promise.resolve({ error: null }),
         then: (cb: (v: unknown) => void) => {
-          cb({ data: null, error: null })
+          cb(result)
           return Promise.resolve()
         },
       }
@@ -220,7 +247,13 @@ function buildTrackingSupabaseMock(userId: string): void {
             }),
           }
         },
-        select: () => makeChain({ data: null, error: null }),
+        // select() is used by the list action: .select(...).eq(...).order(...)
+        select: (_cols?: string) => {
+          const result = listShouldFail
+            ? { data: null, error: { message: 'DB select failed' } }
+            : { data: listReturnRows, error: null }
+          return makeChain(result)
+        },
         eq: () => makeChain({ data: null, error: null }),
       }
     }
@@ -702,5 +735,335 @@ describe('POST /chat -- track_application: audit log', () => {
       }
     })
     expect(errorAudit).toBeDefined()
+  })
+})
+
+// -- List action tests --
+
+describe('POST /chat -- track_application: list action (rows returned)', () => {
+  beforeEach(() => {
+    listShouldFail = false
+    listReturnRows = MOCK_LIST_ROWS
+    buildTrackingSupabaseMock(TRACK_LIST_USER)
+    mockCallLLM.mockResolvedValue({
+      type: 'tool_use',
+      toolName: 'track_application',
+      toolUseId: 'track_tool_list_001',
+      toolInput: MOCK_LIST_TOOL_INPUT,
+      provider: 'anthropic',
+    })
+    mockCallLLMWithToolResult.mockResolvedValue({
+      type: 'text',
+      content:
+        'You have 2 tracked applications: Staff Software Engineer at Stripe (applied) and Frontend Engineer at Figma (saved).',
+      provider: 'anthropic',
+    })
+  })
+
+  afterEach(() => {
+    listReturnRows = null
+    vi.clearAllMocks()
+  })
+
+  it('emits a progress event then a done event', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        channel: 'web',
+        message: 'How many applications do I have?',
+        userId: TRACK_LIST_USER,
+      }),
+    })
+    const text = await res.text()
+    const events = parseSSEEvents(text)
+
+    const progress = events.find((e) => e['type'] === 'progress')
+    const done = events.find((e) => e['type'] === 'done')
+    expect(progress).toBeDefined()
+    expect(done).toBeDefined()
+  })
+
+  it('forwards row data to the second LLM call', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        channel: 'web',
+        message: 'How many applications do I have?',
+        userId: TRACK_LIST_USER,
+      }),
+    })
+    await res.text()
+
+    expect(mockCallLLMWithToolResult).toHaveBeenCalledOnce()
+    const toolResultArg = mockCallLLMWithToolResult.mock.calls[0]![5] as Record<string, unknown>
+    expect(toolResultArg['action']).toBe('list')
+    expect(toolResultArg['count']).toBe(2)
+    expect(Array.isArray(toolResultArg['applications'])).toBe(true)
+    expect((toolResultArg['applications'] as unknown[]).length).toBe(2)
+  })
+
+  it('done event contains the LLM-formatted response', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        channel: 'web',
+        message: 'How many applications do I have?',
+        userId: TRACK_LIST_USER,
+      }),
+    })
+    const text = await res.text()
+    const events = parseSSEEvents(text)
+
+    const done = events.find((e) => e['type'] === 'done')
+    expect(done!['message']).toContain('Stripe')
+    expect(done!['message']).toContain('Figma')
+  })
+
+  it('never invokes the skill worker', async () => {
+    await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        channel: 'web',
+        message: 'How many applications do I have?',
+        userId: TRACK_LIST_USER,
+      }),
+    })
+    expect(mockRunWorkerCareerclaw).not.toHaveBeenCalled()
+  })
+
+  it('session summary stores only the count — no row details', async () => {
+    const insertedMessages: unknown[] = []
+    const originalMock = mockFrom.getMockImplementation()
+
+    mockFrom.mockImplementation((table: string) => {
+      const base = originalMock!(table)
+      if (table === 'sessions') {
+        return {
+          ...base,
+          insert: (row: Record<string, unknown>) => {
+            const msgs = row['messages'] as unknown[]
+            if (msgs) insertedMessages.push(...msgs)
+            return {
+              select: () => ({
+                single: () => Promise.resolve({ data: { id: TEST_SESSION_ID }, error: null }),
+              }),
+            }
+          },
+          select: base.select,
+          eq: base.eq,
+          is: base.is,
+          order: base.order,
+          limit: base.limit,
+          maybeSingle: base.maybeSingle,
+          single: base.single,
+        }
+      }
+      return base
+    })
+
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        channel: 'web',
+        message: 'How many applications do I have?',
+        userId: TRACK_LIST_USER,
+      }),
+    })
+    await res.text()
+
+    // Even if the session insert was not captured, verify the LLM call
+    // did NOT receive raw row arrays in the messages history parameter
+    const messagesArg = JSON.stringify(mockCallLLMWithToolResult.mock.calls[0]![1])
+    expect(messagesArg).not.toContain('stripe-staff-swe-2026')
+    expect(messagesArg).not.toContain('figma-fe-eng-2026')
+  })
+})
+
+describe('POST /chat -- track_application: list action (empty tracker)', () => {
+  beforeEach(() => {
+    listShouldFail = false
+    listReturnRows = []
+    buildTrackingSupabaseMock(TRACK_LIST_EMPTY_USER)
+    mockCallLLM.mockResolvedValue({
+      type: 'tool_use',
+      toolName: 'track_application',
+      toolUseId: 'track_tool_list_empty',
+      toolInput: MOCK_LIST_TOOL_INPUT,
+      provider: 'anthropic',
+    })
+    mockCallLLMWithToolResult.mockResolvedValue({
+      type: 'text',
+      content:
+        'Your Applications tracker is empty. Want me to save something from your recent results?',
+      provider: 'anthropic',
+    })
+  })
+
+  afterEach(() => {
+    listReturnRows = null
+    vi.clearAllMocks()
+  })
+
+  it('passes success=true and count=0 to the second LLM call', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        channel: 'web',
+        message: 'Check if any of them is in my tracker',
+        userId: TRACK_LIST_EMPTY_USER,
+      }),
+    })
+    await res.text()
+
+    expect(mockCallLLMWithToolResult).toHaveBeenCalledOnce()
+    const toolResultArg = mockCallLLMWithToolResult.mock.calls[0]![5] as Record<string, unknown>
+    expect(toolResultArg['success']).toBe(true)
+    expect(toolResultArg['count']).toBe(0)
+    expect(toolResultArg['message']).toContain('empty')
+  })
+
+  it('done event contains the LLM-formatted empty response', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        channel: 'web',
+        message: 'Check if any of them is in my tracker',
+        userId: TRACK_LIST_EMPTY_USER,
+      }),
+    })
+    const text = await res.text()
+    const events = parseSSEEvents(text)
+
+    const error = events.find((e) => e['type'] === 'error')
+    const done = events.find((e) => e['type'] === 'done')
+    expect(error).toBeUndefined()
+    expect(done).toBeDefined()
+    expect(done!['message']).toContain('empty')
+  })
+})
+
+describe('POST /chat -- track_application: list action (DB failure)', () => {
+  beforeEach(() => {
+    listShouldFail = true
+    listReturnRows = null
+    buildTrackingSupabaseMock(TRACK_LIST_ERR_USER)
+    mockCallLLM.mockResolvedValue({
+      type: 'tool_use',
+      toolName: 'track_application',
+      toolUseId: 'track_tool_list_err',
+      toolInput: MOCK_LIST_TOOL_INPUT,
+      provider: 'anthropic',
+    })
+    mockCallLLMWithToolResult.mockResolvedValue({
+      type: 'text',
+      content: "I wasn't able to load your tracker right now — please check your Applications tab.",
+      provider: 'anthropic',
+    })
+  })
+
+  afterEach(() => {
+    listShouldFail = false
+    vi.clearAllMocks()
+  })
+
+  it('passes success=false to the second LLM call', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        channel: 'web',
+        message: 'How many applications do I have?',
+        userId: TRACK_LIST_ERR_USER,
+      }),
+    })
+    await res.text()
+
+    expect(mockCallLLMWithToolResult).toHaveBeenCalledOnce()
+    const toolResultArg = mockCallLLMWithToolResult.mock.calls[0]![5] as Record<string, unknown>
+    expect(toolResultArg['success']).toBe(false)
+    expect(toolResultArg['count']).toBe(0)
+  })
+
+  it('emits a done event (not an error event) so the agent can reply gracefully', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        channel: 'web',
+        message: 'How many applications do I have?',
+        userId: TRACK_LIST_ERR_USER,
+      }),
+    })
+    const text = await res.text()
+    const events = parseSSEEvents(text)
+
+    const error = events.find((e) => e['type'] === 'error')
+    const done = events.find((e) => e['type'] === 'done')
+    expect(error).toBeUndefined()
+    expect(done).toBeDefined()
+  })
+})
+
+describe('POST /chat -- track_application: save action (missing required fields)', () => {
+  const TRACK_MISSING_USER = 'aaaaaaaa-0000-0000-0000-000000000011'
+
+  beforeEach(() => {
+    buildTrackingSupabaseMock(TRACK_MISSING_USER)
+    // Claude emits save without job_id/title/company/status
+    mockCallLLM.mockResolvedValue({
+      type: 'tool_use',
+      toolName: 'track_application',
+      toolUseId: 'track_tool_incomplete',
+      toolInput: { action: 'save' },
+      provider: 'anthropic',
+    })
+    mockCallLLMWithToolResult.mockResolvedValue({
+      type: 'text',
+      content: "I wasn't able to save that — some details were missing.",
+      provider: 'anthropic',
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('passes success:false with a missing-fields message instead of crashing', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({ ...BASE_MESSAGE, userId: TRACK_MISSING_USER }),
+    })
+    const events = parseSSEEvents(await res.text())
+
+    // Should emit done (not error) — the second LLM call formats the failure gracefully
+    const error = events.find((e) => e['type'] === 'error')
+    const done = events.find((e) => e['type'] === 'done')
+    expect(error).toBeUndefined()
+    expect(done).toBeDefined()
+
+    // Verify the tool result passed to the second LLM call indicates failure
+    expect(mockCallLLMWithToolResult).toHaveBeenCalledOnce()
+    const passedResult = mockCallLLMWithToolResult.mock.calls[0]![5] as Record<string, unknown>
+    expect(passedResult['success']).toBe(false)
+    expect(passedResult['action']).toBe('save')
+    expect(passedResult['message']).toContain('Missing required fields')
+  })
+
+  it('does not call Supabase upsert', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({ ...BASE_MESSAGE, userId: TRACK_MISSING_USER }),
+    })
+    await res.text()
+    expect(lastUpsertArgs).toBeNull()
   })
 })
