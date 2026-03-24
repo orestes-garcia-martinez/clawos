@@ -6,6 +6,7 @@ ClawOS is the platform for focused AI skills. Each skill has its own workspace,
 first-party engine, and secure foundation. Use ClawOS on Web today, with Telegram support available now.  
 One account, one platform, built to grow across channels as new access points launch.  
 CareerClaw — job search and outreach automation — is live now.
+
 ---
 
 ## Monorepo Structure
