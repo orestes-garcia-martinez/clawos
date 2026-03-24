@@ -538,12 +538,14 @@ describe('POST /chat -- track_application: update_status action (zero rows match
             lastUpdateArgs = fields
             return {
               eq: (_col1: string, _val1: unknown) => ({
+                // Primary path: .eq('user_id').eq('job_id').select() -> 0 rows
                 eq: (_col2: string, _val2: unknown) => ({
-                  select: () =>
-                    Promise.resolve({
-                      data: [],
-                      error: null,
-                    }),
+                  select: () => Promise.resolve({ data: [], error: null }),
+                }),
+                // Fallback path: .eq('user_id').ilike('company').select() -> 0 rows
+                // Both return empty so the handler reaches the "not found" branch.
+                ilike: (_col2: string, _val2: unknown) => ({
+                  select: () => Promise.resolve({ data: [], error: null }),
                 }),
               }),
             }
