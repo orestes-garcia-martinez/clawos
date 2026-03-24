@@ -522,11 +522,16 @@ export async function chatHandler(c: Context): Promise<Response> {
                   'Missing required fields for update_status (job_id, title, company, status).',
               }
             } else {
-              // update_status — find by (user_id, job_id) and update status
+              // update_status — find by (user_id, job_id) and update status.
+              // If job_id produces 0 rows (agent invented a slug after a list turn),
+              // fall back to a case-insensitive company name match so cross-turn
+              // follow-ups like "change the Stripe one to rejected" still work.
               const updateInput = trackInput as Exclude<
                 TrackApplicationInput,
                 { action: 'list' | 'save' }
               >
+
+              // Primary: exact job_id match
               const { data: updatedRows, error } = await supabase
                 .from('careerclaw_job_tracking')
                 .update({ status: updateInput.status })
@@ -536,32 +541,65 @@ export async function chatHandler(c: Context): Promise<Response> {
 
               const rowsAffected = updatedRows?.length ?? 0
 
-              trackResult = error
-                ? {
-                    success: false,
-                    action: 'update_status',
-                    title: updateInput.title,
-                    company: updateInput.company,
-                    status: updateInput.status,
-                    message: 'Database update failed.',
-                  }
-                : rowsAffected === 0
+              if (error) {
+                trackResult = {
+                  success: false,
+                  action: 'update_status',
+                  title: updateInput.title,
+                  company: updateInput.company,
+                  status: updateInput.status,
+                  message: 'Database update failed.',
+                }
+              } else if (rowsAffected > 0) {
+                trackResult = {
+                  success: true,
+                  action: 'update_status',
+                  title: updateInput.title,
+                  company: updateInput.company,
+                  status: updateInput.status,
+                  message: `Updated "${updateInput.title}" at ${updateInput.company} to status "${updateInput.status}".`,
+                }
+              } else {
+                // Fallback: match by company name (case-insensitive).
+                // Covers the pattern where the agent calls list in one turn then
+                // update_status in the next — the real job_id is not in session,
+                // so the agent constructs a slug that never matches.
+                const { data: fallbackRows, error: fallbackError } = await supabase
+                  .from('careerclaw_job_tracking')
+                  .update({ status: updateInput.status })
+                  .eq('user_id', userId)
+                  .ilike('company', updateInput.company)
+                  .select()
+
+                const fallbackAffected = fallbackRows?.length ?? 0
+
+                trackResult = fallbackError
                   ? {
                       success: false,
                       action: 'update_status',
                       title: updateInput.title,
                       company: updateInput.company,
                       status: updateInput.status,
-                      message: `No tracked application found for job "${updateInput.job_id}". Save it first before updating its status.`,
+                      message: 'Database update failed.',
                     }
-                  : {
-                      success: true,
-                      action: 'update_status',
-                      title: updateInput.title,
-                      company: updateInput.company,
-                      status: updateInput.status,
-                      message: `Updated "${updateInput.title}" at ${updateInput.company} to status "${updateInput.status}".`,
-                    }
+                  : fallbackAffected === 0
+                    ? {
+                        success: false,
+                        action: 'update_status',
+                        title: updateInput.title,
+                        company: updateInput.company,
+                        status: updateInput.status,
+                        message: `No tracked application found for "${updateInput.company}". Save it first before updating its status.`,
+                      }
+                    : {
+                        success: true,
+                        action: 'update_status',
+                        title: fallbackRows![0]!.title ?? updateInput.title,
+                        company: updateInput.company,
+                        status: updateInput.status,
+                        message: `Updated "${fallbackRows![0]!.title ?? updateInput.title}" at ${updateInput.company} to status "${updateInput.status}".`,
+                      }
+              }
             }
           } else {
             // Unknown action — should not happen but guard defensively
