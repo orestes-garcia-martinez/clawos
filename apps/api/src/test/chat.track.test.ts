@@ -1010,3 +1010,60 @@ describe('POST /chat -- track_application: list action (DB failure)', () => {
     expect(done).toBeDefined()
   })
 })
+
+describe('POST /chat -- track_application: save action (missing required fields)', () => {
+  const TRACK_MISSING_USER = 'aaaaaaaa-0000-0000-0000-000000000011'
+
+  beforeEach(() => {
+    buildTrackingSupabaseMock(TRACK_MISSING_USER)
+    // Claude emits save without job_id/title/company/status
+    mockCallLLM.mockResolvedValue({
+      type: 'tool_use',
+      toolName: 'track_application',
+      toolUseId: 'track_tool_incomplete',
+      toolInput: { action: 'save' },
+      provider: 'anthropic',
+    })
+    mockCallLLMWithToolResult.mockResolvedValue({
+      type: 'text',
+      content: "I wasn't able to save that — some details were missing.",
+      provider: 'anthropic',
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('passes success:false with a missing-fields message instead of crashing', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({ ...BASE_MESSAGE, userId: TRACK_MISSING_USER }),
+    })
+    const events = parseSSEEvents(await res.text())
+
+    // Should emit done (not error) — the second LLM call formats the failure gracefully
+    const error = events.find((e) => e['type'] === 'error')
+    const done = events.find((e) => e['type'] === 'done')
+    expect(error).toBeUndefined()
+    expect(done).toBeDefined()
+
+    // Verify the tool result passed to the second LLM call indicates failure
+    expect(mockCallLLMWithToolResult).toHaveBeenCalledOnce()
+    const passedResult = mockCallLLMWithToolResult.mock.calls[0]![5] as Record<string, unknown>
+    expect(passedResult['success']).toBe(false)
+    expect(passedResult['action']).toBe('save')
+    expect(passedResult['message']).toContain('Missing required fields')
+  })
+
+  it('does not call Supabase upsert', async () => {
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({ ...BASE_MESSAGE, userId: TRACK_MISSING_USER }),
+    })
+    await res.text()
+    expect(lastUpsertArgs).toBeNull()
+  })
+})

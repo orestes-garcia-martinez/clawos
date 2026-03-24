@@ -44,6 +44,18 @@ import { loadSession, pruneMessages, saveSession, summariseSkillOutput } from '.
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Validate that required fields are present for save/update_status actions. */
+function validateTrackFields(
+  input: Record<string, unknown>,
+): input is { job_id: string; title: string; company: string; status: string } {
+  return (
+    typeof input['job_id'] === 'string' &&
+    typeof input['title'] === 'string' &&
+    typeof input['company'] === 'string' &&
+    typeof input['status'] === 'string'
+  )
+}
+
 /** Build the profile-gate block message shown when required fields are missing. */
 function buildProfileGateMessage(missingFields: string[]): string {
   const list = missingFields.map((f, i) => `${i + 1}. ${f}`).join('\n')
@@ -457,81 +469,107 @@ export async function chatHandler(c: Context): Promise<Response> {
               }
             }
           } else if (trackInput.action === 'save') {
-            // Insert if new; on conflict, update title/company (metadata may
-            // have been corrected) but preserve the existing status and url
-            // so a duplicate save never downgrades progress or clears data.
-            const { error } = await supabase.from('careerclaw_job_tracking').upsert(
-              {
-                user_id: userId,
-                job_id: trackInput.job_id,
-                title: trackInput.title,
-                company: trackInput.company,
-                status: trackInput.status,
-                url: trackInput.url ?? null,
-              },
-              {
-                onConflict: 'user_id,job_id',
-                ignoreDuplicates: true,
-              },
-            )
-            trackResult = error
-              ? {
-                  success: false,
-                  action: 'save',
+            // Validate required fields — defense-in-depth against incomplete LLM tool calls.
+            if (!validateTrackFields(llmResult.toolInput)) {
+              trackResult = {
+                success: false,
+                action: 'save',
+                message: 'Missing required fields for save (job_id, title, company, status).',
+              }
+            } else {
+              // Insert if new; on conflict, update title/company (metadata may
+              // have been corrected) but preserve the existing status and url
+              // so a duplicate save never downgrades progress or clears data.
+              const { error } = await supabase.from('careerclaw_job_tracking').upsert(
+                {
+                  user_id: userId,
+                  job_id: trackInput.job_id,
                   title: trackInput.title,
                   company: trackInput.company,
                   status: trackInput.status,
-                  message: 'Database write failed.',
-                }
-              : {
-                  success: true,
-                  action: 'save',
-                  title: trackInput.title,
-                  company: trackInput.company,
-                  status: trackInput.status,
-                  message: `Saved "${trackInput.title}" at ${trackInput.company} with status "${trackInput.status}".`,
-                }
-          } else {
-            // update_status — find by (user_id, job_id) and update status
-            const updateInput = trackInput as Exclude<
-              TrackApplicationInput,
-              { action: 'list' | 'save' }
-            >
-            const { data: updatedRows, error } = await supabase
-              .from('careerclaw_job_tracking')
-              .update({ status: updateInput.status })
-              .eq('user_id', userId)
-              .eq('job_id', updateInput.job_id)
-              .select()
+                  url: trackInput.url ?? null,
+                },
+                {
+                  onConflict: 'user_id,job_id',
+                  ignoreDuplicates: true,
+                },
+              )
+              trackResult = error
+                ? {
+                    success: false,
+                    action: 'save',
+                    title: trackInput.title,
+                    company: trackInput.company,
+                    status: trackInput.status,
+                    message: 'Database write failed.',
+                  }
+                : {
+                    success: true,
+                    action: 'save',
+                    title: trackInput.title,
+                    company: trackInput.company,
+                    status: trackInput.status,
+                    message: `Saved "${trackInput.title}" at ${trackInput.company} with status "${trackInput.status}".`,
+                  }
+            }
+          } else if (trackAction === 'update_status') {
+            // Validate required fields — defense-in-depth against incomplete LLM tool calls.
+            if (!validateTrackFields(llmResult.toolInput)) {
+              trackResult = {
+                success: false,
+                action: 'update_status',
+                message:
+                  'Missing required fields for update_status (job_id, title, company, status).',
+              }
+            } else {
+              // update_status — find by (user_id, job_id) and update status
+              const updateInput = trackInput as Exclude<
+                TrackApplicationInput,
+                { action: 'list' | 'save' }
+              >
+              const { data: updatedRows, error } = await supabase
+                .from('careerclaw_job_tracking')
+                .update({ status: updateInput.status })
+                .eq('user_id', userId)
+                .eq('job_id', updateInput.job_id)
+                .select()
 
-            const rowsAffected = updatedRows?.length ?? 0
+              const rowsAffected = updatedRows?.length ?? 0
 
-            trackResult = error
-              ? {
-                  success: false,
-                  action: 'update_status',
-                  title: updateInput.title,
-                  company: updateInput.company,
-                  status: updateInput.status,
-                  message: 'Database update failed.',
-                }
-              : rowsAffected === 0
+              trackResult = error
                 ? {
                     success: false,
                     action: 'update_status',
                     title: updateInput.title,
                     company: updateInput.company,
                     status: updateInput.status,
-                    message: `No tracked application found for job "${updateInput.job_id}". Save it first before updating its status.`,
+                    message: 'Database update failed.',
                   }
-                : {
-                    success: true,
-                    action: 'update_status',
-                    title: updateInput.title,
-                    company: updateInput.company,
-                    status: updateInput.status,
-                    message: `Updated "${updateInput.title}" at ${updateInput.company} to status "${updateInput.status}".`,
-                  }
+                : rowsAffected === 0
+                  ? {
+                      success: false,
+                      action: 'update_status',
+                      title: updateInput.title,
+                      company: updateInput.company,
+                      status: updateInput.status,
+                      message: `No tracked application found for job "${updateInput.job_id}". Save it first before updating its status.`,
+                    }
+                  : {
+                      success: true,
+                      action: 'update_status',
+                      title: updateInput.title,
+                      company: updateInput.company,
+                      status: updateInput.status,
+                      message: `Updated "${updateInput.title}" at ${updateInput.company} to status "${updateInput.status}".`,
+                    }
+            }
+          } else {
+            // Unknown action — should not happen but guard defensively
+            trackResult = {
+              success: false,
+              action: trackAction,
+              message: `Unknown track_application action: "${trackAction}".`,
+            }
           }
         } catch (err) {
           console.error(
