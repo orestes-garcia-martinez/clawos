@@ -394,22 +394,69 @@ export async function chatHandler(c: Context): Promise<Response> {
       // Direct Supabase write — no worker involved. Fast path.
       if (llmResult.toolName === 'track_application') {
         const trackInput = llmResult.toolInput as TrackApplicationInput
+        // Read action as a plain string to avoid discriminated-union narrowing
+        // conflicts between the try branches and the catch/summary blocks.
+        const trackAction = llmResult.toolInput['action'] as string
 
-        await sendProgress('tracking', 'Updating your tracker...')
+        await sendProgress(
+          'tracking',
+          trackAction === 'list' ? 'Checking your tracker...' : 'Updating your tracker...',
+        )
 
         type TrackResult = {
           success: boolean
           action: string
-          title: string
-          company: string
-          status: string
+          title?: string
+          company?: string
+          status?: string
+          count?: number
+          applications?: Array<{
+            job_id: string
+            title: string
+            company: string
+            status: string
+            created_at: string
+          }>
           message: string
         }
 
         let trackResult: TrackResult
 
         try {
-          if (trackInput.action === 'save') {
+          if (trackAction === 'list') {
+            // Read path — query the full tracker for this user
+            const { data: rows, error } = await supabase
+              .from('careerclaw_job_tracking')
+              .select('job_id, title, company, status, created_at')
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false })
+
+            if (error) {
+              trackResult = {
+                success: false,
+                action: 'list',
+                count: 0,
+                applications: [],
+                message: 'Failed to load your Applications tracker.',
+              }
+            } else if (!rows || rows.length === 0) {
+              trackResult = {
+                success: true,
+                action: 'list',
+                count: 0,
+                applications: [],
+                message: 'No applications found. Your tracker is empty.',
+              }
+            } else {
+              trackResult = {
+                success: true,
+                action: 'list',
+                count: rows.length,
+                applications: rows as TrackResult['applications'],
+                message: `Found ${rows.length} tracked application${rows.length === 1 ? '' : 's'}.`,
+              }
+            }
+          } else if (trackInput.action === 'save') {
             // Insert if new; on conflict, update title/company (metadata may
             // have been corrected) but preserve the existing status and url
             // so a duplicate save never downgrades progress or clears data.
@@ -427,7 +474,6 @@ export async function chatHandler(c: Context): Promise<Response> {
                 ignoreDuplicates: true,
               },
             )
-
             trackResult = error
               ? {
                   success: false,
@@ -447,11 +493,15 @@ export async function chatHandler(c: Context): Promise<Response> {
                 }
           } else {
             // update_status — find by (user_id, job_id) and update status
+            const updateInput = trackInput as Exclude<
+              TrackApplicationInput,
+              { action: 'list' | 'save' }
+            >
             const { data: updatedRows, error } = await supabase
               .from('careerclaw_job_tracking')
-              .update({ status: trackInput.status })
+              .update({ status: updateInput.status })
               .eq('user_id', userId)
-              .eq('job_id', trackInput.job_id)
+              .eq('job_id', updateInput.job_id)
               .select()
 
             const rowsAffected = updatedRows?.length ?? 0
@@ -460,27 +510,27 @@ export async function chatHandler(c: Context): Promise<Response> {
               ? {
                   success: false,
                   action: 'update_status',
-                  title: trackInput.title,
-                  company: trackInput.company,
-                  status: trackInput.status,
+                  title: updateInput.title,
+                  company: updateInput.company,
+                  status: updateInput.status,
                   message: 'Database update failed.',
                 }
               : rowsAffected === 0
                 ? {
                     success: false,
                     action: 'update_status',
-                    title: trackInput.title,
-                    company: trackInput.company,
-                    status: trackInput.status,
-                    message: `No tracked application found for job "${trackInput.job_id}". Save it first before updating its status.`,
+                    title: updateInput.title,
+                    company: updateInput.company,
+                    status: updateInput.status,
+                    message: `No tracked application found for job "${updateInput.job_id}". Save it first before updating its status.`,
                   }
                 : {
                     success: true,
                     action: 'update_status',
-                    title: trackInput.title,
-                    company: trackInput.company,
-                    status: trackInput.status,
-                    message: `Updated "${trackInput.title}" at ${trackInput.company} to status "${trackInput.status}".`,
+                    title: updateInput.title,
+                    company: updateInput.company,
+                    status: updateInput.status,
+                    message: `Updated "${updateInput.title}" at ${updateInput.company} to status "${updateInput.status}".`,
                   }
           }
         } catch (err) {
@@ -488,13 +538,29 @@ export async function chatHandler(c: Context): Promise<Response> {
             '[chat] track_application Supabase error:',
             err instanceof Error ? err.message : String(err),
           )
-          trackResult = {
-            success: false,
-            action: trackInput.action,
-            title: trackInput.title,
-            company: trackInput.company,
-            status: trackInput.status,
-            message: 'An unexpected error occurred during tracking.',
+          if (trackAction === 'list') {
+            trackResult = {
+              success: false,
+              action: 'list',
+              count: 0,
+              applications: [],
+              message: 'An unexpected error occurred loading your tracker.',
+            }
+          } else if (trackInput.action === 'save' || trackInput.action === 'update_status') {
+            trackResult = {
+              success: false,
+              action: trackInput.action,
+              title: trackInput.title,
+              company: trackInput.company,
+              status: trackInput.status,
+              message: 'An unexpected error occurred during tracking.',
+            }
+          } else {
+            trackResult = {
+              success: false,
+              action: trackAction,
+              message: 'An unexpected error occurred during tracking.',
+            }
           }
         }
 
@@ -522,9 +588,14 @@ export async function chatHandler(c: Context): Promise<Response> {
         }
 
         // Save session with a brief summary (audit only — no job details in session)
-        const sessionSummary = trackResult.success
-          ? `Tracker ${trackInput.action === 'save' ? 'save' : 'status update'}: ${trackInput.title} at ${trackInput.company} → ${trackInput.status}.`
-          : `Tracker action failed for ${trackInput.title} at ${trackInput.company}.`
+        const sessionSummary =
+          trackAction === 'list'
+            ? trackResult.success
+              ? `Listed ${trackResult.count ?? 0} tracked application${(trackResult.count ?? 0) === 1 ? '' : 's'}.`
+              : 'Tracker list failed.'
+            : trackResult.success
+              ? `Tracker ${trackInput.action === 'save' ? 'save' : 'status update'}: ${trackResult.title} at ${trackResult.company} → ${trackResult.status}.`
+              : `Tracker action failed for ${trackResult.title} at ${trackResult.company}.`
 
         const updatedMessages: Message[] = [
           ...history,
