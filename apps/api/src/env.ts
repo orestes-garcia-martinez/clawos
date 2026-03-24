@@ -46,4 +46,24 @@ export const ENV = {
   // Generate with: openssl rand -hex 32
   // Must match LINK_TOKEN_SECRET in apps/telegram/.env
   LINK_TOKEN_SECRET: optionalEnv('LINK_TOKEN_SECRET'),
+
+  // ── Polar.sh billing ───────────────────────────────────────────────────────
+  // All optional at startup — validated at first use so tests that don't touch
+  // billing routes don't need to set them.
+  POLAR_ACCESS_TOKEN: optionalEnv('POLAR_ACCESS_TOKEN'),
+  POLAR_WEBHOOK_SECRET: optionalEnv('POLAR_WEBHOOK_SECRET'),
+  /** 'sandbox' | 'production' — defaults to 'sandbox' for safety. */
+  POLAR_ENV: (process.env['POLAR_ENV'] === 'production' ? 'production' : 'sandbox') as
+    | 'sandbox'
+    | 'production',
+  POLAR_PRODUCT_CAREERCLAW_PRO_ID: optionalEnv('POLAR_PRODUCT_CAREERCLAW_PRO_ID'),
+  POLAR_BENEFIT_CAREERCLAW_PRO_ACCESS_ID: optionalEnv('POLAR_BENEFIT_CAREERCLAW_PRO_ACCESS_ID'),
+
+  // Internal admin API key — protects /internal/* endpoints.
+  // Generate with: openssl rand -hex 32
+  // Never share with channel adapters; use SERVICE_SECRET for those.
+  INTERNAL_API_KEY: optionalEnv('INTERNAL_API_KEY'),
+
+  // Base URL of the web app — used to build billing return/success URLs.
+  WEB_APP_URL: process.env['WEB_APP_URL'] ?? 'https://app.clawoshq.com',
 } as const

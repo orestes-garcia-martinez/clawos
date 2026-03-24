@@ -22,6 +22,7 @@ import { rateLimit } from './rate-limit.js'
 import { chatHandler } from './routes/chat.js'
 import { resumeExtractHandler } from './routes/resume.js'
 import { linkTokenHandler } from './routes/link-token.js'
+import { webhookHandler, checkoutHandler, portalHandler, syncHandler } from './routes/billing.js'
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
@@ -72,9 +73,16 @@ app.post(
 // Auth required. Generates a single-use 10-min HMAC token.
 app.post('/link-token', requireAuth(), linkTokenHandler)
 
-// ── Stubs — Chat 7 (Billing) ──────────────────────────────────────────────────
-// TODO Chat 7: POST /billing/webhook
-// TODO Chat 7: POST /billing/force-sync
+// ── Billing routes (Chat 7) ───────────────────────────────────────────────────
+// Webhook: no JWT auth — Polar HMAC signature validation inside the handler.
+app.post('/billing/webhooks/polar', webhookHandler)
+// Checkout and portal: JWT auth required.
+app.post('/billing/checkout', requireAuth(), checkoutHandler)
+app.post('/billing/portal', requireAuth(), portalHandler)
+
+// ── Internal admin routes ─────────────────────────────────────────────────────
+// Sync: INTERNAL_API_KEY validation inside the handler — no JWT required.
+app.post('/internal/billing/sync/:userId', syncHandler)
 
 // ── Server (local dev + Lightsail) ───────────────────────────────────────────
 
