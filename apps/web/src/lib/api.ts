@@ -5,8 +5,8 @@
  *   chatSSE()              — POST /chat, reads the SSE stream, fires callbacks.
  *   extractResume()        — POST /resume/extract, multipart PDF upload.
  *   createLinkToken()      — POST /link-token, returns token for Telegram linking.
- *   createBillingCheckout() — POST /api/billing/checkout, returns Polar checkout URL.
- *   createBillingPortal()   — POST /api/billing/portal, returns Polar portal URL.
+ *   createBillingCheckout() — POST /billing/checkout, returns Polar checkout URL.
+ *   createBillingPortal()   — POST /billing/portal, returns Polar portal URL.
  *
  * URL strategy:
  *   Dev  → calls go to /api/* which Vite proxies to VITE_API_URL (raw IP fine).
@@ -231,15 +231,7 @@ export async function createLinkToken(jwt: string): Promise<LinkTokenResult> {
  * @throws Error if the checkout session creation fails
  */
 export async function createBillingCheckout(jwt: string): Promise<{ url: string }> {
-  // TODO: Standardize all frontend API calls behind one consistent rule, for example:
-  //
-  // frontend always calls /api/...
-  // dev proxy forwards /api/*
-  // prod reverse proxy or API domain also serves /api/*
-
-  const billingBase = import.meta.env.DEV ? '' : BASE
-
-  const res = await fetch(`${billingBase}/api/billing/checkout`, {
+  const res = await fetch(`${BASE}/billing/checkout`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${jwt}`,
@@ -268,14 +260,7 @@ export async function createBillingCheckout(jwt: string): Promise<{ url: string 
  * @throws Error if the portal session creation fails
  */
 export async function createBillingPortal(jwt: string): Promise<{ url: string }> {
-  // TODO: Standardize all frontend API calls behind one consistent rule, for example:
-  //
-  // frontend always calls /api/...
-  // dev proxy forwards /api/*
-  // prod reverse proxy or API domain also serves /api/*
-  const billingBase = import.meta.env.DEV ? '' : BASE
-
-  const res = await fetch(`${billingBase}/api/billing/portal`, {
+  const res = await fetch(`${BASE}/billing/portal`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${jwt}`,
