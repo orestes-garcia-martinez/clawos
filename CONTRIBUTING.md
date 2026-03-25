@@ -51,19 +51,19 @@ npx turbo build
 
 ClawOS uses a [Turborepo](https://turbo.build/) monorepo. Each app and package has its own scope used in commit messages, changelogs, and CI.
 
-| Scope      | Path                  | Description                              |
-| ---------- | --------------------- | ---------------------------------------- |
-| `api`      | `apps/api/`           | Hono Agent API — Claude orchestration    |
-| `web`      | `apps/web/`           | React + Vite web frontend                |
-| `worker`   | `apps/worker/`        | Lightsail skill CLI worker               |
-| `telegram` | `apps/telegram/`      | Telegram bot adapter                     |
-| `shared`   | `packages/shared/`    | Shared TypeScript types + Supabase client|
-| `billing`  | `packages/billing/`   | Polar.sh billing integration             |
-| `security` | `packages/security/`  | Zod schemas, rate limits, audit logging  |
-| `infra`    | `infra/`              | Deployment scripts, Nginx, systemd files |
-| `ci`       | `.github/workflows/`  | GitHub Actions workflows                 |
-| `deps`     | —                     | Dependency updates                       |
-| `release`  | —                     | Release Please PRs                       |
+| Scope      | Path                 | Description                               |
+| ---------- | -------------------- | ----------------------------------------- |
+| `api`      | `apps/api/`          | Hono Agent API — Claude orchestration     |
+| `web`      | `apps/web/`          | React + Vite web frontend                 |
+| `worker`   | `apps/worker/`       | Lightsail skill CLI worker                |
+| `telegram` | `apps/telegram/`     | Telegram bot adapter                      |
+| `shared`   | `packages/shared/`   | Shared TypeScript types + Supabase client |
+| `billing`  | `packages/billing/`  | Polar.sh billing integration              |
+| `security` | `packages/security/` | Zod schemas, rate limits, audit logging   |
+| `infra`    | `infra/`             | Deployment scripts, Nginx, systemd files  |
+| `ci`       | `.github/workflows/` | GitHub Actions workflows                  |
+| `deps`     | —                    | Dependency updates                        |
+| `release`  | —                    | Release Please PRs                        |
 
 ---
 
@@ -184,14 +184,14 @@ If a commit is rejected, read the error message. The most common fix is correcti
 
 ### CI Checks
 
-| Check          | Description                                             |
-| -------------- | ------------------------------------------------------- |
-| **Security**   | `npm audit --audit-level=high`                          |
-| **Supply chain** | Socket.dev scan for malicious packages               |
-| **CVE scan**   | Snyk dependency and code scanning                       |
-| **Quality**    | ESLint v9 + TypeScript + Prettier across all packages   |
-| **Tests**      | Vitest across all packages via `turbo test`             |
-| **Commitlint** | PR title validated against conventional commit format   |
+| Check            | Description                                           |
+| ---------------- | ----------------------------------------------------- |
+| **Security**     | `npm audit --audit-level=high`                        |
+| **Supply chain** | Socket.dev scan for malicious packages                |
+| **CVE scan**     | Snyk dependency and code scanning                     |
+| **Quality**      | ESLint v9 + TypeScript + Prettier across all packages |
+| **Tests**        | Vitest across all packages via `turbo test`           |
+| **Commitlint**   | PR title validated against conventional commit format |
 
 All checks are non-negotiable. A high or critical security finding blocks merge until resolved.
 
@@ -225,11 +225,11 @@ This PR bumps the version in each changed package's `package.json` and regenerat
 
 ### Version Bumping Rules
 
-| Commits include            | Version change | Example        |
-| -------------------------- | -------------- | -------------- |
-| Only `fix`, `perf`, `docs` | Patch          | 1.0.0 → 1.0.1  |
-| Any `feat`                 | Minor          | 1.0.0 → 1.1.0  |
-| Any `feat!` or `BREAKING`  | Major          | 1.0.0 → 2.0.0  |
+| Commits include            | Version change | Example       |
+| -------------------------- | -------------- | ------------- |
+| Only `fix`, `perf`, `docs` | Patch          | 1.0.0 → 1.0.1 |
+| Any `feat`                 | Minor          | 1.0.0 → 1.1.0 |
+| Any `feat!` or `BREAKING`  | Major          | 1.0.0 → 2.0.0 |
 
 ### Which Packages Get Released
 
@@ -271,14 +271,14 @@ Security is ClawOS's primary non-functional requirement. Every contributor is re
 
 Run scripts from the monorepo root. Turborepo handles cross-package orchestration automatically.
 
-| Command                            | Description                                     |
-| ---------------------------------- | ----------------------------------------------- |
-| `npx turbo build`                  | Build all packages                              |
-| `npx turbo test`                   | Run Vitest across all packages                  |
-| `npx turbo lint`                   | Run ESLint across all packages                  |
-| `npx turbo typecheck`              | TypeScript check across all packages            |
-| `npm run prepare`                  | Initialize Husky (runs automatically on install)|
-| `npm audit --audit-level=high`     | Check for high/critical CVEs                    |
+| Command                        | Description                                      |
+| ------------------------------ | ------------------------------------------------ |
+| `npx turbo build`              | Build all packages                               |
+| `npx turbo test`               | Run Vitest across all packages                   |
+| `npx turbo lint`               | Run ESLint across all packages                   |
+| `npx turbo typecheck`          | TypeScript check across all packages             |
+| `npm run prepare`              | Initialize Husky (runs automatically on install) |
+| `npm audit --audit-level=high` | Check for high/critical CVEs                     |
 
 To run a script for a single package only:
 
