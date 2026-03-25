@@ -99,8 +99,59 @@ export async function sendChatAction(chatId: number, action: string): Promise<vo
 
 async function handleTextMessage(chatId: number, userId: string, text: string): Promise<void> {
   await sendChatAction(chatId, 'typing')
-  const { text: reply } = await callAgentApi(userId, text)
-  await sendMessage(chatId, reply)
+  try {
+    const { text: reply } = await callAgentApi(userId, text)
+    await sendMessage(chatId, reply)
+  } catch (err) {
+    if (err instanceof AgentApiError && err.httpStatus === 429) {
+      await handleRateLimitUpgrade(chatId, userId)
+      return
+    }
+    throw err
+  }
+}
+
+/**
+ * Fetch a Polar checkout URL for a Telegram user via the Agent API.
+ * Uses the same service-auth path as normal chat requests.
+ * Returns null if billing is not configured or the request fails.
+ */
+async function fetchCheckoutUrl(userId: string): Promise<string | null> {
+  try {
+    const response = await fetch(`${ENV.AGENT_API_URL}/billing/checkout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Service-Secret': ENV.SERVICE_SECRET,
+        'X-Service-Name': 'telegram',
+        'X-User-Id': userId,
+      },
+      body: JSON.stringify({ source: 'telegram' }),
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!response.ok) return null
+    const data = (await response.json()) as { url?: string }
+    return data.url ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Send an upgrade prompt when the user has hit the free-tier rate limit. */
+async function handleRateLimitUpgrade(chatId: number, userId: string): Promise<void> {
+  const checkoutUrl = await fetchCheckoutUrl(userId)
+
+  if (checkoutUrl) {
+    await sendMessage(
+      chatId,
+      `⚡ You've reached the free tier limit.\n\nUpgrade to ClawOS Pro to continue:\n${checkoutUrl}\n\nAfter upgrading, send your next message and Pro access will be active automatically.`,
+    )
+  } else {
+    await sendMessage(
+      chatId,
+      `⚡ You've reached the free tier limit.\n\nVisit ${ENV.AGENT_API_URL.replace('api.', 'app.')} to upgrade to Pro.`,
+    )
+  }
 }
 
 async function handleDocumentUpload(
@@ -235,10 +286,22 @@ export async function handleUpdate(update: TelegramUpdate): Promise<void> {
       err instanceof Error ? err.message : String(err),
     )
 
-    const userMsg =
-      err instanceof AgentApiError && err.code === 'TIMEOUT'
-        ? 'The job search is taking too long. Please try again in a moment.'
-        : 'Something went wrong. Please try again in a moment.'
+    let userMsg: string
+    if (err instanceof AgentApiError && err.httpStatus === 429) {
+      // Rate limit bubble-up (e.g. from document upload path calling agent API indirectly).
+      try {
+        const telegramUserId = String(message?.from?.id ?? message?.chat.id ?? 'unknown')
+        const userId2 = await resolveOrCreateTelegramUser(telegramUserId)
+        await handleRateLimitUpgrade(message?.chat.id ?? 0, userId2)
+      } catch {
+        // Best-effort only.
+      }
+      return
+    } else if (err instanceof AgentApiError && err.code === 'TIMEOUT') {
+      userMsg = 'The job search is taking too long. Please try again in a moment.'
+    } else {
+      userMsg = 'Something went wrong. Please try again in a moment.'
+    }
 
     try {
       await sendMessage(chatId, userMsg)

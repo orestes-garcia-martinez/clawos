@@ -32,6 +32,16 @@ export type SessionRow = Database['public']['Tables']['sessions']['Row']
 export type SessionInsert = Database['public']['Tables']['sessions']['Insert']
 export type SessionUpdate = Database['public']['Tables']['sessions']['Update']
 
+export type BillingWebhookEventRow = Database['public']['Tables']['billing_webhook_events']['Row']
+export type BillingWebhookEventInsert =
+  Database['public']['Tables']['billing_webhook_events']['Insert']
+
+export type UserSkillEntitlementRow = Database['public']['Tables']['user_skill_entitlements']['Row']
+export type UserSkillEntitlementInsert =
+  Database['public']['Tables']['user_skill_entitlements']['Insert']
+export type UserSkillEntitlementUpdate =
+  Database['public']['Tables']['user_skill_entitlements']['Update']
+
 // ── Enums / Literals ──────────────────────────────────────────────────────────
 
 export type Channel = 'web' | 'telegram' | 'whatsapp'
