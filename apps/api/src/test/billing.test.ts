@@ -16,6 +16,7 @@ import { WebhookVerificationError } from '@clawos/billing'
 // ── Module mocks -- must be declared before app import ───────────────────────
 
 export const mockGetUser = vi.fn()
+export const mockGetUserById = vi.fn()
 export const mockFrom = vi.fn()
 
 // vi.mock factories are hoisted above all imports/declarations.
@@ -40,7 +41,10 @@ vi.mock('@clawos/shared', async (importOriginal) => {
   return {
     ...actual,
     createServerClient: () => ({
-      auth: { getUser: mockGetUser },
+      auth: {
+        getUser: mockGetUser,
+        admin: { getUserById: mockGetUserById },
+      },
       from: mockFrom,
     }),
   }
@@ -132,6 +136,10 @@ function makeSupabaseChain(result: { data: unknown; error: null | { message: str
 
 function setupAuthMock(userId: string, tier: 'free' | 'pro') {
   mockGetUser.mockResolvedValue({ data: { user: { id: userId } }, error: null })
+  mockGetUserById.mockResolvedValue({
+    data: { user: { id: userId, email: `${userId}@test.com` } },
+    error: null,
+  })
   mockFrom.mockImplementation((table: string) => {
     if (table === 'users') return makeSupabaseChain({ data: { tier }, error: null })
     if (table === 'billing_webhook_events')
@@ -221,7 +229,7 @@ describe('POST /billing/webhooks/polar', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { status: string; reason: string }
     expect(body.status).toBe('ignored')
-    expect(body.reason).toBe('no_external_id')
+    expect(body.reason).toBe('no_user_id')
   })
 
   it('upserts entitlements and returns 200 on valid customer.state_changed', async () => {
@@ -334,7 +342,11 @@ describe('POST /billing/checkout', () => {
     expect(body.url).toBe('https://polar.sh/checkout/abc')
     expect(mockCreateCheckoutSession).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ userId: FREE_USER, source: 'web' }),
+      expect.objectContaining({
+        userId: FREE_USER,
+        source: 'web',
+        customerEmail: `${FREE_USER}@test.com`,
+      }),
     )
   })
 
