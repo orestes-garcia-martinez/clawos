@@ -1,0 +1,34 @@
+{
+  "release-type": "node",
+  "group-pull-request-title-pattern": "chore: release ${version}",
+  "packages": {
+    "apps/api": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md"
+    },
+    "apps/web": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md"
+    },
+    "apps/worker": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md"
+    },
+    "apps/telegram": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md"
+    },
+    "packages/shared": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md"
+    },
+    "packages/billing": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md"
+    },
+    "packages/security": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}
