@@ -34,6 +34,8 @@ export interface CheckoutSessionInput {
   productId: string
   successUrl: string
   returnUrl: string
+  /** Authenticated ClawOS user email for Polar customer prefill/linking. */
+  customerEmail?: string | null
   /** Source channel for audit metadata. */
   source: 'web' | 'telegram'
 }
@@ -94,6 +96,12 @@ export async function createCheckoutSession(
   const checkout = await polar.checkouts.create({
     products: [input.productId],
     externalCustomerId: input.userId,
+    customerEmail: input.customerEmail ?? undefined,
+    customerMetadata: {
+      userId: input.userId,
+      skillSlug: 'careerclaw',
+      source: input.source,
+    },
     successUrl: input.successUrl,
     returnUrl: input.returnUrl,
     metadata: {

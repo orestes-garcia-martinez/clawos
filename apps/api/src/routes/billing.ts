@@ -173,12 +173,22 @@ export async function webhookHandler(c: Context): Promise<Response> {
   try {
     if (eventType === 'customer.state_changed') {
       const state = (event as { type: 'customer.state_changed'; data: CustomerState }).data
-      const userId = state.externalId
+
+      const metadataUserId =
+        (state.activeSubscriptions?.find(
+          (sub) => typeof sub.metadata?.userId === 'string' && sub.metadata.userId.length > 0,
+        )?.metadata?.userId as string | undefined) ?? null
+
+      const userId = state.externalId ?? metadataUserId
 
       if (!userId) {
         const { error: updateError } = await supabase
           .from('billing_webhook_events')
-          .update({ status: 'ignored', processed_at: new Date().toISOString() })
+          .update({
+            status: 'ignored',
+            processed_at: new Date().toISOString(),
+            error: 'No resolvable user id on webhook payload',
+          })
           .eq('event_id', eventId)
 
         if (updateError) {
@@ -187,7 +197,7 @@ export async function webhookHandler(c: Context): Promise<Response> {
           )
         }
 
-        return c.json({ received: true, status: 'ignored', reason: 'no_external_id' })
+        return c.json({ received: true, status: 'ignored', reason: 'no_user_id' })
       }
 
       const entitlements = mapCustomerStateToEntitlements(state, {
@@ -264,6 +274,19 @@ export async function checkoutHandler(c: Context): Promise<Response> {
 
   const source = body.source === 'telegram' ? 'telegram' : 'web'
 
+  const supabase = createServerClient()
+
+  let customerEmail: string | null = null
+  const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(userId)
+
+  if (authUserError) {
+    console.warn(
+      `[billing] Failed to load auth user email for checkout user=${userId}: ${authUserError.message}`,
+    )
+  } else {
+    customerEmail = authUserData.user?.email ?? null
+  }
+
   const polar = createPolarClient({ accessToken: config.accessToken, env: ENV.POLAR_ENV })
 
   try {
@@ -272,6 +295,7 @@ export async function checkoutHandler(c: Context): Promise<Response> {
       productId: config.productId,
       successUrl: `${ENV.WEB_APP_URL}/billing/return?upgraded=true`,
       returnUrl: `${ENV.WEB_APP_URL}/settings`,
+      customerEmail,
       source,
     })
     return c.json({ url })
