@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "ClawOS — Multi-channel AI agent platform",
+  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -18,11 +19,15 @@
     "test:integration": "turbo run test:integration",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\"",
+    "prepare": "husky",
     "gen:types": "supabase gen types typescript --project-id gmyxtjbpvcpxqeklqczf > packages/shared/src/types/database.types.ts"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.0.3",
+    "husky": "^9.1.7",
     "prettier": "^3.4.0",
     "supabase": "^2.82.0",
     "turbo": "^2.8.20",

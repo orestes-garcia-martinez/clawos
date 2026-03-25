@@ -24,16 +24,49 @@ jobs:
         id: check-branch-name
         run: |
           SOURCE_BRANCH="${{ github.head_ref }}"
-          echo "Source branch: $SOURCE_BRANCH"
+          # Pattern for release-please branches (manifest/grouped mode)
+          RELEASE_PLEASE_PATTERN="^release-please--branches--[a-zA-Z0-9._-]+--components--[a-zA-Z0-9._/-]+$"
 
-          if [[ ! "$SOURCE_BRANCH" =~ ^(feat|fix|build|chore|ci|docs|perf|refactor|revert|style|test|claude|codex|dependabot)/.+ ]]; then
-                echo "::error::Branch '$SOURCE_BRANCH' does not follow the required naming convention."
-                echo "::error::PRs to main must come from a branch named: <type>/<name>"
-                echo "::error::Valid types: feat, fix, build, chore, ci, docs, perf, refactor, revert, style, test, claude, codex"
-                exit 1
-              fi
+          # Use the PR creator's login instead of the triggering actor
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          TRUSTED_RELEASE_BOT_PATTERN='^clawos-release-bot\[bot\]$'
 
-          echo "Branch name '$SOURCE_BRANCH' is valid."
+          echo "Checking branch: $SOURCE_BRANCH"
+          echo "PR created by: $PR_AUTHOR"
+
+          # 1. Check if it's a Release Please branch created by the ClawOS-Release-Bot
+          if [[ "$SOURCE_BRANCH" =~ $RELEASE_PLEASE_PATTERN ]]; then
+            if [[ "$PR_AUTHOR" =~ $TRUSTED_RELEASE_BOT_PATTERN ]]; then
+              echo "✓ Branch '$SOURCE_BRANCH' created by bot '$PR_AUTHOR'. Skipping naming convention check."
+              exit 0
+            else
+              echo "::error::Branch '$SOURCE_BRANCH' matches the Release Please pattern but was created by '$PR_AUTHOR', not the ClawOS-Release-Bot."
+              exit 1
+            fi
+          fi
+
+          # 2. Standard naming convention enforcement for human contributors
+          VALID_PREFIXES='^(feat|fix|build|chore|ci|docs|perf|refactor|revert|style|test|dependabot|claude|codex)/[a-z0-9./_-]+$'
+
+          if [[ ! "$SOURCE_BRANCH" =~ $VALID_PREFIXES ]]; then
+            echo "----------------------------------------------------------------"
+            echo "ERROR: Invalid branch name '$SOURCE_BRANCH'"
+            echo "Branch names must start with one of the following prefixes:"
+            echo "  feat/, fix/, build/, chore/, ci/, docs/, perf/, refactor/,"
+            echo "  revert/, style/, test/, claude/, codex/, or dependabot/"
+            echo "Followed by lowercase alphanumeric characters, dots, slashes, underscores, or hyphens."
+            echo ""
+            echo "Convention: <type>/<scope>-<short-description>"
+            echo "Examples:"
+            echo "  feat/api-add-rate-limiting"
+            echo "  fix/web-sse-reconnect"
+            echo "  chore/deps-upgrade-hono"
+            echo "  ci/add-snyk-scan"
+            echo "----------------------------------------------------------------"
+            exit 1
+          fi
+
+          echo "✓ Branch name '$SOURCE_BRANCH' follows the naming policy."
 
       - name: Check branch was created from main
         id: check-branch-origin

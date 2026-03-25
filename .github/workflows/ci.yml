@@ -20,8 +20,27 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# ── Security job ──────────────────────────────────────────────────────────────
 jobs:
+# ── Lint job ──────────────────────────────────────────────────────────────────
+  commitlint:
+    name: Lint PR title
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install root devDependencies
+        run: npm ci
+
+      - name: Lint PR title
+        run: echo "${{ github.event.pull_request.title }}" | npx commitlint
+
+# ── Security job ──────────────────────────────────────────────────────────────
   security:
     name: Security Scan
     runs-on: ubuntu-latest
