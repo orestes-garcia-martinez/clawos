@@ -429,9 +429,10 @@ describe.skipIf(missingVars.length > 0)('Billing E2E (integration)', () => {
 
       // Create a second test user.
       const otherEmail = `billing-rls-other-${Date.now()}@clawos.test`
+      const otherPassword = `Test_${crypto.randomUUID()}` // ggignore
       const { data: otherData } = await supabaseAdmin.auth.admin.createUser({
         email: otherEmail,
-        password: `Test_${crypto.randomUUID()}`, // ggignore
+        password: otherPassword,
         email_confirm: true,
       })
       const otherId = otherData?.user?.id
@@ -446,14 +447,14 @@ describe.skipIf(missingVars.length > 0)('Billing E2E (integration)', () => {
 
       const { data: signInData } = await anonClient.auth.signInWithPassword({
         email: otherEmail,
-        password: (await supabaseAdmin.auth.admin.getUserById(otherId)).data.user?.email ?? '',
+        password: otherPassword,
       })
 
       // Use the other user's JWT to try to read freeUserId's entitlements.
       const otherJwt = signInData?.session?.access_token
       if (!otherJwt) {
         await supabaseAdmin.auth.admin.deleteUser(otherId)
-        return
+        throw new Error('Failed to sign in other user — RLS test cannot proceed')
       }
 
       const otherAnonClient = createClient(

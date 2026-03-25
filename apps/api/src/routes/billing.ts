@@ -62,7 +62,7 @@ async function applyEntitlements(userId: string, result: EntitlementResult): Pro
   const supabase = createServerClient()
   const now = new Date().toISOString()
 
-  await supabase.from('user_skill_entitlements').upsert(
+  const { error: upsertError } = await supabase.from('user_skill_entitlements').upsert(
     {
       user_id: userId,
       skill_slug: result.skillSlug,
@@ -79,8 +79,21 @@ async function applyEntitlements(userId: string, result: EntitlementResult): Pro
     { onConflict: 'user_id,skill_slug' },
   )
 
+  if (upsertError) {
+    throw new Error(
+      `Failed to upsert user_skill_entitlements for user ${userId}: ${upsertError.message}`,
+    )
+  }
+
   // Refresh users.tier derived summary cache.
-  await supabase.from('users').update({ tier: result.tier }).eq('id', userId)
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ tier: result.tier })
+    .eq('id', userId)
+
+  if (updateError) {
+    throw new Error(`Failed to update users.tier for user ${userId}: ${updateError.message}`)
+  }
 }
 
 // ── POST /billing/webhooks/polar ──────────────────────────────────────────────
@@ -130,12 +143,31 @@ export async function webhookHandler(c: Context): Promise<Response> {
   }
 
   // ── 3. Record event as processing ─────────────────────────────────────────
-  await supabase.from('billing_webhook_events').insert({
+  const { error: insertError } = await supabase.from('billing_webhook_events').insert({
     event_id: eventId,
     event_type: eventType,
     status: 'processing',
     payload: JSON.parse(rawBody) as Json,
   })
+
+  if (insertError) {
+    // Unique-constraint violation (code 23505) means a concurrent request
+    // already inserted this event — treat as duplicate, not an error.
+    if (insertError.code === '23505') {
+      console.log(`[billing] Concurrent duplicate webhook ${eventId} (${eventType}) — skipped`)
+      return c.json({ received: true, status: 'duplicate' })
+    }
+
+    console.error(
+      `[billing] Failed to insert billing_webhook_events for ${eventId}:`,
+      insertError.message,
+    )
+    return c.json({
+      received: true,
+      status: 'error',
+      error: `Failed to record event: ${insertError.message}`,
+    })
+  }
 
   // ── 4. Process ────────────────────────────────────────────────────────────
   try {
@@ -144,10 +176,17 @@ export async function webhookHandler(c: Context): Promise<Response> {
       const userId = state.externalId
 
       if (!userId) {
-        await supabase
+        const { error: updateError } = await supabase
           .from('billing_webhook_events')
           .update({ status: 'ignored', processed_at: new Date().toISOString() })
           .eq('event_id', eventId)
+
+        if (updateError) {
+          throw new Error(
+            `Failed to update billing_webhook_events for event ${eventId}: ${updateError.message}`,
+          )
+        }
+
         return c.json({ received: true, status: 'ignored', reason: 'no_external_id' })
       }
 
@@ -175,20 +214,31 @@ export async function webhookHandler(c: Context): Promise<Response> {
       console.log(`[billing] Unhandled event type ${eventType} — acknowledged`)
     }
 
-    await supabase
+    const { error: markProcessedError } = await supabase
       .from('billing_webhook_events')
       .update({ status: 'processed', processed_at: new Date().toISOString() })
       .eq('event_id', eventId)
+
+    if (markProcessedError) {
+      console.error(
+        `[billing] Failed to mark event ${eventId} as processed:`,
+        markProcessedError.message,
+      )
+    }
 
     return c.json({ received: true, status: 'processed' })
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err)
     console.error(`[billing] Webhook processing error for ${eventId}:`, errorMsg)
 
-    await supabase
+    const { error: markErrorError } = await supabase
       .from('billing_webhook_events')
       .update({ status: 'error', error: errorMsg, processed_at: new Date().toISOString() })
       .eq('event_id', eventId)
+
+    if (markErrorError) {
+      console.error(`[billing] Failed to mark event ${eventId} as error:`, markErrorError.message)
+    }
 
     // Return 200 — the event is stored. A 5xx would trigger infinite Polar retries.
     return c.json({ received: true, status: 'error', error: errorMsg })
