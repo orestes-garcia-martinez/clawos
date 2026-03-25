@@ -11,7 +11,7 @@
 
 import type { JSX } from 'react'
 import { useState } from 'react'
-import { createLinkToken } from '../lib/api'
+import { createBillingCheckout, createBillingPortal, createLinkToken } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { IconLink, IconWarning } from '../shell/icons.tsx'
 
@@ -148,36 +148,78 @@ function TelegramLinkSection({ jwt }: { jwt: string }): JSX.Element {
 
 // ── Billing section ────────────────────────────────────────────────────────
 
-function BillingSection({ tier }: { tier: string }): JSX.Element {
-  const POLAR_PORTAL = 'https://polar.sh'
+function BillingSection({ tier, jwt }: { tier: string; jwt: string }): JSX.Element {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleBillingClick() {
+    if (!jwt) {
+      setError('You must be signed in to manage billing.')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const result =
+        tier === 'pro' ? await createBillingPortal(jwt) : await createBillingCheckout(jwt)
+
+      window.location.assign(result.url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open billing.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <Section
       title="Billing"
       description="Polar.sh is the authoritative source for your subscription. Supabase stores a cached snapshot."
     >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">{tier === 'pro' ? 'Pro Plan — $9/mo' : 'Free Plan'}</p>
-          <p className="text-xs text-text-muted mt-0.5">
-            {tier === 'pro'
-              ? 'All features unlocked.'
-              : 'Upgrade to Pro for LLM outreach, cover letters, and gap analysis.'}
-          </p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">
+              {tier === 'pro' ? 'Pro Plan — $9/mo' : 'Free Plan'}
+            </p>
+            <p className="text-xs text-text-muted mt-0.5">
+              {tier === 'pro'
+                ? 'All features unlocked.'
+                : 'Upgrade to Pro for LLM outreach, cover letters, and gap analysis.'}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              void handleBillingClick()
+            }}
+            disabled={loading}
+            className="px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+            style={{
+              background: tier === 'pro' ? 'var(--surface-2)' : 'var(--accent)',
+              color: tier === 'pro' ? 'var(--text-muted)' : 'var(--bg)',
+              border: tier === 'pro' ? '1px solid var(--border)' : 'none',
+            }}
+          >
+            {loading
+              ? tier === 'pro'
+                ? 'Opening…'
+                : 'Redirecting…'
+              : tier === 'pro'
+                ? 'Manage billing'
+                : 'Upgrade to Pro'}
+          </button>
         </div>
-        <a
-          href={POLAR_PORTAL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-          style={{
-            background: tier === 'pro' ? 'var(--surface-2)' : 'var(--accent)',
-            color: tier === 'pro' ? 'var(--text-muted)' : 'var(--bg)',
-            border: tier === 'pro' ? '1px solid var(--border)' : 'none',
-          }}
-        >
-          {tier === 'pro' ? 'Manage billing' : 'Upgrade to Pro'}
-        </a>
+
+        {error && (
+          <p className="text-xs text-danger flex items-center gap-1.5" role="alert">
+            <IconWarning className="w-3.5 h-3.5" />
+            {error}
+          </p>
+        )}
       </div>
     </Section>
   )
@@ -200,7 +242,7 @@ export function AccountPage(): JSX.Element {
         </div>
 
         <TelegramLinkSection jwt={jwt} />
-        <BillingSection tier={tier} />
+        <BillingSection tier={tier} jwt={jwt} />
       </div>
     </div>
   )
