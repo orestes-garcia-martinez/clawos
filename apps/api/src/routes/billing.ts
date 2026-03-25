@@ -73,7 +73,10 @@ async function applyEntitlements(userId: string, result: EntitlementResult): Pro
       provider_subscription_id: result.subscriptionId,
       provider_customer_external_id: result.providerCustomerExternalId,
       period_ends_at: result.periodEndsAt,
-      metadata: { hasProBenefit: result.hasProBenefit },
+      metadata: {
+        hasProBenefit: result.hasProBenefit,
+        providerCustomerId: result.providerCustomerId,
+      },
       updated_at: now,
     },
     { onConflict: 'user_id,skill_slug' },
@@ -315,12 +318,35 @@ export async function portalHandler(c: Context): Promise<Response> {
   }
 
   const userId = c.get('userId') as string
-
   const polar = createPolarClient({ accessToken: config.accessToken, env: ENV.POLAR_ENV })
+  const supabase = createServerClient()
+
+  let customerId: string | null = null
+
+  const { data: entitlementRow, error: entitlementError } = await supabase
+    .from('user_skill_entitlements')
+    .select('metadata')
+    .eq('user_id', userId)
+    .eq('skill_slug', 'careerclaw')
+    .maybeSingle()
+
+  if (entitlementError) {
+    console.error(
+      '[billing] Failed to load entitlement metadata for portal:',
+      entitlementError.message,
+    )
+  } else {
+    const metadata = entitlementRow?.metadata as Record<string, unknown> | null
+    customerId =
+      typeof metadata?.providerCustomerId === 'string' && metadata.providerCustomerId.length > 0
+        ? metadata.providerCustomerId
+        : null
+  }
 
   try {
     const { url } = await createCustomerPortalSession(polar, {
       userId,
+      customerId,
       returnUrl: `${ENV.WEB_APP_URL}/settings`,
     })
     return c.json({ url })

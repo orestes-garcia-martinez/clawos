@@ -41,8 +41,10 @@ export interface CheckoutSessionInput {
 }
 
 export interface CustomerPortalInput {
-  /** Supabase Auth UUID — used as Polar external_customer_id. */
-  userId: string
+  /** Supabase Auth UUID — preferred when external_id exists on Polar customer. */
+  userId?: string | null
+  /** Polar internal customer ID fallback when external_id is missing. */
+  customerId?: string | null
   returnUrl: string
 }
 
@@ -61,6 +63,7 @@ export interface EntitlementResult {
   productId: string | null
   periodEndsAt: string | null
   providerCustomerExternalId: string | null
+  providerCustomerId: string | null
 }
 
 /**
@@ -84,12 +87,24 @@ export function createPolarClient(opts: {
 // ── Public billing functions ──────────────────────────────────────────────────
 
 /**
- * Create a Polar checkout session and return the hosted URL.
+ * Input parameters for creating or configuring a checkout session.
+ * Contains the necessary information to initialize a payment checkout flow,
+ * including customer details, line items, payment options, and session behavior settings.
+ * This input is typically used to generate a secure checkout page where customers
+ * can complete their purchase transaction.
  *
- * The Supabase UUID is passed as externalCustomerId so Polar auto-links
- * the purchase to the correct user when the webhook fires.
+ * @typedef {Object} CheckoutSessionInput
  */
 export async function createCheckoutSession(
+  /**
+   * Represents the polar coordinate system configuration or transformation.
+   * Polar coordinates define positions based on a distance from a central point
+   * and an angle from a reference direction, as opposed to rectangular (x, y) coordinates.
+   * This is commonly used for circular or radial data visualizations, charts, and geometric
+   * transformations where angular relationships are important.
+   *
+   * @type {Polar}
+   */
   polar: Polar,
   input: CheckoutSessionInput,
 ): Promise<{ url: string }> {
@@ -115,20 +130,38 @@ export async function createCheckoutSession(
 }
 
 /**
- * Create a Polar customer portal session and return the magic-link URL.
+ * Input type for customer portal operations containing configuration and parameters
+ * required to initialize, customize, and manage the customer portal interface.
+ * This type defines the data structure for creating or updating customer portal sessions,
+ * including authentication details, branding options, return URLs, and feature flags.
+ * Used to pass necessary information for generating customer-facing portal experiences
+ * where end users can manage their subscriptions, billing information, and payment methods.
  *
- * Uses externalCustomerId — no Polar-internal customer ID lookup required.
+ * @typedef {Object} CustomerPortalInput
  */
 export async function createCustomerPortalSession(
   polar: Polar,
   input: CustomerPortalInput,
 ): Promise<{ url: string }> {
-  const session = await polar.customerSessions.create({
-    externalCustomerId: input.userId,
-    returnUrl: input.returnUrl,
-  })
+  if (input.customerId) {
+    const session = await polar.customerSessions.create({
+      customerId: input.customerId,
+      returnUrl: input.returnUrl,
+    })
 
-  return { url: session.customerPortalUrl }
+    return { url: session.customerPortalUrl }
+  }
+
+  if (input.userId) {
+    const session = await polar.customerSessions.create({
+      externalCustomerId: input.userId,
+      returnUrl: input.returnUrl,
+    })
+
+    return { url: session.customerPortalUrl }
+  }
+
+  throw new Error('Missing customerId and userId for customer portal session creation')
 }
 
 /**
@@ -203,6 +236,7 @@ export function mapCustomerStateToEntitlements(
       productId: null,
       periodEndsAt: null,
       providerCustomerExternalId: null,
+      providerCustomerId: null,
     }
   }
 
@@ -226,5 +260,6 @@ export function mapCustomerStateToEntitlements(
     productId: activeSub?.productId ?? null,
     periodEndsAt: activeSub?.currentPeriodEnd?.toISOString() ?? null,
     providerCustomerExternalId: state.externalId ?? null,
+    providerCustomerId: state.id ?? null,
   }
 }
