@@ -72,7 +72,7 @@ describe('POST /chat -- error paths', () => {
   })
 
   it('emits error event when second LLM call (format) fails', async () => {
-    mockRunWorkerCareerclaw.mockResolvedValueOnce({ briefing: MOCK_BRIEFING, durationMs: 1500 })
+    mockRunWorkerCareerclaw.mockResolvedValueOnce({ result: MOCK_BRIEFING, durationMs: 1500 })
     mockCallLLMWithToolResult.mockRejectedValueOnce(new Error('LLM unavailable'))
     const res = await app.request('/chat', {
       method: 'POST',
