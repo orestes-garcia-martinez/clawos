@@ -43,3 +43,6 @@ yarn-error.log*
 packages/shared/tsconfig.tsbuildinfo
 packages/security/tsconfig.tsbuildinfo
 packages/billing/tsconfig.tsbuildinfo
+
+# Release prettier
+**/CHANGELOG.md
