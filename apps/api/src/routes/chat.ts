@@ -29,7 +29,7 @@
 
 import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import { ChatRequestSchema, buildAuditEntry, TOP_K_LIMITS } from '@clawos/security'
+import { ChatRequestSchema, buildAuditEntry } from '@clawos/security'
 import {
   CAREERCLAW_SYSTEM_PROMPT,
   RUN_CAREERCLAW_TOOL,
@@ -39,6 +39,8 @@ import {
 import type { Channel, Message } from '@clawos/shared'
 import type { RunCareerClawInput, TrackApplicationInput } from '@clawos/shared'
 import { callLLM, callLLMWithToolResult } from '../llm.js'
+import { resolveCareerClawEntitlements } from '../entitlements.js'
+import { issueSkillAssertion } from '../skill-assertions.js'
 import { runWorkerCareerclaw, WorkerError } from '../worker-client.js'
 import { loadSession, pruneMessages, saveSession, summariseSkillOutput } from '../session.js'
 
@@ -114,7 +116,6 @@ async function handleProfileGate(opts: {
 export async function chatHandler(c: Context): Promise<Response> {
   const startMs = Date.now()
   const userId = c.get('userId') as string
-  const tier = c.get('userTier') as 'free' | 'pro'
 
   // ── 1. Input validation ────────────────────────────────────────────────────
   let body: unknown
@@ -171,6 +172,9 @@ export async function chatHandler(c: Context): Promise<Response> {
         )
         .eq('user_id', userId)
         .maybeSingle()
+
+      const entitlements = await resolveCareerClawEntitlements(userId, supabase)
+      const featureSet = new Set(entitlements.features)
 
       // Compute missing required fields up front — used by the profile gate below.
       const profileSkills = (profileRow?.skills as string[] | null) ?? []
@@ -268,28 +272,37 @@ export async function chatHandler(c: Context): Promise<Response> {
 
         const toolInput = llmResult.toolInput as RunCareerClawInput
 
-        const maxTopK = TOP_K_LIMITS[tier]
+        const effectiveTier = entitlements.effectiveTier
+        const maxTopK = featureSet.has('careerclaw.topk_extended') ? 10 : 3
         const topK = Math.min(toolInput.topK ?? maxTopK, maxTopK)
-        const isPro = tier === 'pro'
+
+        const assertion = issueSkillAssertion({
+          userId,
+          skill: 'careerclaw',
+          tier: effectiveTier,
+          features: entitlements.features,
+        })
 
         await sendProgress('fetching', 'Fetching jobs...')
 
         let workerResult
         try {
           workerResult = await runWorkerCareerclaw({
-            userId,
-            profile: {
-              skills: (profileRow?.skills as string[] | null) ?? undefined,
-              targetRoles: (profileRow?.target_roles as string[] | null) ?? undefined,
-              experienceYears: profileRow?.experience_years ?? undefined,
-              resumeSummary: (profileRow?.resume_summary as string | null) ?? undefined,
-              workMode:
-                (profileRow?.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
-              salaryMin: profileRow?.salary_min ?? undefined,
-              locationPref: profileRow?.location_pref ?? undefined,
+            assertion,
+            input: {
+              profile: {
+                skills: (profileRow?.skills as string[] | null) ?? undefined,
+                targetRoles: (profileRow?.target_roles as string[] | null) ?? undefined,
+                experienceYears: profileRow?.experience_years ?? undefined,
+                resumeSummary: (profileRow?.resume_summary as string | null) ?? undefined,
+                workMode:
+                  (profileRow?.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
+                salaryMin: profileRow?.salary_min ?? undefined,
+                locationPref: profileRow?.location_pref ?? undefined,
+              },
+              resumeText: profileRow?.resume_text ?? undefined,
+              topK,
             },
-            resumeText: profileRow?.resume_text ?? undefined,
-            topK,
           })
         } catch (err) {
           const isTimeout = err instanceof WorkerError && err.isTimeout
@@ -312,7 +325,7 @@ export async function chatHandler(c: Context): Promise<Response> {
 
         await sendProgress('scoring', 'Scoring matches...')
 
-        const briefing = workerResult.briefing
+        const briefing = workerResult.result
         const jobCount = (briefing['matches'] as unknown[])?.length ?? 0
         const topMatch = (briefing['matches'] as Array<{ score?: number }>)?.[0]
         const topScore = topMatch?.score ?? null
@@ -342,14 +355,18 @@ export async function chatHandler(c: Context): Promise<Response> {
             llmResult.toolName,
             toolInput,
             {
-              ...workerResult.briefing,
+              ...workerResult.result,
               _meta: {
-                tier,
-                isPro,
+                tier: effectiveTier,
                 topK,
-                includeOutreach: isPro && toolInput.includeOutreach,
-                includeCoverLetter: isPro && toolInput.includeCoverLetter,
-                includeGapAnalysis: isPro && toolInput.includeGapAnalysis,
+                includeOutreach:
+                  featureSet.has('careerclaw.llm_outreach_draft') && !!toolInput.includeOutreach,
+                includeCoverLetter:
+                  featureSet.has('careerclaw.tailored_cover_letter') &&
+                  !!toolInput.includeCoverLetter,
+                includeGapAnalysis:
+                  featureSet.has('careerclaw.resume_gap_analysis') &&
+                  !!toolInput.includeGapAnalysis,
               },
             },
           )

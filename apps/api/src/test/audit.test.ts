@@ -35,7 +35,7 @@ describe('Audit log -- metadata only', () => {
       },
       provider: 'anthropic',
     })
-    mockRunWorkerCareerclaw.mockResolvedValue({ briefing: MOCK_BRIEFING, durationMs: 1800 })
+    mockRunWorkerCareerclaw.mockResolvedValue({ result: MOCK_BRIEFING, durationMs: 1800 })
     mockCallLLMWithToolResult.mockResolvedValue({
       type: 'text',
       content: 'Results here',

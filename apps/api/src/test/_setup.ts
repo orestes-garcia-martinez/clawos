@@ -1,16 +1,8 @@
 /**
  * _setup.ts — Shared mock wiring, helpers, and constants for all API unit tests.
- *
- * Every test file imports from here so that vi.mock() declarations are
- * consistent and Hono's `app` is only imported once mocks are in place.
- *
- * Usage in a test file:
- *   import { app, mocks, helpers, constants, resetRateLimit } from './_setup.js'
  */
 
 import { vi } from 'vitest'
-
-// ── Module-level mocks — must be set up before any app imports ────────────────
 
 export const mockGetUser = vi.fn()
 export const mockFrom = vi.fn()
@@ -49,6 +41,11 @@ vi.mock('../worker-client.js', () => ({
   },
 }))
 
+export const mockIssueSkillAssertion = vi.fn()
+vi.mock('../skill-assertions.js', () => ({
+  issueSkillAssertion: mockIssueSkillAssertion,
+}))
+
 vi.mock('../env.js', () => ({
   ENV: {
     PORT: 3001,
@@ -58,19 +55,17 @@ vi.mock('../env.js', () => ({
     CLAWOS_OPENAI_KEY: 'sk-test',
     WORKER_URL: 'http://localhost:3002',
     WORKER_SECRET: 'test-worker-secret',
+    SKILL_ASSERTION_PRIVATE_KEY: 'test-private-key',
+    SKILL_ASSERTION_KEY_ID: 'skill-assertion-current',
     ALLOWED_ORIGIN: 'http://localhost:5173',
   },
 }))
-
-// ── Import app AFTER mocks are wired ──────────────────────────────────────────
 
 const { app } = await import('../index.js')
 const { _resetRateLimitStore } = await import('../rate-limit.js')
 
 export { app }
 export const resetRateLimit = _resetRateLimitStore
-
-// ── Constants ─────────────────────────────────────────────────────────────────
 
 export const TEST_SESSION_ID = '00000000-0000-0000-0000-000000000099'
 
@@ -83,18 +78,23 @@ export const VALID_BODY = {
 export const MOCK_BRIEFING = {
   run: { jobs_fetched: 50 },
   matches: [
-    { score: 0.92, job: { title: 'Senior Engineer', company: 'Acme', url: 'https://acme.com' } },
-    { score: 0.85, job: { title: 'Staff Engineer', company: 'Beta', url: 'https://beta.com' } },
+    {
+      score: 0.92,
+      job: { title: 'Senior Engineer', company: 'Acme', url: 'https://acme.com' },
+    },
+    {
+      score: 0.85,
+      job: { title: 'Staff Engineer', company: 'Beta', url: 'https://beta.com' },
+    },
   ],
   drafts: [],
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Build a Supabase client mock that sets up the most common query chain. */
 export function buildSupabaseMock(opts: {
   userId: string
   tier: 'free' | 'pro'
+  entitlementTier?: 'free' | 'pro' | null
+  entitlementStatus?: 'active' | 'inactive' | null
   resumeText?: string
   sessionRow?: object | null
 }) {
@@ -130,6 +130,15 @@ export function buildSupabaseMock(opts: {
     if (table === 'users') {
       return makeChain({ data: { tier: opts.tier }, error: null })
     }
+    if (table === 'user_skill_entitlements') {
+      if (!opts.entitlementTier || !opts.entitlementStatus) {
+        return makeChain({ data: null, error: null })
+      }
+      return makeChain({
+        data: { tier: opts.entitlementTier, status: opts.entitlementStatus },
+        error: null,
+      })
+    }
     if (table === 'sessions') {
       const sessionData =
         opts.sessionRow !== undefined
@@ -143,7 +152,10 @@ export function buildSupabaseMock(opts: {
               created_at: new Date().toISOString(),
               deleted_at: null,
             }
-      return makeChain({ data: sessionData, error: sessionData ? null : { message: 'not found' } })
+      return makeChain({
+        data: sessionData,
+        error: sessionData ? null : { message: 'not found' },
+      })
     }
     if (table === 'careerclaw_profiles') {
       return makeChain({
@@ -183,7 +195,6 @@ export function buildSupabaseMock(opts: {
   })
 }
 
-/** Parse SSE stream body into individual JSON event objects. */
 export function parseSSEEvents(text: string): Array<Record<string, unknown>> {
   return text
     .split('\n\n')

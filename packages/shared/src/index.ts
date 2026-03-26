@@ -8,6 +8,15 @@
 // ── Re-exports from sub-modules ───────────────────────────────────────────────
 
 export { createBrowserClient, createServerClient } from './supabase.js'
+export type {
+  CareerClawWorkerInput,
+  CareerClawWorkerProfile,
+  SkillFeatureKey,
+  SkillSlug,
+  VerifiedSkillExecutionContext,
+  WorkerSkillRunRequest,
+  WorkerSkillRunResult,
+} from './skills.js'
 export type { Database, TypedSupabaseClient } from './supabase.js'
 export type { Json } from './types/database.types.js'
 

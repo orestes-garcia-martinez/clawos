@@ -1,41 +1,22 @@
 /**
  * worker-client.ts — Typed HTTP client for the Lightsail skill worker.
  *
- * Sends authenticated POST requests to the worker's /run/* endpoints.
- * The worker is the only process that executes skill CLI commands.
+ * Sends authenticated POST requests to the worker's /run/:skill endpoints.
+ * The worker is the only process that executes skill adapters.
  *
  * Auth: x-worker-secret header — shared secret, never in URLs or logs.
  * Timeout: 30s hard limit (matches the worker's CLI_TIMEOUT_MS).
  */
 
+import type {
+  CareerClawWorkerInput,
+  SkillSlug,
+  WorkerSkillRunRequest,
+  WorkerSkillRunResult,
+} from '@clawos/shared'
 import { ENV } from './env.js'
 
 const WORKER_TIMEOUT_MS = 30_000
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-export interface WorkerRunInput {
-  userId: string
-  profile: {
-    name?: string
-    workMode?: 'remote' | 'hybrid' | 'onsite'
-    salaryMin?: number
-    salaryMax?: number
-    locationPref?: string
-    skills?: string[]
-    targetRoles?: string[]
-    experienceYears?: number
-    resumeSummary?: string
-  }
-  resumeText?: string
-  topK: number
-}
-
-export interface WorkerRunResult {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  briefing: Record<string, any>
-  durationMs: number
-}
 
 export class WorkerError extends Error {
   constructor(
@@ -48,36 +29,31 @@ export class WorkerError extends Error {
   }
 }
 
-// ── Client ────────────────────────────────────────────────────────────────────
-
-/**
- * Invoke the CareerClaw skill on the Lightsail worker.
- * Throws WorkerError on timeout, non-2xx, or network failure.
- */
-export async function runWorkerCareerclaw(input: WorkerRunInput): Promise<WorkerRunResult> {
+export async function runWorkerSkill<TInput, TResult>(
+  skill: SkillSlug,
+  body: WorkerSkillRunRequest<TInput>,
+): Promise<WorkerSkillRunResult<TResult>> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), WORKER_TIMEOUT_MS)
 
   try {
-    const response = await fetch(`${ENV.WORKER_URL}/run/careerclaw`, {
+    const response = await fetch(`${ENV.WORKER_URL}/run/${skill}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-worker-secret': ENV.WORKER_SECRET,
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify(body),
       signal: controller.signal,
     })
 
     if (!response.ok) {
-      const body = await response.json().catch(() => ({}))
-      const errMsg = (body as { error?: string }).error ?? `Worker returned ${response.status}`
-      const isTimeout = response.status === 504
-      throw new WorkerError(errMsg, response.status, isTimeout)
+      const json = await response.json().catch(() => ({}))
+      const errMsg = (json as { error?: string }).error ?? `Worker returned ${response.status}`
+      throw new WorkerError(errMsg, response.status, response.status === 504)
     }
 
-    const data = await response.json()
-    return data as WorkerRunResult
+    return (await response.json()) as WorkerSkillRunResult<TResult>
   } catch (err) {
     if (err instanceof WorkerError) throw err
     if (err instanceof Error && err.name === 'AbortError') {
@@ -90,4 +66,10 @@ export async function runWorkerCareerclaw(input: WorkerRunInput): Promise<Worker
   } finally {
     clearTimeout(timer)
   }
+}
+
+export function runWorkerCareerclaw(
+  body: WorkerSkillRunRequest<CareerClawWorkerInput>,
+): Promise<WorkerSkillRunResult<Record<string, unknown>>> {
+  return runWorkerSkill<CareerClawWorkerInput, Record<string, unknown>>('careerclaw', body)
 }
