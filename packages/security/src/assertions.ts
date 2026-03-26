@@ -7,8 +7,6 @@ import {
 import { z } from 'zod'
 import { TierSchema } from './schemas.js'
 
-
-
 export const SkillSlugSchema = z.enum(['careerclaw'])
 
 const SkillAssertionHeaderSchema = z.object({
