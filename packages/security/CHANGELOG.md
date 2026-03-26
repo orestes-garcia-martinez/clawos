@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1](https://github.com/orestes-garcia-martinez/clawos/compare/security-v0.2.0...security-v0.2.1) (2026-03-26)
+
+
+### Bug Fixes
+
+* format lint ([586e671](https://github.com/orestes-garcia-martinez/clawos/commit/586e671c41bcbafc035eac7bee417f2cbcc048b0))
+* **security:** break assertion schema circular import ([8f6a8b3](https://github.com/orestes-garcia-martinez/clawos/commit/8f6a8b37936283f58282ef3881e7adda61a2849a))
+* **security:** break skill assertion circular dependency ([25ead99](https://github.com/orestes-garcia-martinez/clawos/commit/25ead9902b29acedb26a8263e728c8d2359666c8))
+
 ## [0.2.0](https://github.com/orestes-garcia-martinez/clawos/compare/security-v0.1.0...security-v0.2.0) (2026-03-26)
 
 
