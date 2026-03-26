@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Tier } from '@clawos/shared'
 
+export * from './schemas.js'
 export * from './assertions.js'
 export * from './worker-run.js'
 

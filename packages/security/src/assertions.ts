@@ -5,7 +5,7 @@ import {
   verify as nodeVerify,
 } from 'node:crypto'
 import { z } from 'zod'
-import { TierSchema } from './index.js'
+import { TierSchema } from './schemas.js'
 
 export const SkillSlugSchema = z.enum(['careerclaw'])
 
