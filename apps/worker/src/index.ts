@@ -33,7 +33,11 @@ class SkillExecutionTimeoutError extends Error {
   }
 }
 
-function withExecutionTimeout<T>(promise: Promise<T>, timeoutMs: number, skill: string): Promise<T> {
+function withExecutionTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  skill: string,
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new SkillExecutionTimeoutError(`${skill} timed out after ${timeoutMs}ms`, timeoutMs))

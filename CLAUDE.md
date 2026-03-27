@@ -62,11 +62,11 @@ Skills are authorized via short-lived Ed25519-signed JWTs (`typ: CSAT`), not bea
 
 Three distinct auth paths into `apps/api`:
 
-| Client | Header | Validated by |
-|--------|--------|-------------|
-| Web frontend | `Authorization: Bearer <supabase-jwt>` | Supabase auth endpoint |
-| Telegram / channel adapters | `X-Service-Secret` + `X-Service-Name` + `X-User-Id` | `safeCompare()` against `SERVICE_SECRET` |
-| Worker (inbound) | `x-worker-secret` | Timing-safe comparison against `WORKER_SECRET` |
+| Client                      | Header                                              | Validated by                                   |
+| --------------------------- | --------------------------------------------------- | ---------------------------------------------- |
+| Web frontend                | `Authorization: Bearer <supabase-jwt>`              | Supabase auth endpoint                         |
+| Telegram / channel adapters | `X-Service-Secret` + `X-Service-Name` + `X-User-Id` | `safeCompare()` against `SERVICE_SECRET`       |
+| Worker (inbound)            | `x-worker-secret`                                   | Timing-safe comparison against `WORKER_SECRET` |
 
 ### Session Management
 
@@ -128,10 +128,11 @@ When asked to "ship changes", follow these steps in order:
 Run `git status` and `git diff HEAD` to understand what has changed and which workspace(s) are affected.
 
 **2. Create a branch**
-Ensure the branch creation step is idempotent: if a branch with the generated name already exists, 
+Ensure the branch creation step is idempotent: if a branch with the generated name already exists,
 switch to it instead of trying to create a new one
 
 Name the branch `<type>/<scope>-<short-description>` using the same types and scopes enforced by commitlint:
+
 - Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`
 - Scopes: `api`, `web`, `worker`, `telegram`, `shared`, `billing`, `security`, `infra`, `ci`, `deps`, `release`
 
@@ -139,26 +140,32 @@ Example: `feat/worker-careerclaw-adapter`
 
 **3. Commit**
 Stage only the relevant files (never `git add -A` blindly). Write a conventional commit message:
+
 ```
 <type>(<scope>): <short imperative summary>
 
 <body explaining what changed and why — omit if obvious>
 ```
+
 `feat` and `fix` drive version bumps via release-please; `chore`/`docs`/`ci` do not.
 
 **4. Run tests and linting**
+
 ```bash
 npm run lint && npm run typecheck
 npm run test
 ```
+
 If either fails, **stop**. Explain what is failing and the approach to fix it — do not write the fix code.
 
 **5. Open a PR**
+
 ```bash
 gh pr create \
   --title "<same as commit subject>" \
   --body "..."
 ```
+
 PR body must include: **Summary** (bullet list of changes), **Test plan** (checklist), and **Release impact** (which package will be bumped and to what version by release-please).
 
 ## Deployment Notes

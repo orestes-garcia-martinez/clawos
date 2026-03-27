@@ -160,7 +160,6 @@ describe('assertion validation and dispatch', () => {
     consoleSpy.mockRestore()
   })
 
-
   it('returns 504 on adapter timeout', async () => {
     // Mock returns a promise that never resolves — real 100ms timeout will trigger
     mockCareerClawExecute.mockImplementationOnce(() => new Promise(() => {}))
