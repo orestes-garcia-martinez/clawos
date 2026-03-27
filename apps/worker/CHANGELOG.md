@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/orestes-garcia-martinez/clawos/compare/worker-v0.2.0...worker-v0.3.0) (2026-03-27)
+
+
+### Features
+
+* **worker:** replace CLI bridge with direct careerclaw-js runtime ([465b37d](https://github.com/orestes-garcia-martinez/clawos/commit/465b37d8c4e0eff29b39b7baf33cbaf7f3828928))
+* **worker:** replace CLI bridge with direct careerclaw-js runtime ([062956c](https://github.com/orestes-garcia-martinez/clawos/commit/062956c3723db398fa2efbeeaf8d535742d1428a))
+
 ## [0.2.0](https://github.com/orestes-garcia-martinez/clawos/compare/worker-v0.1.0...worker-v0.2.0) (2026-03-26)
 
 
