@@ -2,7 +2,7 @@
  * index.ts — ClawOS Lightsail Skill Worker
  *
  * Thin Express wrapper around verified skill adapter invocations.
- * The worker now verifies signed API->worker entitlement assertions before
+ * The worker verifies signed API->worker entitlement assertions before
  * dispatching any skill execution.
  */
 
@@ -13,7 +13,6 @@ import { CareerClawRunRequestSchema, buildAuditEntry } from '@clawos/security'
 import type { SkillSlug } from '@clawos/shared'
 import { InvalidSkillAssertionError, verifyAndConsumeSkillAssertion } from './assertion-verifier.js'
 import { skillRegistry } from './registry.js'
-import { CareerClawCliBridgeError } from './skills/careerclaw/cli-bridge.js'
 
 const WORKER_SECRET = process.env.WORKER_SECRET
 if (!WORKER_SECRET) {
@@ -22,6 +21,37 @@ if (!WORKER_SECRET) {
 }
 
 const WORKER_SECRET_BUF = Buffer.from(WORKER_SECRET)
+const SKILL_EXECUTION_TIMEOUT_MS = Number(process.env.SKILL_EXECUTION_TIMEOUT_MS ?? 30_000)
+
+class SkillExecutionTimeoutError extends Error {
+  constructor(
+    message: string,
+    public readonly timeoutMs: number,
+  ) {
+    super(message)
+    this.name = 'SkillExecutionTimeoutError'
+  }
+}
+
+function withExecutionTimeout<T>(promise: Promise<T>, timeoutMs: number, skill: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new SkillExecutionTimeoutError(`${skill} timed out after ${timeoutMs}ms`, timeoutMs))
+    }, timeoutMs)
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (err) => {
+        clearTimeout(timer)
+        reject(err)
+      },
+    )
+  })
+}
+
 const app = express()
 app.use(express.json({ limit: '1mb' }))
 
@@ -102,7 +132,11 @@ app.post('/run/:skill', requireWorkerSecret, async (req: Request, res: Response)
 
   try {
     const input = adapter.validateInput(parseResult.data.input)
-    const result = await adapter.execute(input, ctx)
+    const result = await withExecutionTimeout(
+      adapter.execute(input, ctx),
+      SKILL_EXECUTION_TIMEOUT_MS,
+      skillParam,
+    )
 
     const durationMs = Date.now() - startMs
     const entry = buildAuditEntry({
@@ -119,23 +153,17 @@ app.post('/run/:skill', requireWorkerSecret, async (req: Request, res: Response)
   } catch (err) {
     const durationMs = Date.now() - startMs
 
-    if (err instanceof Error && err instanceof CareerClawCliBridgeError) {
-      const isTimeout = err.message.includes('timed out')
+    if (err instanceof SkillExecutionTimeoutError) {
       const entry = buildAuditEntry({
         userId: ctx.userId,
         skill: skillParam,
         channel: 'worker',
         status: 'error',
-        statusCode: isTimeout ? 504 : 500,
+        statusCode: 504,
         durationMs,
       })
       console.log(JSON.stringify(entry))
-
-      if (isTimeout) {
-        res.status(504).json({ error: 'Skill invocation timed out' })
-      } else {
-        res.status(500).json({ error: 'Skill invocation failed' })
-      }
+      res.status(504).json({ error: 'Skill invocation timed out' })
       return
     }
 

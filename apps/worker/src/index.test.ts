@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import request from 'supertest'
 
 const mockVerifyAndConsumeSkillAssertion = vi.fn()
@@ -25,28 +25,14 @@ vi.mock('./registry.js', () => ({
   },
 }))
 
-vi.mock('./skills/careerclaw/cli-bridge.js', () => ({
-  CareerClawCliBridgeError: class CareerClawCliBridgeError extends Error {
-    exitCode: number | null
-    durationMs: number
-    constructor(message: string, exitCode: number | null, durationMs: number) {
-      super(message)
-      this.name = 'CareerClawCliBridgeError'
-      this.exitCode = exitCode
-      this.durationMs = durationMs
-    }
-  },
-}))
-
 process.env.WORKER_SECRET = 'test-secret-abc123'
+process.env.SKILL_EXECUTION_TIMEOUT_MS = '100' // Short timeout for testing
 process.env.SKILL_ASSERTION_PUBLIC_KEYS_JSON = JSON.stringify({
   'skill-assertion-current': '-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----',
 })
-process.env.CAREERCLAW_WORKSPACE_DIR = '/tmp/test-workspace'
 
 const { app } = await import('./index.js')
 const { InvalidSkillAssertionError } = await import('./assertion-verifier.js')
-const { CareerClawCliBridgeError } = await import('./skills/careerclaw/cli-bridge.js')
 
 const VALID_PAYLOAD = {
   assertion: 'test-assertion-token-that-is-at-least-32-chars-long',
@@ -113,6 +99,10 @@ describe('assertion validation and dispatch', () => {
     mockCareerClawExecute.mockResolvedValue({ matches: [] })
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('rejects missing assertion', async () => {
     const res = await request(app)
       .post('/run/careerclaw')
@@ -170,14 +160,27 @@ describe('assertion validation and dispatch', () => {
     consoleSpy.mockRestore()
   })
 
+
   it('returns 504 on adapter timeout', async () => {
-    mockCareerClawExecute.mockRejectedValueOnce(
-      new CareerClawCliBridgeError('timed out after 30000ms', null, 30000),
-    )
+    // Mock returns a promise that never resolves — real 100ms timeout will trigger
+    mockCareerClawExecute.mockImplementationOnce(() => new Promise(() => {}))
+
     const res = await request(app)
       .post('/run/careerclaw')
       .set('x-worker-secret', 'test-secret-abc123')
       .send(VALID_PAYLOAD)
+
     expect(res.status).toBe(504)
+    expect(res.body.error).toBe('Skill invocation timed out')
+  })
+
+  it('returns 500 on adapter failure', async () => {
+    mockCareerClawExecute.mockRejectedValueOnce(new Error('runtime exploded'))
+    const res = await request(app)
+      .post('/run/careerclaw')
+      .set('x-worker-secret', 'test-secret-abc123')
+      .send(VALID_PAYLOAD)
+    expect(res.status).toBe(500)
+    expect(res.body.error).toBe('Internal worker error')
   })
 })
