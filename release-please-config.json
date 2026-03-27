@@ -1,34 +1,30 @@
 {
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "release-type": "node",
-  "group-pull-request-title-pattern": "chore: release ${version}",
+  "include-component-in-tag": true,
+  "separate-pull-requests": true,
+  "pull-request-title-pattern": "chore${scope}: release${component} ${version}",
   "packages": {
     "apps/api": {
-      "release-type": "node",
-      "changelog-path": "CHANGELOG.md"
+      "component": "api"
     },
     "apps/web": {
-      "release-type": "node",
-      "changelog-path": "CHANGELOG.md"
+      "component": "web"
     },
     "apps/worker": {
-      "release-type": "node",
-      "changelog-path": "CHANGELOG.md"
+      "component": "worker"
     },
     "apps/telegram": {
-      "release-type": "node",
-      "changelog-path": "CHANGELOG.md"
+      "component": "telegram"
     },
     "packages/shared": {
-      "release-type": "node",
-      "changelog-path": "CHANGELOG.md"
+      "component": "shared"
     },
     "packages/billing": {
-      "release-type": "node",
-      "changelog-path": "CHANGELOG.md"
+      "component": "billing"
     },
     "packages/security": {
-      "release-type": "node",
-      "changelog-path": "CHANGELOG.md"
+      "component": "security"
     }
   }
 }
