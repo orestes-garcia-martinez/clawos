@@ -158,7 +158,11 @@ npm run test
 
 If either fails, **stop**. Explain what is failing and the approach to fix it — do not write the fix code.
 
-**5. Open a PR**
+**5. Bump package versions**
+
+For every workspace package that has changes in this branch (compared to `main`), bump its `package.json` version and update its `CHANGELOG.md`. See **Bump Package Versions** section below for the full procedure.
+
+**6. Open a PR**
 
 ```bash
 gh pr create \
@@ -166,7 +170,68 @@ gh pr create \
   --body "..."
 ```
 
-PR body must include: **Summary** (bullet list of changes), **Test plan** (checklist), and **Release impact** (which package will be bumped and to what version by release-please).
+PR body must include: **Summary** (bullet list of changes), **Test plan** (checklist), and **Release impact** (which root version release-please will produce and which individual packages were bumped).
+
+## Bump Package Versions
+
+This procedure is step 5 of the **Ship Changes Workflow**. It runs inside the feature branch before the PR is opened.
+
+### 1. Identify affected packages
+
+Find every workspace package whose files have changed relative to `main`:
+
+```bash
+git diff main...HEAD --name-only
+```
+
+A package is affected if any changed file lives under its directory (`apps/<name>/` or `packages/<name>/`).
+
+### 2. Determine bump type per package
+
+For each affected package, inspect the conventional commits on this branch that touch that package's directory:
+
+```bash
+git log main...HEAD --pretty=format:"%s" -- <package-dir>/
+```
+
+Apply semver rules (use the highest applicable rule):
+
+| Commit type | Bump |
+|---|---|
+| Any commit with `BREAKING CHANGE` in footer or `!` after type (e.g. `feat!:`) | **major** |
+| `feat` | **minor** |
+| `fix`, `perf`, `refactor` | **patch** |
+| `chore`, `docs`, `test`, `ci`, `style` | no bump — skip this package |
+
+If no bump-worthy commits touch a package, leave it unchanged.
+
+### 3. Bump `package.json`
+
+For each affected package, update the `version` field in its `package.json` using semver arithmetic (do not use `npm version` — edit the file directly to avoid creating extra git tags).
+
+### 4. Update `CHANGELOG.md`
+
+For each affected package, prepend a new entry to its `CHANGELOG.md` (create the file if it does not exist) following Keep-a-Changelog / release-please format:
+
+```markdown
+## [<new-version>](https://github.com/orestes-garcia-martinez/clawos/compare/<package-dir>-v<old-version>...<package-dir>-v<new-version>) (YYYY-MM-DD)
+
+### Features
+* **<scope>:** <description> ([<short-sha>](https://github.com/orestes-garcia-martinez/clawos/commit/<full-sha>))
+
+### Bug Fixes
+* **<scope>:** <description> ([<short-sha>](https://github.com/orestes-garcia-martinez/clawos/commit/<full-sha>))
+```
+
+Include only the sections that have entries. Use the actual commit messages and SHAs from `git log`.
+
+### 5. Stage the changes
+
+```bash
+git add <package-dir>/package.json <package-dir>/CHANGELOG.md
+```
+
+Include these in the same commit as the feature changes (do not create a separate commit for version bumps).
 
 ## Deployment Notes
 
