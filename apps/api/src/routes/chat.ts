@@ -390,60 +390,71 @@ export async function chatHandler(c: Context): Promise<Response> {
             if (error) console.error('[chat] Failed to log careerclaw run:', error.message)
           })
 
-        // Build session state update for post-briefing tools (gap analysis, cover letter)
+        // Build session state update for post-briefing tools (gap analysis, cover letter).
+        // Always define `briefing` so mergeSessionState unconditionally replaces the previous
+        // briefing and clears stale gapResults — even on a zero-match run. Without this,
+        // a no-match run leaves the old briefing intact and downstream tools can resolve
+        // stale job_ids from an earlier search.
         const matches = (briefing['matches'] ?? []) as Array<Record<string, unknown>>
-        let briefingStateUpdate: Partial<SessionState> = {}
-        if (matches.length > 0 && profileRow) {
-          briefingStateUpdate = {
-            briefing: {
-              cachedAt: new Date().toISOString(),
-              matches: matches.map((m) => {
-                const job = (m['job'] ?? {}) as Record<string, unknown>
-                return {
-                  job_id: (job['job_id'] as string) ?? '',
-                  title: (job['title'] as string) ?? 'Unknown',
-                  company: (job['company'] as string) ?? 'Unknown',
-                  score: (m['score'] as number) ?? 0,
-                  url: (job['url'] as string | null) ?? null,
+        const briefingStateUpdate: Partial<SessionState> = {
+          briefing: {
+            cachedAt: new Date().toISOString(),
+            matches:
+              matches.length > 0
+                ? matches.map((m) => {
+                    const job = (m['job'] ?? {}) as Record<string, unknown>
+                    return {
+                      job_id: (job['job_id'] as string) ?? '',
+                      title: (job['title'] as string) ?? 'Unknown',
+                      company: (job['company'] as string) ?? 'Unknown',
+                      score: (m['score'] as number) ?? 0,
+                      url: (job['url'] as string | null) ?? null,
+                    }
+                  })
+                : [],
+            matchData:
+              matches.length > 0
+                ? matches.map((m) => ({
+                    job: (m['job'] ?? {}) as Record<string, unknown>,
+                    score: (m['score'] ?? 0) as number,
+                    breakdown: (m['breakdown'] ?? {}) as Record<string, number>,
+                    matched_keywords: (m['matched_keywords'] ?? []) as string[],
+                    gap_keywords: (m['gap_keywords'] ?? []) as string[],
+                  }))
+                : [],
+            // TODO(careerclaw-js@1.5.0): ResumeIntelligence is built from profile skills only
+            // (skills_injected). A full resume-text-based ResumeIntelligence computed by the
+            // engine would produce richer gap analysis. Improvement path: have the engine
+            // return the computed ResumeIntelligence in BriefingResult so the API can cache
+            // the real one instead of this approximation.
+            resumeIntel: profileRow
+              ? {
+                  extracted_keywords: (profileRow.skills as string[] | null) ?? [],
+                  extracted_phrases: [],
+                  keyword_stream: (profileRow.skills as string[] | null) ?? [],
+                  phrase_stream: [],
+                  impact_signals: (profileRow.skills as string[] | null) ?? [],
+                  keyword_weights: Object.fromEntries(
+                    ((profileRow.skills as string[] | null) ?? []).map((s: string) => [s, 1.0]),
+                  ),
+                  phrase_weights: {},
+                  source: 'skills_injected',
                 }
-              }),
-              matchData: matches.map((m) => ({
-                job: (m['job'] ?? {}) as Record<string, unknown>,
-                score: (m['score'] ?? 0) as number,
-                breakdown: (m['breakdown'] ?? {}) as Record<string, number>,
-                matched_keywords: (m['matched_keywords'] ?? []) as string[],
-                gap_keywords: (m['gap_keywords'] ?? []) as string[],
-              })),
-              // TODO(careerclaw-js@1.5.0): ResumeIntelligence is built from profile skills only
-              // (skills_injected). A full resume-text-based ResumeIntelligence computed by the
-              // engine would produce richer gap analysis. Improvement path: have the engine
-              // return the computed ResumeIntelligence in BriefingResult so the API can cache
-              // the real one instead of this approximation.
-              resumeIntel: {
-                extracted_keywords: (profileRow.skills as string[] | null) ?? [],
-                extracted_phrases: [],
-                keyword_stream: (profileRow.skills as string[] | null) ?? [],
-                phrase_stream: [],
-                impact_signals: (profileRow.skills as string[] | null) ?? [],
-                keyword_weights: Object.fromEntries(
-                  ((profileRow.skills as string[] | null) ?? []).map((s: string) => [s, 1.0]),
-                ),
-                phrase_weights: {},
-                source: 'skills_injected',
-              },
-              profile: {
-                skills: (profileRow.skills as string[] | null) ?? [],
-                targetRoles: (profileRow.target_roles as string[] | null) ?? [],
-                experienceYears: profileRow.experience_years ?? undefined,
-                resumeSummary: (profileRow.resume_summary as string | null) ?? undefined,
-                workMode:
-                  (profileRow.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
-                salaryMin: profileRow.salary_min ?? undefined,
-                locationPref: profileRow.location_pref ?? undefined,
-              },
-              resumeText: (profileRow.resume_text as string | null) ?? null,
-            },
-          }
+              : {},
+            profile: profileRow
+              ? {
+                  skills: (profileRow.skills as string[] | null) ?? [],
+                  targetRoles: (profileRow.target_roles as string[] | null) ?? [],
+                  experienceYears: profileRow.experience_years ?? undefined,
+                  resumeSummary: (profileRow.resume_summary as string | null) ?? undefined,
+                  workMode:
+                    (profileRow.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
+                  salaryMin: profileRow.salary_min ?? undefined,
+                  locationPref: profileRow.location_pref ?? undefined,
+                }
+              : {},
+            resumeText: profileRow ? ((profileRow.resume_text as string | null) ?? null) : null,
+          },
         }
 
         await sendProgress(
