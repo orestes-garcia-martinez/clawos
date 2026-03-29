@@ -10,15 +10,15 @@
  *   6. Profile gate — if Claude decided to invoke a skill tool and required
  *      fields are missing, return block message immediately.
  *   7a. Direct text response → stream final event, save session, done.
- *   7b. run_careerclaw tool → stream progress → invoke worker → cache briefing
- *       → second Claude call to format results → stream final event.
- *   7c. run_gap_analysis tool (Pro) → look up cached match by job_id →
- *       invoke worker → cache gap result → format → stream final event.
- *   7d. run_cover_letter tool (Pro) → look up cached match + gap result →
+ *   7b. run_careerclaw tool → stream progress → invoke worker → save briefing
+ *       to session state → second Claude call to format results → stream.
+ *   7c. run_gap_analysis tool (Pro) → look up match from session state →
+ *       invoke worker → save gap result to session state → format → stream.
+ *   7d. run_cover_letter tool (Pro) → look up match + gap from session state →
  *       invoke worker (with precomputedGap if available) → format → stream.
  *   7e. track_application tool → direct Supabase upsert/update →
  *       second Claude call to format confirmation → stream final event.
- *   8. Save updated session (summary of skill output, never raw payloads).
+ *   8. Save updated session (messages + state written atomically).
  *   9. Write audit log (metadata only — no message bodies).
  *
  * SSE event format:
@@ -42,7 +42,7 @@ import {
   TRACK_APPLICATION_TOOL,
   createServerClient,
 } from '@clawos/shared'
-import type { Channel, Message } from '@clawos/shared'
+import type { Channel, Message, SessionState } from '@clawos/shared'
 import type {
   RunCareerClawInput,
   RunGapAnalysisInput,
@@ -58,13 +58,13 @@ import {
   runWorkerCoverLetter,
   WorkerError,
 } from '../worker-client.js'
-import { loadSession, pruneMessages, saveSession, summariseSkillOutput } from '../session.js'
 import {
-  cacheBriefingResult,
-  getCachedMatch,
-  cacheGapResult,
-  getCachedGapResult,
-} from '../briefing-cache.js'
+  loadSession,
+  pruneMessages,
+  saveSession,
+  getMatchFromState,
+  getGapResultFromState,
+} from '../session.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -184,6 +184,7 @@ export async function chatHandler(c: Context): Promise<Response> {
       const session = await loadSession(userId, channel as Channel, sessionId)
       const history: Message[] = session ? pruneMessages(session.messages) : []
       const activeSessionId = session?.id
+      const sessionState: SessionState = session?.state ?? {}
 
       /** Save a short gate message and send it as the final SSE event. */
       const sendGatedResponse = async (gateMsg: string): Promise<void> => {
@@ -196,6 +197,8 @@ export async function chatHandler(c: Context): Promise<Response> {
             { role: 'assistant', content: gateMsg, timestamp: new Date().toISOString() },
           ],
           activeSessionId,
+          undefined,
+          sessionState,
         )
         await sendDone(savedId, gateMsg)
       }
@@ -276,6 +279,8 @@ export async function chatHandler(c: Context): Promise<Response> {
           channel as Channel,
           updatedMessages,
           activeSessionId,
+          undefined,
+          sessionState,
         )
 
         logAudit({
@@ -385,46 +390,60 @@ export async function chatHandler(c: Context): Promise<Response> {
             if (error) console.error('[chat] Failed to log careerclaw run:', error.message)
           })
 
-        // Cache briefing for post-briefing tools (gap analysis, cover letter)
+        // Build session state update for post-briefing tools (gap analysis, cover letter)
         const matches = (briefing['matches'] ?? []) as Array<Record<string, unknown>>
-        if (profileRow) {
-          cacheBriefingResult(userId, {
-            matches: matches.map((m) => ({
-              job: (m['job'] ?? {}) as Record<string, unknown>,
-              score: (m['score'] ?? 0) as number,
-              breakdown: (m['breakdown'] ?? {}) as Record<string, number>,
-              matched_keywords: (m['matched_keywords'] ?? []) as string[],
-              gap_keywords: (m['gap_keywords'] ?? []) as string[],
-            })),
-            // TODO(careerclaw-js@1.5.0): ResumeIntelligence is built from profile skills only
-            // (skills_injected). A full resume-text-based ResumeIntelligence computed by the
-            // engine would produce richer gap analysis. Improvement path: have the engine
-            // return the computed ResumeIntelligence in BriefingResult so the API can cache
-            // the real one instead of this approximation.
-            resumeIntel: {
-              extracted_keywords: (profileRow.skills as string[] | null) ?? [],
-              extracted_phrases: [],
-              keyword_stream: (profileRow.skills as string[] | null) ?? [],
-              phrase_stream: [],
-              impact_signals: (profileRow.skills as string[] | null) ?? [],
-              keyword_weights: Object.fromEntries(
-                ((profileRow.skills as string[] | null) ?? []).map((s: string) => [s, 1.0]),
-              ),
-              phrase_weights: {},
-              source: 'skills_injected',
+        let briefingStateUpdate: Partial<SessionState> = {}
+        if (matches.length > 0 && profileRow) {
+          briefingStateUpdate = {
+            briefing: {
+              cachedAt: new Date().toISOString(),
+              matches: matches.map((m) => {
+                const job = (m['job'] ?? {}) as Record<string, unknown>
+                return {
+                  job_id: (job['job_id'] as string) ?? '',
+                  title: (job['title'] as string) ?? 'Unknown',
+                  company: (job['company'] as string) ?? 'Unknown',
+                  score: (m['score'] as number) ?? 0,
+                  url: (job['url'] as string | null) ?? null,
+                }
+              }),
+              matchData: matches.map((m) => ({
+                job: (m['job'] ?? {}) as Record<string, unknown>,
+                score: (m['score'] ?? 0) as number,
+                breakdown: (m['breakdown'] ?? {}) as Record<string, number>,
+                matched_keywords: (m['matched_keywords'] ?? []) as string[],
+                gap_keywords: (m['gap_keywords'] ?? []) as string[],
+              })),
+              // TODO(careerclaw-js@1.5.0): ResumeIntelligence is built from profile skills only
+              // (skills_injected). A full resume-text-based ResumeIntelligence computed by the
+              // engine would produce richer gap analysis. Improvement path: have the engine
+              // return the computed ResumeIntelligence in BriefingResult so the API can cache
+              // the real one instead of this approximation.
+              resumeIntel: {
+                extracted_keywords: (profileRow.skills as string[] | null) ?? [],
+                extracted_phrases: [],
+                keyword_stream: (profileRow.skills as string[] | null) ?? [],
+                phrase_stream: [],
+                impact_signals: (profileRow.skills as string[] | null) ?? [],
+                keyword_weights: Object.fromEntries(
+                  ((profileRow.skills as string[] | null) ?? []).map((s: string) => [s, 1.0]),
+                ),
+                phrase_weights: {},
+                source: 'skills_injected',
+              },
+              profile: {
+                skills: (profileRow.skills as string[] | null) ?? [],
+                targetRoles: (profileRow.target_roles as string[] | null) ?? [],
+                experienceYears: profileRow.experience_years ?? undefined,
+                resumeSummary: (profileRow.resume_summary as string | null) ?? undefined,
+                workMode:
+                  (profileRow.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
+                salaryMin: profileRow.salary_min ?? undefined,
+                locationPref: profileRow.location_pref ?? undefined,
+              },
+              resumeText: (profileRow.resume_text as string | null) ?? null,
             },
-            profile: {
-              skills: (profileRow.skills as string[] | null) ?? [],
-              targetRoles: (profileRow.target_roles as string[] | null) ?? [],
-              experienceYears: profileRow.experience_years ?? undefined,
-              resumeSummary: (profileRow.resume_summary as string | null) ?? undefined,
-              workMode:
-                (profileRow.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
-              salaryMin: profileRow.salary_min ?? undefined,
-              locationPref: profileRow.location_pref ?? undefined,
-            },
-            resumeText: (profileRow.resume_text as string | null) ?? null,
-          })
+          }
         }
 
         await sendProgress(
@@ -471,15 +490,10 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        const sessionSummary = summariseSkillOutput('careerclaw', formattedResponse, {
-          jobCount,
-          topScore: topScore ?? undefined,
-        })
-
         const updatedMessages: Message[] = [
           ...history,
           { role: 'user', content: message, timestamp: new Date().toISOString() },
-          { role: 'assistant', content: sessionSummary, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: formattedResponse, timestamp: new Date().toISOString() },
         ]
 
         const savedId = await saveSession(
@@ -487,6 +501,8 @@ export async function chatHandler(c: Context): Promise<Response> {
           channel as Channel,
           updatedMessages,
           activeSessionId,
+          briefingStateUpdate,
+          sessionState,
         )
 
         logAudit({
@@ -515,11 +531,11 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        // Look up cached match
-        const cached = getCachedMatch(userId, jobId)
+        // Look up match from session state
+        const cached = getMatchFromState(sessionState, jobId)
         if (!cached) {
           await sendGatedResponse(
-            "I've lost the details for that search. Want me to run a fresh briefing?",
+            "I don't have that job in my current briefing data. Want me to run a fresh briefing?",
           )
           return
         }
@@ -538,8 +554,8 @@ export async function chatHandler(c: Context): Promise<Response> {
           const workerResult = await runWorkerGapAnalysis({
             assertion,
             input: {
-              match: cached.match as unknown as Record<string, unknown>,
-              resumeIntel: cached.briefing.resumeIntel,
+              match: cached.matchData,
+              resumeIntel: cached.resumeIntel,
             },
           })
           gapResult = workerResult.result
@@ -555,11 +571,11 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        // Cache gap result for cover letter reuse
+        // Build state update — cache gap result for cover letter reuse
         const gapAnalysis = (gapResult as { analysis?: Record<string, unknown> }).analysis
-        if (gapAnalysis) {
-          cacheGapResult(userId, jobId, gapAnalysis)
-        }
+        const gapStateUpdate: Partial<SessionState> = gapAnalysis
+          ? { gapResults: { [jobId]: gapAnalysis } }
+          : {}
 
         // Format via second Claude call
         let formattedResponse: string
@@ -582,17 +598,18 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        const sessionSummary = `Gap analysis for ${(cached.match.job as { title?: string }).title ?? jobId}: fit score ${Math.round(((gapResult as { analysis?: { fit_score?: number } }).analysis?.fit_score ?? 0) * 100)}%.`
         const updatedMessages: Message[] = [
           ...history,
           { role: 'user', content: message, timestamp: new Date().toISOString() },
-          { role: 'assistant', content: sessionSummary, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: formattedResponse, timestamp: new Date().toISOString() },
         ]
         const savedId = await saveSession(
           userId,
           channel as Channel,
           updatedMessages,
           activeSessionId,
+          gapStateUpdate,
+          sessionState,
         )
 
         logAudit({
@@ -621,11 +638,11 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        // Look up cached match
-        const cached = getCachedMatch(userId, jobId)
+        // Look up match from session state
+        const cached = getMatchFromState(sessionState, jobId)
         if (!cached) {
           await sendGatedResponse(
-            "I've lost the details for that search. Want me to run a fresh briefing?",
+            "I don't have that job in my current briefing data. Want me to run a fresh briefing?",
           )
           return
         }
@@ -639,18 +656,21 @@ export async function chatHandler(c: Context): Promise<Response> {
           features: entitlements.features,
         })
 
-        // Check for cached gap result (single source of truth)
-        const precomputedGap = getCachedGapResult(userId, jobId)
+        // Check for cached gap result in session state (single source of truth)
+        const precomputedGap = getGapResultFromState(sessionState, jobId)
 
         let coverLetterResult: Record<string, unknown>
         try {
           const workerResult = await runWorkerCoverLetter({
             assertion,
             input: {
-              match: cached.match as unknown as Record<string, unknown>,
-              profile: cached.briefing.profile,
-              resumeIntel: cached.briefing.resumeIntel,
-              ...(cached.briefing.resumeText ? { resumeText: cached.briefing.resumeText } : {}),
+              match: cached.matchData,
+              profile: cached.profile as Record<string, unknown> & {
+                skills?: string[]
+                targetRoles?: string[]
+              },
+              resumeIntel: cached.resumeIntel,
+              ...(cached.resumeText ? { resumeText: cached.resumeText } : {}),
               ...(precomputedGap ? { precomputedGap } : {}),
             },
           })
@@ -691,18 +711,18 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        const isTemplate = (coverLetterResult as { is_template?: boolean }).is_template ?? false
-        const sessionSummary = `Cover letter${isTemplate ? ' (template)' : ''} generated for ${(cached.match.job as { title?: string }).title ?? jobId}.`
         const updatedMessages: Message[] = [
           ...history,
           { role: 'user', content: message, timestamp: new Date().toISOString() },
-          { role: 'assistant', content: sessionSummary, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: formattedResponse, timestamp: new Date().toISOString() },
         ]
         const savedId = await saveSession(
           userId,
           channel as Channel,
           updatedMessages,
           activeSessionId,
+          undefined,
+          sessionState,
         )
 
         logAudit({
@@ -1000,6 +1020,8 @@ export async function chatHandler(c: Context): Promise<Response> {
           channel as Channel,
           updatedMessages,
           activeSessionId,
+          undefined,
+          sessionState,
         )
 
         logAudit({

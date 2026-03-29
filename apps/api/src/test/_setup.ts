@@ -27,8 +27,12 @@ vi.mock('../llm.js', () => ({
 }))
 
 export const mockRunWorkerCareerclaw = vi.fn()
+export const mockRunWorkerGapAnalysis = vi.fn()
+export const mockRunWorkerCoverLetter = vi.fn()
 vi.mock('../worker-client.js', () => ({
   runWorkerCareerclaw: mockRunWorkerCareerclaw,
+  runWorkerGapAnalysis: mockRunWorkerGapAnalysis,
+  runWorkerCoverLetter: mockRunWorkerCoverLetter,
   WorkerError: class WorkerError extends Error {
     status: number
     isTimeout: boolean
@@ -80,14 +84,42 @@ export const MOCK_BRIEFING = {
   matches: [
     {
       score: 0.92,
-      job: { title: 'Senior Engineer', company: 'Acme', url: 'https://acme.com' },
+      job: { job_id: 'job-acme-001', title: 'Senior Engineer', company: 'Acme', url: 'https://acme.com' },
+      breakdown: { skills: 0.9, experience: 0.8 },
+      matched_keywords: ['TypeScript', 'React'],
+      gap_keywords: ['Go'],
     },
     {
       score: 0.85,
-      job: { title: 'Staff Engineer', company: 'Beta', url: 'https://beta.com' },
+      job: { job_id: 'job-beta-002', title: 'Staff Engineer', company: 'Beta', url: 'https://beta.com' },
+      breakdown: { skills: 0.85, experience: 0.7 },
+      matched_keywords: ['Node.js'],
+      gap_keywords: ['Kubernetes'],
     },
   ],
   drafts: [],
+}
+
+/** Pre-built session state matching MOCK_BRIEFING — use in tests that need cached briefing data. */
+export const MOCK_SESSION_STATE = {
+  briefing: {
+    cachedAt: new Date().toISOString(),
+    matches: [
+      { job_id: 'job-acme-001', title: 'Senior Engineer', company: 'Acme', score: 0.92, url: 'https://acme.com' },
+      { job_id: 'job-beta-002', title: 'Staff Engineer', company: 'Beta', score: 0.85, url: 'https://beta.com' },
+    ],
+    matchData: MOCK_BRIEFING.matches.map((m) => ({
+      job: m.job,
+      score: m.score,
+      breakdown: m.breakdown,
+      matched_keywords: m.matched_keywords,
+      gap_keywords: m.gap_keywords,
+    })),
+    resumeIntel: { extracted_keywords: ['TypeScript', 'React', 'Node.js'], source: 'skills_injected' },
+    profile: { skills: ['TypeScript', 'React', 'Node.js'], targetRoles: ['Senior Engineer'] },
+    resumeText: 'Experienced fullstack engineer.',
+  },
+  gapResults: {},
 }
 
 export function buildSupabaseMock(opts: {
@@ -97,6 +129,7 @@ export function buildSupabaseMock(opts: {
   entitlementStatus?: 'active' | 'inactive' | null
   resumeText?: string
   sessionRow?: object | null
+  sessionState?: object
 }) {
   const makeChain = (result: { data: unknown; error: null | { message: string } }) => {
     const chain = {
@@ -148,6 +181,7 @@ export function buildSupabaseMock(opts: {
               user_id: opts.userId,
               channel: 'web',
               messages: [],
+              state: opts.sessionState ?? {},
               last_active: new Date().toISOString(),
               created_at: new Date().toISOString(),
               deleted_at: null,
