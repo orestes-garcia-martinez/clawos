@@ -188,20 +188,23 @@ A package is affected if any changed file lives under its directory (`apps/<name
 
 ### 2. Determine bump type per package
 
-For each affected package, inspect the conventional commits on this branch that touch that package's directory:
+For each affected package, inspect the full conventional commit messages (subject + body) on this branch that touch that package's directory:
 
 ```bash
-git log main...HEAD --pretty=format:"%s" -- <package-dir>/
+git log main...HEAD --pretty=format:"%B" -- <package-dir>/
 ```
 
-Apply semver rules (use the highest applicable rule):
+Using `%B` (full body) instead of `%s` (subject only) ensures that breaking changes declared only in the commit footer (`BREAKING CHANGE:`) are not missed.
 
-| Commit type                                                                   | Bump                        |
-| ----------------------------------------------------------------------------- | --------------------------- |
-| Any commit with `BREAKING CHANGE` in footer or `!` after type (e.g. `feat!:`) | **major**                   |
-| `feat`                                                                        | **minor**                   |
-| `fix`, `perf`, `refactor`                                                     | **patch**                   |
-| `chore`, `docs`, `test`, `ci`, `style`                                        | no bump — skip this package |
+Apply semver rules (use the highest applicable rule across all commits for that package):
+
+| Condition                                                               | Bump                        |
+| ----------------------------------------------------------------------- | --------------------------- |
+| Any commit subject matches `^[a-z]+(\(.+\))?!:` (bang notation)         | **major**                   |
+| Any commit body/footer contains a line starting with `BREAKING CHANGE:` | **major**                   |
+| Any commit subject starts with `feat`                                   | **minor**                   |
+| Any commit subject starts with `fix`, `perf`, or `refactor`             | **patch**                   |
+| Only `chore`, `docs`, `test`, `ci`, `style` commits                     | no bump — skip this package |
 
 If no bump-worthy commits touch a package, leave it unchanged.
 
@@ -214,7 +217,7 @@ For each affected package, update the `version` field in its `package.json` usin
 For each affected package, prepend a new entry to its `CHANGELOG.md` (create the file if it does not exist) following Keep-a-Changelog / release-please format:
 
 ```markdown
-## [<new-version>](https://github.com/orestes-garcia-martinez/clawos/compare/<package-dir>-v<old-version>...<package-dir>-v<new-version>) (YYYY-MM-DD)
+## [<new-version>] (YYYY-MM-DD)
 
 ### Features
 
@@ -224,6 +227,8 @@ For each affected package, prepend a new entry to its `CHANGELOG.md` (create the
 
 - **<scope>:** <description> ([<short-sha>](https://github.com/orestes-garcia-martinez/clawos/commit/<full-sha>))
 ```
+
+Do not add a compare link to the version heading. Per-package tags no longer exist (release-please is root-only), so any `compare/<package>-v<old>...<package>-v<new>` URL would be a dead link. Individual commits are still linked inline.
 
 Include only the sections that have entries. Use the actual commit messages and SHAs from `git log`.
 
