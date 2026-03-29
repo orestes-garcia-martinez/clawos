@@ -152,7 +152,7 @@ Stage only the relevant files (never `git add -A` blindly). Write a conventional
 **4. Run tests and linting**
 
 ```bash
-npm run lint && npm run typecheck
+npm run lint && npm run typecheck && npm run format:check
 npm run test
 ```
 
