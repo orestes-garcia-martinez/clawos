@@ -196,12 +196,12 @@ git log main...HEAD --pretty=format:"%s" -- <package-dir>/
 
 Apply semver rules (use the highest applicable rule):
 
-| Commit type | Bump |
-|---|---|
-| Any commit with `BREAKING CHANGE` in footer or `!` after type (e.g. `feat!:`) | **major** |
-| `feat` | **minor** |
-| `fix`, `perf`, `refactor` | **patch** |
-| `chore`, `docs`, `test`, `ci`, `style` | no bump — skip this package |
+| Commit type                                                                   | Bump                        |
+| ----------------------------------------------------------------------------- | --------------------------- |
+| Any commit with `BREAKING CHANGE` in footer or `!` after type (e.g. `feat!:`) | **major**                   |
+| `feat`                                                                        | **minor**                   |
+| `fix`, `perf`, `refactor`                                                     | **patch**                   |
+| `chore`, `docs`, `test`, `ci`, `style`                                        | no bump — skip this package |
 
 If no bump-worthy commits touch a package, leave it unchanged.
 
@@ -217,10 +217,12 @@ For each affected package, prepend a new entry to its `CHANGELOG.md` (create the
 ## [<new-version>](https://github.com/orestes-garcia-martinez/clawos/compare/<package-dir>-v<old-version>...<package-dir>-v<new-version>) (YYYY-MM-DD)
 
 ### Features
-* **<scope>:** <description> ([<short-sha>](https://github.com/orestes-garcia-martinez/clawos/commit/<full-sha>))
+
+- **<scope>:** <description> ([<short-sha>](https://github.com/orestes-garcia-martinez/clawos/commit/<full-sha>))
 
 ### Bug Fixes
-* **<scope>:** <description> ([<short-sha>](https://github.com/orestes-garcia-martinez/clawos/commit/<full-sha>))
+
+- **<scope>:** <description> ([<short-sha>](https://github.com/orestes-garcia-martinez/clawos/commit/<full-sha>))
 ```
 
 Include only the sections that have entries. Use the actual commit messages and SHAs from `git log`.
