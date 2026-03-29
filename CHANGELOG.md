@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.4.0...v0.5.0) (2026-03-29)
+
+
+### Features
+
+* **api:** inject active briefing context into Claude messages on each turn ([f1c1c58](https://github.com/orestes-garcia-martinez/clawos/commit/f1c1c5835ab27f0376198e04f97ee6664233ef96))
+* **api:** inject active briefing context into Claude messages on each turn ([78d5f42](https://github.com/orestes-garcia-martinez/clawos/commit/78d5f422615471db3ae1bdebd5a7395a93814844))
+
 ## [0.4.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.3.0...v0.4.0) (2026-03-29)
 
 
