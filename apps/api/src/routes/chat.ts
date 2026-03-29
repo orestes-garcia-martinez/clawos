@@ -387,7 +387,7 @@ export async function chatHandler(c: Context): Promise<Response> {
 
         // Cache briefing for post-briefing tools (gap analysis, cover letter)
         const matches = (briefing['matches'] ?? []) as Array<Record<string, unknown>>
-        if (matches.length > 0 && profileRow) {
+        if (profileRow) {
           cacheBriefingResult(userId, {
             matches: matches.map((m) => ({
               job: (m['job'] ?? {}) as Record<string, unknown>,
@@ -650,7 +650,7 @@ export async function chatHandler(c: Context): Promise<Response> {
               match: cached.match as unknown as Record<string, unknown>,
               profile: cached.briefing.profile,
               resumeIntel: cached.briefing.resumeIntel,
-              ...(profileRow?.resume_text ? { resumeText: profileRow.resume_text as string } : {}),
+              ...(cached.briefing.resumeText ? { resumeText: cached.briefing.resumeText } : {}),
               ...(precomputedGap ? { precomputedGap } : {}),
             },
           })
