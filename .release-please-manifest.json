@@ -3,7 +3,7 @@
   "apps/web": "0.2.0",
   "apps/worker": "0.3.0",
   "apps/telegram": "0.2.0",
-  "packages/shared": "0.2.0",
+  "packages/shared": "0.3.0",
   "packages/billing": "0.2.0",
   "packages/security": "0.2.1"
 }
