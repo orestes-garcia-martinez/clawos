@@ -52,3 +52,33 @@ export interface CareerClawWorkerInput {
   resumeText?: string
   topK: number
 }
+
+/**
+ * Worker input for post-briefing gap analysis.
+ * The API serializes cached ScoredJob + ResumeIntelligence from the briefing cache.
+ * The worker adapter casts these to careerclaw-js types internally.
+ */
+export interface CareerClawGapAnalysisWorkerInput {
+  /** Serialized ScoredJob from careerclaw-js */
+  match: Record<string, unknown>
+  /** Serialized ResumeIntelligence from careerclaw-js */
+  resumeIntel: Record<string, unknown>
+}
+
+/**
+ * Worker input for post-briefing cover letter generation.
+ * The API serializes cached match data + profile + resume intel.
+ * Accepts optional precomputed gap to avoid redundant analysis.
+ */
+export interface CareerClawCoverLetterWorkerInput {
+  /** Serialized ScoredJob from careerclaw-js */
+  match: Record<string, unknown>
+  /** User profile for the cover letter prompt */
+  profile: CareerClawWorkerProfile
+  /** Serialized ResumeIntelligence from careerclaw-js */
+  resumeIntel: Record<string, unknown>
+  /** Optional: resume text for fallback intelligence resolution */
+  resumeText?: string
+  /** Optional: pre-computed GapAnalysisResult to avoid redundant analysis */
+  precomputedGap?: Record<string, unknown>
+}
