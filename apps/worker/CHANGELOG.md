@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/orestes-garcia-martinez/clawos/compare/worker-v0.3.0...worker-v0.4.0) (2026-03-29)
+
+
+### Features
+
+* **api:** add post-briefing advisory tools (gap analysis, cover letter) ([43e7c6b](https://github.com/orestes-garcia-martinez/clawos/commit/43e7c6b6e1666649365fd9dd55c7a6bf7adad07f))
+* **api:** add post-briefing advisory tools (gap analysis, cover letter) ([b61acf0](https://github.com/orestes-garcia-martinez/clawos/commit/b61acf07c57f91b8e83da1e063d0e85ec0513bc7))
+
 ## [0.3.0](https://github.com/orestes-garcia-martinez/clawos/compare/worker-v0.2.0...worker-v0.3.0) (2026-03-27)
 
 
