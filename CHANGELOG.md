@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.3.0...v0.4.0) (2026-03-29)
+
+
+### Features
+
+* **api:** replace in-memory briefing cache with persistent session state ([e13826a](https://github.com/orestes-garcia-martinez/clawos/commit/e13826ab1d715af271fe5e73e406da4a076c2bc9))
+* **api:** replace in-memory briefing cache with persistent session state ([9a55458](https://github.com/orestes-garcia-martinez/clawos/commit/9a55458bffe3400c432a28f7ef55b37ca8a38f2e))
+
+
+### Bug Fixes
+
+* **api:** always clear briefing state on run_careerclaw, even on zero-match runs ([e19b9b5](https://github.com/orestes-garcia-martinez/clawos/commit/e19b9b549f056233aed0b6a2b09bab8c433326d5))
+
 ## [0.3.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.2.0...v0.3.0) (2026-03-29)
 
 
