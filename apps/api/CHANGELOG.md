@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] (2026-03-29)
+
+### Features
+
+- **api:** inject active briefing match index as ephemeral context before each Claude call, ensuring job_id resolution survives message pruning ([78d5f42](https://github.com/orestes-garcia-martinez/clawos/commit/78d5f42))
+
+### Bug Fixes
+
+- **api:** restore zero-match briefing clear — always replace session briefing state on every run_careerclaw call to prevent stale job_ids surviving a no-match run ([78d5f42](https://github.com/orestes-garcia-martinez/clawos/commit/78d5f42))
+
 ## [0.3.0] (2026-03-29)
 
 ### Features
