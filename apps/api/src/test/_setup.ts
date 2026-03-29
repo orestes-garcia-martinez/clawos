@@ -84,14 +84,24 @@ export const MOCK_BRIEFING = {
   matches: [
     {
       score: 0.92,
-      job: { job_id: 'job-acme-001', title: 'Senior Engineer', company: 'Acme', url: 'https://acme.com' },
+      job: {
+        job_id: 'job-acme-001',
+        title: 'Senior Engineer',
+        company: 'Acme',
+        url: 'https://acme.com',
+      },
       breakdown: { skills: 0.9, experience: 0.8 },
       matched_keywords: ['TypeScript', 'React'],
       gap_keywords: ['Go'],
     },
     {
       score: 0.85,
-      job: { job_id: 'job-beta-002', title: 'Staff Engineer', company: 'Beta', url: 'https://beta.com' },
+      job: {
+        job_id: 'job-beta-002',
+        title: 'Staff Engineer',
+        company: 'Beta',
+        url: 'https://beta.com',
+      },
       breakdown: { skills: 0.85, experience: 0.7 },
       matched_keywords: ['Node.js'],
       gap_keywords: ['Kubernetes'],
@@ -105,8 +115,20 @@ export const MOCK_SESSION_STATE = {
   briefing: {
     cachedAt: new Date().toISOString(),
     matches: [
-      { job_id: 'job-acme-001', title: 'Senior Engineer', company: 'Acme', score: 0.92, url: 'https://acme.com' },
-      { job_id: 'job-beta-002', title: 'Staff Engineer', company: 'Beta', score: 0.85, url: 'https://beta.com' },
+      {
+        job_id: 'job-acme-001',
+        title: 'Senior Engineer',
+        company: 'Acme',
+        score: 0.92,
+        url: 'https://acme.com',
+      },
+      {
+        job_id: 'job-beta-002',
+        title: 'Staff Engineer',
+        company: 'Beta',
+        score: 0.85,
+        url: 'https://beta.com',
+      },
     ],
     matchData: MOCK_BRIEFING.matches.map((m) => ({
       job: m.job,
@@ -115,7 +137,10 @@ export const MOCK_SESSION_STATE = {
       matched_keywords: m.matched_keywords,
       gap_keywords: m.gap_keywords,
     })),
-    resumeIntel: { extracted_keywords: ['TypeScript', 'React', 'Node.js'], source: 'skills_injected' },
+    resumeIntel: {
+      extracted_keywords: ['TypeScript', 'React', 'Node.js'],
+      source: 'skills_injected',
+    },
     profile: { skills: ['TypeScript', 'React', 'Node.js'], targetRoles: ['Senior Engineer'] },
     resumeText: 'Experienced fullstack engineer.',
   },

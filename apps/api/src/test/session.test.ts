@@ -55,12 +55,26 @@ const BRIEFING_STATE: SessionState = {
   briefing: {
     cachedAt: new Date().toISOString(),
     matches: [
-      { job_id: JOB_ID_1, title: 'Senior Engineer', company: 'Acme Corp', score: 0.92, url: 'https://acme.com/jobs/1' },
+      {
+        job_id: JOB_ID_1,
+        title: 'Senior Engineer',
+        company: 'Acme Corp',
+        score: 0.92,
+        url: 'https://acme.com/jobs/1',
+      },
       { job_id: JOB_ID_2, title: 'Staff Engineer', company: 'Beta Inc', score: 0.85, url: null },
     ],
     matchData: [
-      { job: { job_id: JOB_ID_1, title: 'Senior Engineer', company: 'Acme Corp' }, score: 0.92, matched_keywords: ['TypeScript'] },
-      { job: { job_id: JOB_ID_2, title: 'Staff Engineer', company: 'Beta Inc' }, score: 0.85, matched_keywords: ['React'] },
+      {
+        job: { job_id: JOB_ID_1, title: 'Senior Engineer', company: 'Acme Corp' },
+        score: 0.92,
+        matched_keywords: ['TypeScript'],
+      },
+      {
+        job: { job_id: JOB_ID_2, title: 'Staff Engineer', company: 'Beta Inc' },
+        score: 0.85,
+        matched_keywords: ['React'],
+      },
     ],
     resumeIntel: { extracted_keywords: ['TypeScript', 'React'], source: 'skills_injected' },
     profile: { skills: ['TypeScript', 'React'], targetRoles: ['Senior Engineer'] },
@@ -95,7 +109,10 @@ describe('pruneMessages', () => {
     // Each message is ~1,000 tokens (4,000 chars)
     const msgs = Array.from({ length: 15 }, (_, i) => makeMessage('x'.repeat(4000) + ` msg${i}`))
     const pruned = pruneMessages(msgs)
-    const totalTokens = pruned.reduce((sum: number, m: Message) => sum + Math.ceil(m.content.length / 4), 0)
+    const totalTokens = pruned.reduce(
+      (sum: number, m: Message) => sum + Math.ceil(m.content.length / 4),
+      0,
+    )
     expect(totalTokens).toBeLessThanOrEqual(8_000)
   })
 
@@ -107,10 +124,7 @@ describe('pruneMessages', () => {
   it('preserves a full briefing response without truncation', () => {
     // A 1,300-token briefing response (~5,200 chars)
     const briefingContent = 'Match details with job_ids and outreach drafts... '.repeat(104)
-    const msgs = [
-      makeMessage('Run my briefing'),
-      makeMessage(briefingContent, 'assistant'),
-    ]
+    const msgs = [makeMessage('Run my briefing'), makeMessage(briefingContent, 'assistant')]
     const pruned = pruneMessages(msgs)
     expect(pruned).toHaveLength(2)
     expect(pruned[1]!.content).toBe(briefingContent)
@@ -136,7 +150,7 @@ describe('mergeSessionState', () => {
         profile: {},
         resumeText: null,
       },
-      gapResults: { 'old': { fit_score: 0.3 } },
+      gapResults: { old: { fit_score: 0.3 } },
     }
     const merged = mergeSessionState(existing, { briefing: BRIEFING_STATE.briefing })
     expect(merged.briefing!.matches).toHaveLength(2)
@@ -257,10 +271,11 @@ describe('loadSession', () => {
       is: () => chain,
       order: () => chain,
       limit: () => chain,
-      single: () => Promise.resolve({
-        data: sessionData,
-        error: sessionData ? null : { message: 'not found' },
-      }),
+      single: () =>
+        Promise.resolve({
+          data: sessionData,
+          error: sessionData ? null : { message: 'not found' },
+        }),
       update: () => ({ eq: () => Promise.resolve({ error: null }) }),
     }
     mockFrom.mockReturnValue(chain)
@@ -340,19 +355,20 @@ describe('loadSession', () => {
       is: () => chain,
       order: () => chain,
       limit: () => chain,
-      single: () => Promise.resolve({
-        data: {
-          id: SESSION_ID,
-          user_id: USER_ID,
-          channel: 'web',
-          messages: [],
-          state: {},
-          last_active: expiredDate.toISOString(),
-          created_at: expiredDate.toISOString(),
-          deleted_at: null,
-        },
-        error: null,
-      }),
+      single: () =>
+        Promise.resolve({
+          data: {
+            id: SESSION_ID,
+            user_id: USER_ID,
+            channel: 'web',
+            messages: [],
+            state: {},
+            last_active: expiredDate.toISOString(),
+            created_at: expiredDate.toISOString(),
+            deleted_at: null,
+          },
+          error: null,
+        }),
       update: () => mockUpdateChain,
     }
     mockFrom.mockReturnValue(chain)
