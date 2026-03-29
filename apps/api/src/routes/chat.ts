@@ -6,13 +6,17 @@
  *   2. Load session context from Supabase; prune to 20 msgs / 8k tokens.
  *   3. Load CareerClaw profile from Supabase.
  *   4. Open SSE stream to caller — first event within ~100ms.
- *   5. Call Claude with CareerClaw system prompt + both tools.
- *   6. Profile gate — if Claude decided to run_careerclaw and required fields
- *      are missing, return block message immediately. The worker is never invoked.
+ *   5. Call Claude with CareerClaw system prompt + all tools.
+ *   6. Profile gate — if Claude decided to invoke a skill tool and required
+ *      fields are missing, return block message immediately.
  *   7a. Direct text response → stream final event, save session, done.
- *   7b. run_careerclaw tool → stream progress events → invoke Lightsail worker →
- *       second Claude call to format results → stream final event.
- *   7c. track_application tool → direct Supabase upsert/update →
+ *   7b. run_careerclaw tool → stream progress → invoke worker → cache briefing
+ *       → second Claude call to format results → stream final event.
+ *   7c. run_gap_analysis tool (Pro) → look up cached match by job_id →
+ *       invoke worker → cache gap result → format → stream final event.
+ *   7d. run_cover_letter tool (Pro) → look up cached match + gap result →
+ *       invoke worker (with precomputedGap if available) → format → stream.
+ *   7e. track_application tool → direct Supabase upsert/update →
  *       second Claude call to format confirmation → stream final event.
  *   8. Save updated session (summary of skill output, never raw payloads).
  *   9. Write audit log (metadata only — no message bodies).
@@ -33,16 +37,34 @@ import { ChatRequestSchema, buildAuditEntry } from '@clawos/security'
 import {
   CAREERCLAW_SYSTEM_PROMPT,
   RUN_CAREERCLAW_TOOL,
+  RUN_GAP_ANALYSIS_TOOL,
+  RUN_COVER_LETTER_TOOL,
   TRACK_APPLICATION_TOOL,
   createServerClient,
 } from '@clawos/shared'
 import type { Channel, Message } from '@clawos/shared'
-import type { RunCareerClawInput, TrackApplicationInput } from '@clawos/shared'
+import type {
+  RunCareerClawInput,
+  RunGapAnalysisInput,
+  RunCoverLetterInput,
+  TrackApplicationInput,
+} from '@clawos/shared'
 import { callLLM, callLLMWithToolResult } from '../llm.js'
 import { resolveCareerClawEntitlements } from '../entitlements.js'
 import { issueSkillAssertion } from '../skill-assertions.js'
-import { runWorkerCareerclaw, WorkerError } from '../worker-client.js'
+import {
+  runWorkerCareerclaw,
+  runWorkerGapAnalysis,
+  runWorkerCoverLetter,
+  WorkerError,
+} from '../worker-client.js'
 import { loadSession, pruneMessages, saveSession, summariseSkillOutput } from '../session.js'
+import {
+  cacheBriefingResult,
+  getCachedMatch,
+  cacheGapResult,
+  getCachedGapResult,
+} from '../briefing-cache.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -163,6 +185,21 @@ export async function chatHandler(c: Context): Promise<Response> {
       const history: Message[] = session ? pruneMessages(session.messages) : []
       const activeSessionId = session?.id
 
+      /** Save a short gate message and send it as the final SSE event. */
+      const sendGatedResponse = async (gateMsg: string): Promise<void> => {
+        const savedId = await saveSession(
+          userId,
+          channel as Channel,
+          [
+            ...history,
+            { role: 'user', content: message, timestamp: new Date().toISOString() },
+            { role: 'assistant', content: gateMsg, timestamp: new Date().toISOString() },
+          ],
+          activeSessionId,
+        )
+        await sendDone(savedId, gateMsg)
+      }
+
       // ── 4. Load CareerClaw profile ───────────────────────────────────────
       const supabase = createServerClient()
       const { data: profileRow } = await supabase
@@ -196,18 +233,22 @@ export async function chatHandler(c: Context): Promise<Response> {
         { role: 'user', content: message, timestamp: new Date().toISOString() },
       ]
 
-      // ── 5. First Claude call — both tools available ───────────────────────
+      // ── 5. First Claude call — all tools available ────────────────────────
       await sendProgress('thinking', 'Thinking...')
 
       const llmResult = await callLLM(CAREERCLAW_SYSTEM_PROMPT, messagesForClaude, [
         RUN_CAREERCLAW_TOOL,
+        RUN_GAP_ANALYSIS_TOOL,
+        RUN_COVER_LETTER_TOOL,
         TRACK_APPLICATION_TOOL,
       ])
 
       // ── 6. Profile gate — keyed on Claude's tool decision ────────────────
       if (
         llmResult.type === 'tool_use' &&
-        llmResult.toolName === 'run_careerclaw' &&
+        (llmResult.toolName === 'run_careerclaw' ||
+          llmResult.toolName === 'run_gap_analysis' ||
+          llmResult.toolName === 'run_cover_letter') &&
         (await handleProfileGate({
           missingFields,
           userId,
@@ -344,7 +385,52 @@ export async function chatHandler(c: Context): Promise<Response> {
             if (error) console.error('[chat] Failed to log careerclaw run:', error.message)
           })
 
-        await sendProgress('drafting', 'Drafting outreach...')
+        // Cache briefing for post-briefing tools (gap analysis, cover letter)
+        const matches = (briefing['matches'] ?? []) as Array<Record<string, unknown>>
+        if (profileRow) {
+          cacheBriefingResult(userId, {
+            matches: matches.map((m) => ({
+              job: (m['job'] ?? {}) as Record<string, unknown>,
+              score: (m['score'] ?? 0) as number,
+              breakdown: (m['breakdown'] ?? {}) as Record<string, number>,
+              matched_keywords: (m['matched_keywords'] ?? []) as string[],
+              gap_keywords: (m['gap_keywords'] ?? []) as string[],
+            })),
+            // TODO(careerclaw-js@1.5.0): ResumeIntelligence is built from profile skills only
+            // (skills_injected). A full resume-text-based ResumeIntelligence computed by the
+            // engine would produce richer gap analysis. Improvement path: have the engine
+            // return the computed ResumeIntelligence in BriefingResult so the API can cache
+            // the real one instead of this approximation.
+            resumeIntel: {
+              extracted_keywords: (profileRow.skills as string[] | null) ?? [],
+              extracted_phrases: [],
+              keyword_stream: (profileRow.skills as string[] | null) ?? [],
+              phrase_stream: [],
+              impact_signals: (profileRow.skills as string[] | null) ?? [],
+              keyword_weights: Object.fromEntries(
+                ((profileRow.skills as string[] | null) ?? []).map((s: string) => [s, 1.0]),
+              ),
+              phrase_weights: {},
+              source: 'skills_injected',
+            },
+            profile: {
+              skills: (profileRow.skills as string[] | null) ?? [],
+              targetRoles: (profileRow.target_roles as string[] | null) ?? [],
+              experienceYears: profileRow.experience_years ?? undefined,
+              resumeSummary: (profileRow.resume_summary as string | null) ?? undefined,
+              workMode:
+                (profileRow.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
+              salaryMin: profileRow.salary_min ?? undefined,
+              locationPref: profileRow.location_pref ?? undefined,
+            },
+            resumeText: (profileRow.resume_text as string | null) ?? null,
+          })
+        }
+
+        await sendProgress(
+          'drafting',
+          effectiveTier === 'free' ? 'Drafting outreach...' : 'Formatting results...',
+        )
 
         let formattedResponse: string
         try {
@@ -359,14 +445,11 @@ export async function chatHandler(c: Context): Promise<Response> {
               _meta: {
                 tier: effectiveTier,
                 topK,
-                includeOutreach:
-                  featureSet.has('careerclaw.llm_outreach_draft') && !!toolInput.includeOutreach,
-                includeCoverLetter:
-                  featureSet.has('careerclaw.tailored_cover_letter') &&
-                  !!toolInput.includeCoverLetter,
-                includeGapAnalysis:
-                  featureSet.has('careerclaw.resume_gap_analysis') &&
-                  !!toolInput.includeGapAnalysis,
+                // Free tier: outreach drafts are included in briefing results.
+                // Pro tier: cover letters replace outreach — do not offer drafts.
+                includeOutreach: effectiveTier === 'free',
+                includeCoverLetter: featureSet.has('careerclaw.tailored_cover_letter'),
+                includeGapAnalysis: featureSet.has('careerclaw.resume_gap_analysis'),
               },
             },
           )
@@ -419,7 +502,223 @@ export async function chatHandler(c: Context): Promise<Response> {
         return
       }
 
-      // ── 7c. track_application tool ───────────────────────────────────────
+      // ── 7c. run_gap_analysis tool (Pro only) ─────────────────────────────
+      if (llmResult.toolName === 'run_gap_analysis') {
+        const toolInput = llmResult.toolInput as RunGapAnalysisInput
+        const jobId = toolInput.job_id
+
+        // Pro gate
+        if (!featureSet.has('careerclaw.resume_gap_analysis')) {
+          await sendGatedResponse(
+            'Resume gap analysis is a Pro feature. Upgrade in Settings > Billing to unlock it.',
+          )
+          return
+        }
+
+        // Look up cached match
+        const cached = getCachedMatch(userId, jobId)
+        if (!cached) {
+          await sendGatedResponse(
+            "I've lost the details for that search. Want me to run a fresh briefing?",
+          )
+          return
+        }
+
+        await sendProgress('analyzing', 'Running gap analysis...')
+
+        const assertion = issueSkillAssertion({
+          userId,
+          skill: 'careerclaw',
+          tier: entitlements.effectiveTier,
+          features: entitlements.features,
+        })
+
+        let gapResult: Record<string, unknown>
+        try {
+          const workerResult = await runWorkerGapAnalysis({
+            assertion,
+            input: {
+              match: cached.match as unknown as Record<string, unknown>,
+              resumeIntel: cached.briefing.resumeIntel,
+            },
+          })
+          gapResult = workerResult.result
+        } catch (err) {
+          console.error(
+            '[chat] Gap analysis worker error:',
+            err instanceof Error ? err.message : String(err),
+          )
+          await sendError(
+            'WORKER_ERROR',
+            'The gap analysis encountered an error. Please try again.',
+          )
+          return
+        }
+
+        // Cache gap result for cover letter reuse
+        const gapAnalysis = (gapResult as { analysis?: Record<string, unknown> }).analysis
+        if (gapAnalysis) {
+          cacheGapResult(userId, jobId, gapAnalysis)
+        }
+
+        // Format via second Claude call
+        let formattedResponse: string
+        try {
+          const formatResult = await callLLMWithToolResult(
+            CAREERCLAW_SYSTEM_PROMPT,
+            messagesForClaude,
+            llmResult.toolUseId,
+            llmResult.toolName,
+            toolInput,
+            gapResult,
+          )
+          formattedResponse = formatResult.content
+        } catch (err) {
+          console.error(
+            '[chat] Second Claude call (gap analysis format) error:',
+            err instanceof Error ? err.message : String(err),
+          )
+          await sendError('LLM_ERROR', 'Failed to format gap analysis. Please try again.')
+          return
+        }
+
+        const sessionSummary = `Gap analysis for ${(cached.match.job as { title?: string }).title ?? jobId}: fit score ${Math.round(((gapResult as { analysis?: { fit_score?: number } }).analysis?.fit_score ?? 0) * 100)}%.`
+        const updatedMessages: Message[] = [
+          ...history,
+          { role: 'user', content: message, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: sessionSummary, timestamp: new Date().toISOString() },
+        ]
+        const savedId = await saveSession(
+          userId,
+          channel as Channel,
+          updatedMessages,
+          activeSessionId,
+        )
+
+        logAudit({
+          userId,
+          skill: 'careerclaw',
+          channel,
+          status: 'success',
+          statusCode: 200,
+          durationMs: Date.now() - startMs,
+        })
+
+        await sendDone(savedId, formattedResponse)
+        return
+      }
+
+      // ── 7d. run_cover_letter tool (Pro only) ─────────────────────────────
+      if (llmResult.toolName === 'run_cover_letter') {
+        const toolInput = llmResult.toolInput as RunCoverLetterInput
+        const jobId = toolInput.job_id
+
+        // Pro gate
+        if (!featureSet.has('careerclaw.tailored_cover_letter')) {
+          await sendGatedResponse(
+            'Tailored cover letters are a Pro feature. Upgrade in Settings > Billing to unlock them.',
+          )
+          return
+        }
+
+        // Look up cached match
+        const cached = getCachedMatch(userId, jobId)
+        if (!cached) {
+          await sendGatedResponse(
+            "I've lost the details for that search. Want me to run a fresh briefing?",
+          )
+          return
+        }
+
+        await sendProgress('writing', 'Generating cover letter...')
+
+        const assertion = issueSkillAssertion({
+          userId,
+          skill: 'careerclaw',
+          tier: entitlements.effectiveTier,
+          features: entitlements.features,
+        })
+
+        // Check for cached gap result (single source of truth)
+        const precomputedGap = getCachedGapResult(userId, jobId)
+
+        let coverLetterResult: Record<string, unknown>
+        try {
+          const workerResult = await runWorkerCoverLetter({
+            assertion,
+            input: {
+              match: cached.match as unknown as Record<string, unknown>,
+              profile: cached.briefing.profile,
+              resumeIntel: cached.briefing.resumeIntel,
+              ...(cached.briefing.resumeText ? { resumeText: cached.briefing.resumeText } : {}),
+              ...(precomputedGap ? { precomputedGap } : {}),
+            },
+          })
+          coverLetterResult = workerResult.result
+        } catch (err) {
+          const isTimeout = err instanceof WorkerError && err.isTimeout
+          console.error(
+            '[chat] Cover letter worker error:',
+            err instanceof Error ? err.message : String(err),
+          )
+          await sendError(
+            isTimeout ? 'WORKER_TIMEOUT' : 'WORKER_ERROR',
+            isTimeout
+              ? 'The cover letter generation timed out. Please try again.'
+              : 'The cover letter generation encountered an error. Please try again.',
+          )
+          return
+        }
+
+        // Format via second Claude call
+        let formattedResponse: string
+        try {
+          const formatResult = await callLLMWithToolResult(
+            CAREERCLAW_SYSTEM_PROMPT,
+            messagesForClaude,
+            llmResult.toolUseId,
+            llmResult.toolName,
+            toolInput,
+            coverLetterResult,
+          )
+          formattedResponse = formatResult.content
+        } catch (err) {
+          console.error(
+            '[chat] Second Claude call (cover letter format) error:',
+            err instanceof Error ? err.message : String(err),
+          )
+          await sendError('LLM_ERROR', 'Failed to format cover letter. Please try again.')
+          return
+        }
+
+        const isTemplate = (coverLetterResult as { is_template?: boolean }).is_template ?? false
+        const sessionSummary = `Cover letter${isTemplate ? ' (template)' : ''} generated for ${(cached.match.job as { title?: string }).title ?? jobId}.`
+        const updatedMessages: Message[] = [
+          ...history,
+          { role: 'user', content: message, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: sessionSummary, timestamp: new Date().toISOString() },
+        ]
+        const savedId = await saveSession(
+          userId,
+          channel as Channel,
+          updatedMessages,
+          activeSessionId,
+        )
+
+        logAudit({
+          userId,
+          skill: 'careerclaw',
+          channel,
+          status: 'success',
+          statusCode: 200,
+          durationMs: Date.now() - startMs,
+        })
+
+        await sendDone(savedId, formattedResponse)
+        return
+      }
+
+      // ── 7e. track_application tool ───────────────────────────────────────
       // Direct Supabase write — no worker involved. Fast path.
       if (llmResult.toolName === 'track_application') {
         const trackInput = llmResult.toolInput as TrackApplicationInput

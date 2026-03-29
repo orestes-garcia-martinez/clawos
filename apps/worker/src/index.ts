@@ -9,10 +9,19 @@
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
 import { timingSafeEqual } from 'node:crypto'
-import { CareerClawRunRequestSchema, buildAuditEntry } from '@clawos/security'
+import {
+  CareerClawRunRequestSchema,
+  CareerClawGapAnalysisRequestSchema,
+  CareerClawCoverLetterRequestSchema,
+  buildAuditEntry,
+} from '@clawos/security'
 import type { SkillSlug } from '@clawos/shared'
-import { InvalidSkillAssertionError, verifyAndConsumeSkillAssertion } from './assertion-verifier.js'
+import { verifyAndConsumeSkillAssertion } from './assertion-verifier.js'
 import { skillRegistry } from './registry.js'
+import {
+  careerClawGapAnalysisAdapter,
+  careerClawCoverLetterAdapter,
+} from './skills/careerclaw/adapter.js'
 
 const WORKER_SECRET = process.env.WORKER_SECRET
 if (!WORKER_SECRET) {
@@ -54,6 +63,93 @@ function withExecutionTimeout<T>(
       },
     )
   })
+}
+
+// ── Shared route helper ──────────────────────────────────────────────────────
+
+type VerifiedSkillExecutionContext = Awaited<ReturnType<typeof verifyAndConsumeSkillAssertion>>
+
+/**
+ * Handles the common assertion verification + audit logging + error handling
+ * pattern shared by all skill route handlers. Callers pass `fn` which receives
+ * the verified context and returns the result payload.
+ *
+ * @param timeout - When true, wraps fn in withExecutionTimeout (for async skills).
+ */
+async function runWorkerAction(
+  res: Response,
+  opts: {
+    skill: SkillSlug
+    startMs: number
+    assertion: string
+    timeout?: boolean
+  },
+  fn: (ctx: VerifiedSkillExecutionContext) => Promise<Record<string, unknown>>,
+): Promise<void> {
+  let ctx: VerifiedSkillExecutionContext
+  try {
+    ctx = await verifyAndConsumeSkillAssertion({ token: opts.assertion, expectedSkill: opts.skill })
+  } catch {
+    console.log(
+      JSON.stringify(
+        buildAuditEntry({
+          userId: 'unknown',
+          skill: opts.skill,
+          channel: 'worker',
+          status: 'error',
+          statusCode: 403,
+          durationMs: Date.now() - opts.startMs,
+        }),
+      ),
+    )
+    res.status(403).json({ error: 'Invalid skill assertion' })
+    return
+  }
+
+  try {
+    const execute = fn(ctx)
+    const result = opts.timeout
+      ? await withExecutionTimeout(execute, SKILL_EXECUTION_TIMEOUT_MS, opts.skill)
+      : await execute
+    const durationMs = Date.now() - opts.startMs
+    console.log(
+      JSON.stringify(
+        buildAuditEntry({
+          userId: ctx.userId,
+          skill: opts.skill,
+          channel: 'worker',
+          status: 'success',
+          statusCode: 200,
+          durationMs,
+        }),
+      ),
+    )
+    res.status(200).json({ result, durationMs })
+  } catch (err) {
+    const durationMs = Date.now() - opts.startMs
+    const isTimeout = err instanceof SkillExecutionTimeoutError
+    console.log(
+      JSON.stringify(
+        buildAuditEntry({
+          userId: ctx.userId,
+          skill: opts.skill,
+          channel: 'worker',
+          status: 'error',
+          statusCode: isTimeout ? 504 : 500,
+          durationMs,
+        }),
+      ),
+    )
+    if (isTimeout) {
+      res.status(504).json({ error: 'Skill invocation timed out' })
+      return
+    }
+    console.error(
+      `[worker] Unexpected error in /run/${opts.skill}:`,
+      err instanceof Error ? err.message : String(err),
+    )
+    res.status(500).json({ error: 'Internal worker error' })
+  }
 }
 
 const app = express()
@@ -105,89 +201,71 @@ app.post('/run/:skill', requireWorkerSecret, async (req: Request, res: Response)
   }
 
   const startMs = Date.now()
-
-  let ctx
-  try {
-    ctx = await verifyAndConsumeSkillAssertion({
-      token: parseResult.data.assertion,
-      expectedSkill: skillParam,
-    })
-  } catch (err) {
-    const entry = buildAuditEntry({
-      userId: 'unknown',
-      skill: skillParam,
-      channel: 'worker',
-      status: 'error',
-      statusCode: 403,
-      durationMs: Date.now() - startMs,
-    })
-    console.log(JSON.stringify(entry))
-
-    if (err instanceof InvalidSkillAssertionError) {
-      res.status(403).json({ error: 'Invalid skill assertion' })
-      return
-    }
-
-    res.status(403).json({ error: 'Invalid skill assertion' })
-    return
-  }
-
   const adapter = skillRegistry[skillParam]
+  const input = adapter.validateInput(parseResult.data.input)
 
-  try {
-    const input = adapter.validateInput(parseResult.data.input)
-    const result = await withExecutionTimeout(
-      adapter.execute(input, ctx),
-      SKILL_EXECUTION_TIMEOUT_MS,
-      skillParam,
-    )
+  await runWorkerAction(
+    res,
+    { skill: skillParam, startMs, assertion: parseResult.data.assertion, timeout: true },
+    (ctx) => adapter.execute(input, ctx),
+  )
+})
 
-    const durationMs = Date.now() - startMs
-    const entry = buildAuditEntry({
-      userId: ctx.userId,
-      skill: skillParam,
-      channel: 'worker',
-      status: 'success',
-      statusCode: 200,
-      durationMs,
-    })
-    console.log(JSON.stringify(entry))
+// ── Post-briefing action routes ──────────────────────────────────────────────
 
-    res.status(200).json({ result, durationMs })
-  } catch (err) {
-    const durationMs = Date.now() - startMs
+app.post(
+  '/run/careerclaw/gap-analysis',
+  requireWorkerSecret,
+  async (req: Request, res: Response): Promise<void> => {
+    const startMs = Date.now()
 
-    if (err instanceof SkillExecutionTimeoutError) {
-      const entry = buildAuditEntry({
-        userId: ctx.userId,
-        skill: skillParam,
-        channel: 'worker',
-        status: 'error',
-        statusCode: 504,
-        durationMs,
+    const parseResult = CareerClawGapAnalysisRequestSchema.safeParse(req.body)
+    if (!parseResult.success) {
+      res.status(400).json({
+        error: 'Invalid input',
+        details: parseResult.error.flatten(),
       })
-      console.log(JSON.stringify(entry))
-      res.status(504).json({ error: 'Skill invocation timed out' })
       return
     }
 
-    const entry = buildAuditEntry({
-      userId: ctx.userId,
-      skill: skillParam,
-      channel: 'worker',
-      status: 'error',
-      statusCode: 500,
-      durationMs,
-    })
-    console.log(JSON.stringify(entry))
-    console.error(
-      `[worker] Unexpected error in /run/${skillParam}:`,
-      err instanceof Error ? err.message : String(err),
+    const input = careerClawGapAnalysisAdapter.validateInput(parseResult.data.input)
+    // Gap analysis is synchronous — no timeout wrapper needed.
+    await runWorkerAction(
+      res,
+      { skill: 'careerclaw', startMs, assertion: parseResult.data.assertion },
+      () => Promise.resolve(careerClawGapAnalysisAdapter.execute(input)),
     )
+  },
+)
 
-    res.status(500).json({ error: 'Internal worker error' })
-  }
-})
+app.post(
+  '/run/careerclaw/cover-letter',
+  requireWorkerSecret,
+  async (req: Request, res: Response): Promise<void> => {
+    const startMs = Date.now()
+
+    const parseResult = CareerClawCoverLetterRequestSchema.safeParse(req.body)
+    if (!parseResult.success) {
+      res.status(400).json({
+        error: 'Invalid input',
+        details: parseResult.error.flatten(),
+      })
+      return
+    }
+
+    const input = careerClawCoverLetterAdapter.validateInput(parseResult.data.input)
+    await runWorkerAction(
+      res,
+      {
+        skill: 'careerclaw',
+        startMs,
+        assertion: parseResult.data.assertion,
+        timeout: true,
+      },
+      () => careerClawCoverLetterAdapter.execute(input),
+    )
+  },
+)
 
 const port = Number(process.env.PORT ?? 3002)
 app.listen(port, () => {

@@ -10,6 +10,8 @@
 
 import type {
   CareerClawWorkerInput,
+  CareerClawGapAnalysisWorkerInput,
+  CareerClawCoverLetterWorkerInput,
   SkillSlug,
   WorkerSkillRunRequest,
   WorkerSkillRunResult,
@@ -29,15 +31,15 @@ export class WorkerError extends Error {
   }
 }
 
-export async function runWorkerSkill<TInput, TResult>(
-  skill: SkillSlug,
+async function workerFetch<TInput, TResult>(
+  path: string,
   body: WorkerSkillRunRequest<TInput>,
 ): Promise<WorkerSkillRunResult<TResult>> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), WORKER_TIMEOUT_MS)
 
   try {
-    const response = await fetch(`${ENV.WORKER_URL}/run/${skill}`, {
+    const response = await fetch(`${ENV.WORKER_URL}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -68,8 +70,27 @@ export async function runWorkerSkill<TInput, TResult>(
   }
 }
 
+export async function runWorkerSkill<TInput, TResult>(
+  skill: SkillSlug,
+  body: WorkerSkillRunRequest<TInput>,
+): Promise<WorkerSkillRunResult<TResult>> {
+  return workerFetch(`/run/${skill}`, body)
+}
+
 export function runWorkerCareerclaw(
   body: WorkerSkillRunRequest<CareerClawWorkerInput>,
 ): Promise<WorkerSkillRunResult<Record<string, unknown>>> {
   return runWorkerSkill<CareerClawWorkerInput, Record<string, unknown>>('careerclaw', body)
+}
+
+export function runWorkerGapAnalysis(
+  body: WorkerSkillRunRequest<CareerClawGapAnalysisWorkerInput>,
+): Promise<WorkerSkillRunResult<Record<string, unknown>>> {
+  return workerFetch('/run/careerclaw/gap-analysis', body)
+}
+
+export function runWorkerCoverLetter(
+  body: WorkerSkillRunRequest<CareerClawCoverLetterWorkerInput>,
+): Promise<WorkerSkillRunResult<Record<string, unknown>>> {
+  return workerFetch('/run/careerclaw/cover-letter', body)
 }

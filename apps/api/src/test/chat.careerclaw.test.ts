@@ -138,7 +138,7 @@ describe('POST /chat — CareerClaw tool use path', () => {
         _meta: expect.objectContaining({
           tier: 'pro',
           topK: 10,
-          includeOutreach: true,
+          includeOutreach: false,
           includeCoverLetter: true,
           includeGapAnalysis: true,
         }),
@@ -178,7 +178,7 @@ describe('POST /chat — CareerClaw tool use path', () => {
       expect.objectContaining({
         _meta: expect.objectContaining({
           tier: 'free',
-          includeOutreach: false,
+          includeOutreach: true,
           includeCoverLetter: false,
           includeGapAnalysis: false,
         }),

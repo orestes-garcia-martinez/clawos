@@ -11,6 +11,8 @@ export { createBrowserClient, createServerClient } from './supabase.js'
 export type {
   CareerClawWorkerInput,
   CareerClawWorkerProfile,
+  CareerClawGapAnalysisWorkerInput,
+  CareerClawCoverLetterWorkerInput,
   SkillFeatureKey,
   SkillSlug,
   VerifiedSkillExecutionContext,
@@ -24,9 +26,16 @@ export type { Json } from './types/database.types.js'
 export {
   CAREERCLAW_SYSTEM_PROMPT,
   RUN_CAREERCLAW_TOOL,
+  RUN_GAP_ANALYSIS_TOOL,
+  RUN_COVER_LETTER_TOOL,
   TRACK_APPLICATION_TOOL,
 } from './prompts/careerclaw.js'
-export type { RunCareerClawInput, TrackApplicationInput } from './prompts/careerclaw.js'
+export type {
+  RunCareerClawInput,
+  RunGapAnalysisInput,
+  RunCoverLetterInput,
+  TrackApplicationInput,
+} from './prompts/careerclaw.js'
 
 import type { Database } from './types/database.types.js'
 
