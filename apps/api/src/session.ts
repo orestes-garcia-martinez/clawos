@@ -1,24 +1,37 @@
 /**
  * session.ts — Platform session management.
  *
- * Rules (from Strategy v1.7, Appendix A.1):
+ * Rules (from Strategy v1.7, Appendix A.1 — updated post-MVP):
  *   - One active session row per (userId, channel).
- *   - Messages stored as {role, content, timestamp} — no raw skill outputs.
+ *   - Messages stored as {role, content, timestamp}.
+ *   - Full formatted responses stored verbatim (no truncation).
  *   - On load: prune to 20 messages and 8,000 tokens before passing to Claude.
- *   - On save: write a human-readable summary of skill output — never raw payloads.
- *     Summarise if skill output exceeds 500 tokens (≈ 375 words).
- *   - Sessions inactive for 30 days are soft-deleted (deleted_at set).
- *   - Expired sessions are excluded from context — user starts fresh.
+ *   - Sessions inactive for 30 days are soft-deleted.
+ *
+ * State (structured scratchpad):
+ *   - Stored in a separate `state` JSONB column on the sessions row.
+ *   - Contains briefing match data, gap analysis results, profile snapshots.
+ *   - Never pruned by message-count or token-budget logic.
+ *   - Updated atomically alongside messages on each turn (Option A — batch write).
+ *   - Follows the Google ADK session state pattern.
  */
 
 import { createServerClient } from '@clawos/shared'
-import type { Channel, Json, Message, Session } from '@clawos/shared'
+import type { Channel, Json, Message, Session, SessionState } from '@clawos/shared'
+
+// Add a type for the insert payload
+type SessionInsert = {
+  user_id: string
+  channel: string
+  messages: Json
+  last_active: string
+  state?: Json
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MAX_MESSAGES = 20
 const MAX_TOKEN_BUDGET = 8_000
-const SUMMARISE_THRESHOLD_TOKENS = 500
 const SESSION_EXPIRY_DAYS = 30
 
 // Rough token estimator: 1 token ≈ 4 chars (conservative for English text)
@@ -68,11 +81,18 @@ export async function loadSession(
 
   const messages = Array.isArray(data.messages) ? (data.messages as unknown as Message[]) : []
 
+  // Parse state — default to empty object for sessions created before migration
+  let state: SessionState = {}
+  if (data.state && typeof data.state === 'object' && !Array.isArray(data.state)) {
+    state = data.state as unknown as SessionState
+  }
+
   return {
     id: data.id,
     userId: data.user_id,
     channel: data.channel as Channel,
     messages,
+    state,
     lastActive: data.last_active,
     createdAt: data.created_at,
     deletedAt: data.deleted_at,
@@ -100,39 +120,75 @@ export function pruneMessages(messages: Message[]): Message[] {
   return pruned
 }
 
-// ── Summarise skill output ────────────────────────────────────────────────────
+// ── State helpers ────────────────────────────────────────────────────────────
 
 /**
- * Produce a session-safe summary of a skill invocation result.
- *
- * Raw skill JSON is never stored in the session. This function builds a
- * human-readable summary string that captures conversational continuity
- * without storing sensitive resume data or full job payloads.
- *
- * If the formatted response text exceeds SUMMARISE_THRESHOLD_TOKENS,
- * it is truncated to a brief headline summary.
+ * Deep-merge a partial state update into an existing SessionState.
+ * Top-level keys are merged (not replaced). `gapResults` is merged additively.
  */
-export function summariseSkillOutput(
-  skill: string,
-  formattedResponse: string,
-  metadata: { jobCount?: number; topScore?: number },
-): string {
-  const tokens = estimateTokens(formattedResponse)
+export function mergeSessionState(
+  existing: SessionState,
+  update: Partial<SessionState>,
+): SessionState {
+  const merged = { ...existing }
 
-  if (tokens <= SUMMARISE_THRESHOLD_TOKENS) {
-    return formattedResponse
+  // If briefing is provided, replace entirely (new briefing replaces old)
+  if (update.briefing !== undefined) {
+    merged.briefing = update.briefing
+    // A new briefing also clears stale gap results from the previous briefing
+    merged.gapResults = {}
   }
 
-  // Build a brief summary for oversized outputs
-  const parts: string[] = [`[${skill} result]`]
-  if (metadata.jobCount != null) {
-    parts.push(`${metadata.jobCount} matches returned.`)
+  // Merge gap results additively (new results added to existing)
+  if (update.gapResults) {
+    merged.gapResults = {
+      ...(merged.gapResults ?? {}),
+      ...update.gapResults,
+    }
   }
-  if (metadata.topScore != null) {
-    parts.push(`Top score: ${Math.round(metadata.topScore * 100)}%.`)
+
+  return merged
+}
+
+/**
+ * Look up a specific match by job_id within session state.
+ * Returns the compact match entry and the full match data.
+ */
+export function getMatchFromState(
+  state: SessionState,
+  jobId: string,
+): {
+  entry: { job_id: string; title: string; company: string; score: number; url: string | null }
+  matchData: Record<string, unknown>
+  resumeIntel: Record<string, unknown>
+  profile: Record<string, unknown>
+  resumeText: string | null
+} | null {
+  if (!state.briefing) return null
+
+  const index = state.briefing.matches.findIndex((m) => m.job_id === jobId)
+  if (index === -1) return null
+
+  const matchData = state.briefing.matchData[index]
+  if (!matchData) return null
+
+  return {
+    entry: state.briefing.matches[index]!,
+    matchData,
+    resumeIntel: state.briefing.resumeIntel,
+    profile: state.briefing.profile,
+    resumeText: state.briefing.resumeText,
   }
-  parts.push('Full results delivered to user.')
-  return parts.join(' ')
+}
+
+/**
+ * Retrieve a cached gap analysis result for a specific job_id.
+ */
+export function getGapResultFromState(
+  state: SessionState,
+  jobId: string,
+): Record<string, unknown> | null {
+  return state.gapResults?.[jobId] ?? null
 }
 
 // ── Save ──────────────────────────────────────────────────────────────────────
@@ -144,12 +200,17 @@ export function summariseSkillOutput(
  * messages should already include the new user + assistant messages appended.
  * The full message array (not just the delta) is written — the pruning
  * threshold for storage is softer than the Claude context limit.
+ *
+ * stateUpdate: optional partial state to merge into the existing session state.
+ * Uses mergeSessionState() — briefing replaces, gapResults merge additively.
  */
 export async function saveSession(
   userId: string,
   channel: Channel,
   messages: Message[],
   sessionId?: string,
+  stateUpdate?: Partial<SessionState>,
+  existingState?: SessionState,
 ): Promise<string> {
   const supabase = createServerClient()
   const now = new Date().toISOString()
@@ -157,13 +218,23 @@ export async function saveSession(
   // Store at most MAX_MESSAGES — prune oldest on write too
   const toStore = messages.slice(-MAX_MESSAGES)
 
+  // Compute merged state if an update is provided
+  const mergedState = stateUpdate
+    ? mergeSessionState(existingState ?? {}, stateUpdate)
+    : existingState
+
   if (sessionId) {
+    const updatePayload: Record<string, unknown> = {
+      messages: toStore as unknown as Json,
+      last_active: now,
+    }
+    if (mergedState !== undefined) {
+      updatePayload['state'] = mergedState as unknown as Json
+    }
+
     const { error } = await supabase
       .from('sessions')
-      .update({
-        messages: toStore as unknown as Json,
-        last_active: now,
-      })
+      .update(updatePayload)
       .eq('id', sessionId)
       .eq('user_id', userId)
 
@@ -174,14 +245,19 @@ export async function saveSession(
   }
 
   // Create new session
+  const insertPayload: SessionInsert = {
+    user_id: userId,
+    channel,
+    messages: toStore as unknown as Json,
+    last_active: now,
+  }
+  if (mergedState !== undefined) {
+    insertPayload['state'] = mergedState as unknown as Json
+  }
+
   const { data, error } = await supabase
     .from('sessions')
-    .upsert({
-      user_id: userId,
-      channel,
-      messages: toStore as unknown as Json,
-      last_active: now,
-    })
+    .upsert(insertPayload)
     .select('id')
     .single()
 

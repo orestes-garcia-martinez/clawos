@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] (2026-03-29)
+
+### Features
+
+- **shared:** add `SessionState` interface and `state` field to `Session` type following Google ADK session state pattern ([d396740](https://github.com/orestes-garcia-martinez/clawos/commit/d396740921b9942a710a3d40fbd20cf4b75ed86d))
+- **shared:** update `CAREERCLAW_SYSTEM_PROMPT` — add `<tier_signals>` section, explicit reasoning scaffold, behavioral `<profile_context>`, accuracy rule in `<tool_result_handling>`, `track_application` example, and positive-framing tool rules ([d396740](https://github.com/orestes-garcia-martinez/clawos/commit/d396740921b9942a710a3d40fbd20cf4b75ed86d))
+
 ## [0.2.0](https://github.com/orestes-garcia-martinez/clawos/compare/shared-v0.1.0...shared-v0.2.0) (2026-03-26)
 
 

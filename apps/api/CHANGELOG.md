@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0] (2026-03-29)
+
+### Features
+
+- **api:** replace in-memory briefing cache with persistent session state JSONB column; briefing matches, gap results, and profile snapshot now survive cold starts and multi-instance deploys ([d396740](https://github.com/orestes-garcia-martinez/clawos/commit/d396740921b9942a710a3d40fbd20cf4b75ed86d))
+- **api:** store full formatted assistant responses in session messages instead of truncated summaries ([d396740](https://github.com/orestes-garcia-martinez/clawos/commit/d396740921b9942a710a3d40fbd20cf4b75ed86d))
+- **api:** add `mergeSessionState`, `getMatchFromState`, `getGapResultFromState` helpers with unit test coverage ([d396740](https://github.com/orestes-garcia-martinez/clawos/commit/d396740921b9942a710a3d40fbd20cf4b75ed86d))
+
 ## [0.2.0](https://github.com/orestes-garcia-martinez/clawos/compare/api-v0.1.0...api-v0.2.0) (2026-03-26)
 
 
