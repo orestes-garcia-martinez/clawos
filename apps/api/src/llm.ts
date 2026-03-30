@@ -228,7 +228,7 @@ async function callAnthropic(
     params.tools = tools.map((t) => ({
       name: t.name,
       description: t.description,
-      input_schema: t.input_schema,
+      input_schema: { ...t.input_schema, required: [...t.input_schema.required] },
     }))
   }
 
