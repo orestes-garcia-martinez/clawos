@@ -68,6 +68,14 @@ import {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function requireNonEmptyAssistantMessage(content: string, context: string): string {
+  const normalized = content.trim()
+  if (!normalized) {
+    throw new Error(`[chat] Empty assistant response (${context})`)
+  }
+  return normalized
+}
+
 /** Validate that required fields are present for save/update_status actions. */
 function validateTrackFields(
   input: Record<string, unknown>,
@@ -292,10 +300,30 @@ export async function chatHandler(c: Context): Promise<Response> {
 
       // ── 7a. Direct text response ─────────────────────────────────────────
       if (llmResult.type === 'text') {
+        let finalText: string
+        try {
+          finalText = requireNonEmptyAssistantMessage(llmResult.content, 'direct_response')
+        } catch (err) {
+          console.error(
+            '[chat] Direct Claude response error:',
+            err instanceof Error ? err.message : String(err),
+          )
+          logAudit({
+            userId,
+            skill: 'none',
+            channel,
+            status: 'error',
+            statusCode: 500,
+            durationMs: Date.now() - startMs,
+          })
+          await sendError('LLM_ERROR', 'Failed to generate a response. Please try again.')
+          return
+        }
+
         const updatedMessages: Message[] = [
           ...history,
           { role: 'user', content: message, timestamp: new Date().toISOString() },
-          { role: 'assistant', content: llmResult.content, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: finalText, timestamp: new Date().toISOString() },
         ]
 
         const savedId = await saveSession(
@@ -316,7 +344,7 @@ export async function chatHandler(c: Context): Promise<Response> {
           durationMs: Date.now() - startMs,
         })
 
-        await sendDone(savedId, llmResult.content)
+        await sendDone(savedId, finalText)
         return
       }
 
@@ -451,20 +479,10 @@ export async function chatHandler(c: Context): Promise<Response> {
             // engine would produce richer gap analysis. Improvement path: have the engine
             // return the computed ResumeIntelligence in BriefingResult so the API can cache
             // the real one instead of this approximation.
-            resumeIntel: profileRow
-              ? {
-                  extracted_keywords: (profileRow.skills as string[] | null) ?? [],
-                  extracted_phrases: [],
-                  keyword_stream: (profileRow.skills as string[] | null) ?? [],
-                  phrase_stream: [],
-                  impact_signals: (profileRow.skills as string[] | null) ?? [],
-                  keyword_weights: Object.fromEntries(
-                    ((profileRow.skills as string[] | null) ?? []).map((s: string) => [s, 1.0]),
-                  ),
-                  phrase_weights: {},
-                  source: 'skills_injected',
-                }
-              : {},
+            resumeIntel: ((briefing['resume_intel'] as
+              | Record<string, unknown>
+              | null
+              | undefined) ?? {}) as Record<string, unknown>,
             profile: profileRow
               ? {
                   skills: (profileRow.skills as string[] | null) ?? [],
@@ -499,15 +517,16 @@ export async function chatHandler(c: Context): Promise<Response> {
               _meta: {
                 tier: effectiveTier,
                 topK,
-                // Free tier: outreach drafts are included in briefing results.
-                // Pro tier: cover letters replace outreach — do not offer drafts.
                 includeOutreach: effectiveTier === 'free',
                 includeCoverLetter: featureSet.has('careerclaw.tailored_cover_letter'),
                 includeGapAnalysis: featureSet.has('careerclaw.resume_gap_analysis'),
               },
             },
           )
-          formattedResponse = formatResult.content
+          formattedResponse = requireNonEmptyAssistantMessage(
+            formatResult.content,
+            'run_careerclaw_format',
+          )
         } catch (err) {
           console.error(
             '[chat] Second Claude call (run_careerclaw format) error:',
@@ -623,7 +642,10 @@ export async function chatHandler(c: Context): Promise<Response> {
             toolInput,
             gapResult,
           )
-          formattedResponse = formatResult.content
+          formattedResponse = requireNonEmptyAssistantMessage(
+            formatResult.content,
+            'gap_analysis_format',
+          )
         } catch (err) {
           console.error(
             '[chat] Second Claude call (gap analysis format) error:',
@@ -736,7 +758,10 @@ export async function chatHandler(c: Context): Promise<Response> {
             toolInput,
             coverLetterResult,
           )
-          formattedResponse = formatResult.content
+          formattedResponse = requireNonEmptyAssistantMessage(
+            formatResult.content,
+            'cover_letter_format',
+          )
         } catch (err) {
           console.error(
             '[chat] Second Claude call (cover letter format) error:',
@@ -1022,7 +1047,10 @@ export async function chatHandler(c: Context): Promise<Response> {
             trackInput,
             trackResult,
           )
-          formattedResponse = formatResult.content
+          formattedResponse = requireNonEmptyAssistantMessage(
+            formatResult.content,
+            'track_application_format',
+          )
         } catch (err) {
           console.error(
             '[chat] Second Claude call (track_application format) error:',

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1] (2026-03-30)
+
+### Bug Fixes
+
+- **worker:** bump `careerclaw-js` from `^1.4.0` to `^1.5.0` ([295d39e](https://github.com/orestes-garcia-martinez/clawos/commit/295d39ef2de32ace4d70a0dc5a240cdd1dc7baf4))
+
 ## [0.3.0](https://github.com/orestes-garcia-martinez/clawos/compare/worker-v0.2.0...worker-v0.3.0) (2026-03-27)
 
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1] (2026-03-30)
+
+### Bug Fixes
+
+- **web:** add empty-response guard in `useSSEChat` `onDone` handler — shows `EMPTY_RESPONSE` error message instead of rendering a blank assistant bubble ([74f733e](https://github.com/orestes-garcia-martinez/clawos/commit/74f733e72f8ded3cfdb54087db32777873f52e76))
+
 ## [0.2.0](https://github.com/orestes-garcia-martinez/clawos/compare/web-v0.1.0...web-v0.2.0) (2026-03-26)
 
 
