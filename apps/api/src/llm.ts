@@ -286,11 +286,8 @@ async function callOpenAI(
 // ── Failover logic ────────────────────────────────────────────────────────────
 
 function shouldFailover(err: unknown): boolean {
-  if (err instanceof Anthropic.APIError) {
-    // Failover on 5xx — transient outage
-    return err.status >= 500
-  }
-  // Timeout errors from the Anthropic SDK (APIConnectionTimeoutError extends APIConnectionError)
+  // Test specific subclasses first — both extend APIError but have status === undefined,
+  // so they must be checked before the base APIError branch.
   if (err instanceof Anthropic.APIConnectionTimeoutError) {
     console.error('[llm] Anthropic API call timed out after', ANTHROPIC_TIMEOUT_MS, 'ms')
     return true
@@ -298,6 +295,10 @@ function shouldFailover(err: unknown): boolean {
   if (err instanceof Anthropic.APIConnectionError) {
     console.error('[llm] Anthropic API connection error:', err.message)
     return true
+  }
+  // Base APIError — only reached for errors that carry a status code
+  if (err instanceof Anthropic.APIError) {
+    return err.status >= 500
   }
   // Network errors (no status code)
   if (err instanceof Error && err.message.includes('fetch failed')) return true
