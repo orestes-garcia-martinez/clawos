@@ -474,15 +474,26 @@ export async function chatHandler(c: Context): Promise<Response> {
                     gap_keywords: (m['gap_keywords'] ?? []) as string[],
                   }))
                 : [],
-            // TODO(careerclaw-js@1.5.0): ResumeIntelligence is built from profile skills only
-            // (skills_injected). A full resume-text-based ResumeIntelligence computed by the
-            // engine would produce richer gap analysis. Improvement path: have the engine
-            // return the computed ResumeIntelligence in BriefingResult so the API can cache
-            // the real one instead of this approximation.
-            resumeIntel: ((briefing['resume_intel'] as
-              | Record<string, unknown>
-              | null
-              | undefined) ?? {}) as Record<string, unknown>,
+            // Prefer resume_intel from the briefing result (careerclaw-js ≥1.5).
+            // Fall back to synthesising from profileRow.skills for older worker versions
+            // (e.g. during rolling deploys) so post-briefing tools always receive a
+            // structurally valid ResumeIntelligence and pass ResumeIntelSchema validation.
+            resumeIntel: briefing['resume_intel']
+              ? (briefing['resume_intel'] as Record<string, unknown>)
+              : profileRow
+                ? {
+                    extracted_keywords: (profileRow.skills as string[] | null) ?? [],
+                    extracted_phrases: [],
+                    keyword_stream: (profileRow.skills as string[] | null) ?? [],
+                    phrase_stream: [],
+                    impact_signals: (profileRow.skills as string[] | null) ?? [],
+                    keyword_weights: Object.fromEntries(
+                      ((profileRow.skills as string[] | null) ?? []).map((s: string) => [s, 1.0]),
+                    ),
+                    phrase_weights: {},
+                    source: 'skills_injected',
+                  }
+                : {},
             profile: profileRow
               ? {
                   skills: (profileRow.skills as string[] | null) ?? [],
