@@ -1,6 +1,6 @@
 {
   "name": "@clawos/api",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "ClawOS Agent API — Hono + Claude orchestration",
   "type": "module",
@@ -16,7 +16,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.80.0",
     "@clawos/billing": "*",
     "@clawos/security": "*",
     "@clawos/shared": "*",
