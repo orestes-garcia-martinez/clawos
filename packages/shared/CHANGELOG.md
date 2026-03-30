@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0] (2026-03-30)
+
+### Features
+
+- **shared:** add `coverLetterResults` to `SessionState` (keyed by job_id, `Record<string, Record<string, unknown>>`) for cover letter cache tracking ([8ca3072](https://github.com/orestes-garcia-martinez/clawos/commit/8ca307260cdffa3026b36484fc9a0f932d3c0a97))
+- **shared:** add `<grounding_rules>` section to careerclaw prompt and tighten single-match enforcement for `run_gap_analysis` and `run_cover_letter` ([8ca3072](https://github.com/orestes-garcia-martinez/clawos/commit/8ca307260cdffa3026b36484fc9a0f932d3c0a97))
+
 ## [0.3.0] (2026-03-29)
 
 ### Features

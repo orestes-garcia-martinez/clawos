@@ -65,6 +65,10 @@ import {
   getMatchFromState,
   getGapResultFromState,
 } from '../session.js'
+import {
+  buildActiveBriefingGroundingMessage,
+  buildReferencedMatchesHint,
+} from '../briefing-grounding.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -245,27 +249,29 @@ export async function chatHandler(c: Context): Promise<Response> {
       ]
 
       // ── 4b. Inject active briefing context ────────────────────────────────
-      // If the session has briefing data in state, inject a compact match index
-      // so Claude can resolve company names to job_ids for tool calls.
-      // This is the "context assembly" step (Google ADK pattern).
+      // When briefing data exists in session state, inject:
+      // 1) an authoritative ground-truth snapshot for follow-up answers
+      // 2) a targeted hint if the current user message references one or more matches
       if (sessionState.briefing && sessionState.briefing.matches.length > 0) {
-        const matchLines = sessionState.briefing.matches
-          .map(
-            (m, i) =>
-              `${i + 1}. job_id=${m.job_id} | ${m.title} at ${m.company} | ${Math.round(m.score * 100)}% match${m.url ? ` | ${m.url}` : ''}`,
-          )
-          .join('\n')
-
-        // Inject as the second-to-last message (before the user's new message)
-        // so Claude sees it as recent context without overwriting conversation flow.
-        const briefingContext: Message = {
-          role: 'assistant',
-          content: `[Active briefing — use these job_ids when calling run_gap_analysis or run_cover_letter]\n${matchLines}`,
-          timestamp: sessionState.briefing.cachedAt,
+        const groundingMessage = buildActiveBriefingGroundingMessage(sessionState)
+        if (groundingMessage) {
+          const groundingContext: Message = {
+            role: 'assistant',
+            content: groundingMessage,
+            timestamp: sessionState.briefing.cachedAt,
+          }
+          messagesForClaude.splice(messagesForClaude.length - 1, 0, groundingContext)
         }
 
-        // Insert before the last message (the user's new message)
-        messagesForClaude.splice(messagesForClaude.length - 1, 0, briefingContext)
+        const referenceHint = buildReferencedMatchesHint(message, sessionState)
+        if (referenceHint) {
+          const referenceContext: Message = {
+            role: 'assistant',
+            content: referenceHint,
+            timestamp: new Date().toISOString(),
+          }
+          messagesForClaude.splice(messagesForClaude.length - 1, 0, referenceContext)
+        }
       }
 
       // ── 5. First Claude call — all tools available ────────────────────────
@@ -787,12 +793,15 @@ export async function chatHandler(c: Context): Promise<Response> {
           { role: 'user', content: message, timestamp: new Date().toISOString() },
           { role: 'assistant', content: formattedResponse, timestamp: new Date().toISOString() },
         ]
+        const coverLetterStateUpdate: Partial<SessionState> = {
+          coverLetterResults: { [jobId]: coverLetterResult },
+        }
         const savedId = await saveSession(
           userId,
           channel as Channel,
           updatedMessages,
           activeSessionId,
-          undefined,
+          coverLetterStateUpdate,
           sessionState,
         )
 
