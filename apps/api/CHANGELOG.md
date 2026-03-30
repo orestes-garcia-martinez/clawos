@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] (2026-03-30)
+
+### Features
+
+- **api:** inject authoritative briefing ground-truth block and per-turn referenced-match hint into every Claude call following a briefing run, preventing score hallucination and ambiguous job_id resolution ([8ca3072](https://github.com/orestes-garcia-martinez/clawos/commit/8ca307260cdffa3026b36484fc9a0f932d3c0a97))
+
 ## [0.4.2] (2026-03-30)
 
 ### Bug Fixes

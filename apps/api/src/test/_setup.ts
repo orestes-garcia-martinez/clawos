@@ -123,7 +123,6 @@ export const MOCK_BRIEFING = {
 /** Pre-built session state matching MOCK_BRIEFING — use in tests that need cached briefing data. */
 export const MOCK_SESSION_STATE = {
   briefing: {
-    cachedAt: new Date().toISOString(),
     matches: [
       {
         job_id: 'job-acme-001',
@@ -140,27 +139,36 @@ export const MOCK_SESSION_STATE = {
         url: 'https://beta.com',
       },
     ],
-    matchData: MOCK_BRIEFING.matches.map((m) => ({
-      job: m.job,
-      score: m.score,
-      breakdown: m.breakdown,
-      matched_keywords: m.matched_keywords,
-      gap_keywords: m.gap_keywords,
-    })),
+    matchData: [
+      {
+        matched_keywords: ['TypeScript', 'React'],
+        gap_keywords: ['Go'],
+      },
+      {
+        matched_keywords: ['Node.js'],
+        gap_keywords: ['Kubernetes'],
+      },
+    ],
     resumeIntel: {
-      extracted_keywords: ['TypeScript', 'React', 'Node.js'],
-      extracted_phrases: ['senior engineer', 'full stack'],
-      keyword_stream: ['TypeScript', 'React', 'Node.js'],
-      phrase_stream: ['senior engineer', 'full stack'],
-      impact_signals: ['TypeScript', 'React'],
-      keyword_weights: { TypeScript: 1, React: 0.95, 'Node.js': 0.9 },
-      phrase_weights: { 'senior engineer': 0.8, 'full stack': 0.7 },
+      extracted_keywords: ['TypeScript', 'React'],
       source: 'resume_text',
     },
-    profile: { skills: ['TypeScript', 'React', 'Node.js'], targetRoles: ['Senior Engineer'] },
+    profile: { skills: ['TypeScript', 'React'], targetRoles: ['Senior Engineer'] },
     resumeText: 'Experienced fullstack engineer.',
+    cachedAt: '2026-03-30T00:00:00.000Z',
   },
-  gapResults: {},
+  gapResults: {
+    'job-acme-001': {
+      overall_score: 0.92,
+    },
+  },
+  coverLetterResults: {
+    'job-beta-002': {
+      company: 'Beta',
+      title: 'Staff Engineer',
+      content: 'Dear Hiring Team...',
+    },
+  },
 }
 
 export function buildSupabaseMock(opts: {

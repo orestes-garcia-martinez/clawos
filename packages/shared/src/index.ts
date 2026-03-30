@@ -140,6 +140,7 @@ export interface SessionState {
   }
   /** Gap analysis results, keyed by job_id — reused by cover letters */
   gapResults?: Record<string, Record<string, unknown>>
+  coverLetterResults?: Record<string, Record<string, unknown>>
 }
 
 /**
