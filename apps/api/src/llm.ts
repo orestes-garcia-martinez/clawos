@@ -4,6 +4,14 @@
  * Primary:  Claude (Anthropic) via @anthropic-ai/sdk
  * Failover: OpenAI gpt-4o-mini via openai SDK
  *
+ * Timeouts:
+ *   - Anthropic: 45s hard timeout per request (maxRetries: 0 — no SDK-level retries)
+ *   - OpenAI:    30s hard timeout per request (maxRetries: 0 — no SDK-level retries)
+ *   Prevents infinite hangs when the API is slow or the connection drops.
+ *   SDK retries are disabled so timeouts surface immediately to shouldFailover()
+ *   rather than being silently retried (default: 2×), which would multiply
+ *   the actual wall-clock wait (45s × 3 = 135s) against the stated timeout.
+ *
  * Tool use is supported only on the primary (Claude). If the primary fails
  * and OpenAI failover is triggered, tools are omitted — the failover path
  * produces a plain text response.
@@ -12,6 +20,7 @@
  *   - Network errors contacting the Anthropic API
  *   - HTTP 5xx from Anthropic (transient outage)
  *   - APIError with status >= 500
+ *   - Timeout (APIConnectionTimeoutError)
  *
  * It does NOT fire on:
  *   - 400 Bad Request (caller bug — fail fast)
@@ -24,6 +33,14 @@ import OpenAI from 'openai'
 import { ENV } from './env.js'
 import type { Message } from '@clawos/shared'
 
+// ── Constants ──────────────────────────────────────────────────────────────────
+
+/** Hard timeout for Anthropic API calls (ms). Prevents infinite hangs. */
+const ANTHROPIC_TIMEOUT_MS = 45_000
+
+/** Hard timeout for OpenAI failover calls (ms). */
+const OPENAI_TIMEOUT_MS = 30_000
+
 // ── Clients ───────────────────────────────────────────────────────────────────
 
 let _anthropic: Anthropic | null = null
@@ -31,7 +48,11 @@ let _openai: OpenAI | null = null
 
 function getAnthropic(): Anthropic {
   if (!_anthropic) {
-    _anthropic = new Anthropic({ apiKey: ENV.CLAWOS_ANTHROPIC_KEY })
+    _anthropic = new Anthropic({
+      apiKey: ENV.CLAWOS_ANTHROPIC_KEY,
+      timeout: ANTHROPIC_TIMEOUT_MS,
+      maxRetries: 0,
+    })
   }
   return _anthropic
 }
@@ -39,7 +60,11 @@ function getAnthropic(): Anthropic {
 function getOpenAI(): OpenAI | null {
   if (!ENV.CLAWOS_OPENAI_KEY) return null
   if (!_openai) {
-    _openai = new OpenAI({ apiKey: ENV.CLAWOS_OPENAI_KEY })
+    _openai = new OpenAI({
+      apiKey: ENV.CLAWOS_OPENAI_KEY,
+      timeout: OPENAI_TIMEOUT_MS,
+      maxRetries: 0,
+    })
   }
   return _openai
 }
@@ -203,7 +228,7 @@ async function callAnthropic(
     params.tools = tools.map((t) => ({
       name: t.name,
       description: t.description,
-      input_schema: t.input_schema,
+      input_schema: { ...t.input_schema, required: [...t.input_schema.required] },
     }))
   }
 
@@ -261,14 +286,29 @@ async function callOpenAI(
 // ── Failover logic ────────────────────────────────────────────────────────────
 
 function shouldFailover(err: unknown): boolean {
+  // Test specific subclasses first — both extend APIError but have status === undefined,
+  // so they must be checked before the base APIError branch.
+  if (err instanceof Anthropic.APIConnectionTimeoutError) {
+    console.error('[llm] Anthropic API call timed out after', ANTHROPIC_TIMEOUT_MS, 'ms')
+    return true
+  }
+  if (err instanceof Anthropic.APIConnectionError) {
+    console.error('[llm] Anthropic API connection error:', err.message)
+    return true
+  }
+  // Base APIError — only reached for errors that carry a status code
   if (err instanceof Anthropic.APIError) {
-    // Failover on 5xx — transient outage
     return err.status >= 500
   }
   // Network errors (no status code)
   if (err instanceof Error && err.message.includes('fetch failed')) return true
   if (err instanceof Error && err.message.includes('ECONNREFUSED')) return true
   if (err instanceof Error && err.message.includes('ENOTFOUND')) return true
+  // AbortError from manual AbortController (future-proofing)
+  if (err instanceof Error && err.name === 'AbortError') {
+    console.error('[llm] LLM API call aborted (timeout)')
+    return true
+  }
   return false
 }
 

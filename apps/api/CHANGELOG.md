@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1] (2026-03-29)
+
+### Bug Fixes
+
+- **api:** disable SDK-level retries (`maxRetries: 0`) on both Anthropic and OpenAI clients so timeout errors surface immediately to failover logic instead of being silently retried up to 2×, which would multiply effective wait time to 135s ([fc8ec3d](https://github.com/orestes-garcia-martinez/clawos/commit/fc8ec3d435c7933e4681e5bb4dc70dfe26312696))
+- **deps:** bump `@anthropic-ai/sdk` from 0.39.0 to 0.80.0 ([fc8ec3d](https://github.com/orestes-garcia-martinez/clawos/commit/fc8ec3d435c7933e4681e5bb4dc70dfe26312696))
+
 ## [0.4.0] (2026-03-29)
 
 ### Features
