@@ -149,19 +149,4 @@ User (Web / Telegram)
 
 ---
 
-## MVP Build Plan
-
-| Chat | Deliverable                     | Status  |
-| ---- | ------------------------------- | ------- |
-| 1    | Turborepo scaffold + CI/CD      | ✅ Done |
-| 2    | Supabase schema + RLS           | ✅ Done |
-| 3    | Lightsail skill worker          | ✅ Done |
-| 4    | Agent API (Hono + Claude + SSE) | ✅ Done |
-| 5    | Telegram adapter                | ✅ Done |
-| 6    | Web frontend                    | ✅ Done |
-| 7    | Billing (Polar.sh)              | ⬜      |
-| 8    | E2E testing + security review   | ⬜      |
-
----
-
 _ClawOS · Confidential · Orestes Garcia Martinez · March 2026_
