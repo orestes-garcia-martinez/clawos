@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] (2026-03-30)
+
+### Bug Fixes
+
+- **api:** persist cover letter result to session state after `run_cover_letter` so `cover_letter_cached=yes` is correctly emitted in the grounding block on follow-up turns ([87d5cf2](https://github.com/orestes-garcia-martinez/clawos/commit/87d5cf2ac5ea251093a09fb6372ca1c4af13e180))
+
 ## [0.5.0] (2026-03-30)
 
 ### Features
