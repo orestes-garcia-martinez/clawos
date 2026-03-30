@@ -84,4 +84,26 @@ describe('POST /chat -- error paths', () => {
     const errorEvent = events.find((e) => e['type'] === 'error')
     expect(errorEvent!['code']).toBe('LLM_ERROR')
   })
+
+  it('emits error event when second LLM call returns empty formatted text', async () => {
+    mockRunWorkerCareerclaw.mockResolvedValueOnce({ result: MOCK_BRIEFING, durationMs: 1500 })
+    mockCallLLMWithToolResult.mockResolvedValueOnce({
+      type: 'text',
+      content: '   ',
+      provider: 'anthropic',
+    })
+
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({ ...VALID_BODY, userId: ERR_USER }),
+    })
+
+    const text = await res.text()
+    const events = parseSSEEvents(text)
+    const errorEvent = events.find((e) => e['type'] === 'error')
+
+    expect(errorEvent).toBeDefined()
+    expect(errorEvent!['code']).toBe('LLM_ERROR')
+  })
 })

@@ -104,6 +104,20 @@ export interface LLMToolUseResult {
 
 export type LLMResult = LLMTextResult | LLMToolUseResult
 
+function extractTextOrThrow(blocks: Anthropic.ContentBlock[], context: string): string {
+  const text = blocks
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n')
+    .trim()
+
+  if (!text) {
+    throw new Error(`[llm] Empty text response (${context})`)
+  }
+
+  return text
+}
+
 // ── Main call ─────────────────────────────────────────────────────────────────
 
 /**
@@ -189,10 +203,9 @@ export async function callLLMWithToolResult(
       messages: anthropicMessages,
     })
 
-    const textBlock = response.content.find((b) => b.type === 'text')
     return {
       type: 'text',
-      content: textBlock?.type === 'text' ? textBlock.text : '',
+      content: extractTextOrThrow(response.content, 'tool_result'),
       provider: 'anthropic',
     }
   } catch (err) {
@@ -246,10 +259,9 @@ async function callAnthropic(
     }
   }
 
-  const textBlock = response.content.find((b) => b.type === 'text')
   return {
     type: 'text',
-    content: textBlock?.type === 'text' ? textBlock.text : '',
+    content: extractTextOrThrow(response.content, 'direct_response'),
     provider: 'anthropic',
   }
 }

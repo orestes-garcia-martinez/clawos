@@ -126,14 +126,30 @@ export function useSSEChat({ jwt, userId }: UseSSEChatOptions): UseSSEChatReturn
             setSessionId(event.sessionId)
             setIsStreaming(false)
             progressIdRef.current = null
+
+            const normalized = event.message.trim()
+            if (!normalized) {
+              const errMsg: ErrorMessage = {
+                id: nextId(),
+                role: 'error',
+                code: 'EMPTY_RESPONSE',
+                content: 'The assistant returned an empty response. Please try again.',
+              }
+              setMessages((prev) => {
+                const withoutProgress = prev.filter((m) => m.role !== 'progress')
+                return [...withoutProgress, errMsg]
+              })
+              return
+            }
+
             const assistantMsg: AssistantMessage = {
               id: nextId(),
               role: 'assistant',
-              content: event.message,
+              content: normalized,
               timestamp: new Date().toISOString(),
             }
+
             setMessages((prev) => {
-              // Remove the progress message, append assistant reply
               const withoutProgress = prev.filter((m) => m.role !== 'progress')
               return [...withoutProgress, assistantMsg]
             })

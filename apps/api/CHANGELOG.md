@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2] (2026-03-30)
+
+### Bug Fixes
+
+- **api:** throw on empty Anthropic text responses instead of silently returning an empty string; add `extractTextOrThrow()` in `llm.ts` and `requireNonEmptyAssistantMessage()` in `chat.ts` to surface `LLM_ERROR` when any LLM call returns blank content ([74f733e](https://github.com/orestes-garcia-martinez/clawos/commit/74f733e72f8ded3cfdb54087db32777873f52e76))
+- **api:** read `resumeIntel` directly from `briefing.resume_intel` (careerclaw-js 1.5) instead of synthesising it from `profileRow.skills` ([74f733e](https://github.com/orestes-garcia-martinez/clawos/commit/74f733e72f8ded3cfdb54087db32777873f52e76))
+
 ## [0.4.1] (2026-03-29)
 
 ### Bug Fixes

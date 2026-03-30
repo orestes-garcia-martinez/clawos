@@ -76,7 +76,7 @@ const BRIEFING_STATE: SessionState = {
         matched_keywords: ['React'],
       },
     ],
-    resumeIntel: { extracted_keywords: ['TypeScript', 'React'], source: 'skills_injected' },
+    resumeIntel: { extracted_keywords: ['TypeScript', 'React'], source: 'resume_text' },
     profile: { skills: ['TypeScript', 'React'], targetRoles: ['Senior Engineer'] },
     resumeText: 'Experienced fullstack engineer with 8 years of TypeScript and React.',
   },

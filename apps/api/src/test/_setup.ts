@@ -108,6 +108,16 @@ export const MOCK_BRIEFING = {
     },
   ],
   drafts: [],
+  resume_intel: {
+    extracted_keywords: ['TypeScript', 'React', 'Node.js'],
+    extracted_phrases: ['senior engineer', 'full stack'],
+    keyword_stream: ['TypeScript', 'React', 'Node.js'],
+    phrase_stream: ['senior engineer', 'full stack'],
+    impact_signals: ['TypeScript', 'React'],
+    keyword_weights: { TypeScript: 1, React: 0.95, 'Node.js': 0.9 },
+    phrase_weights: { 'senior engineer': 0.8, 'full stack': 0.7 },
+    source: 'resume_text',
+  },
 }
 
 /** Pre-built session state matching MOCK_BRIEFING — use in tests that need cached briefing data. */
@@ -139,7 +149,13 @@ export const MOCK_SESSION_STATE = {
     })),
     resumeIntel: {
       extracted_keywords: ['TypeScript', 'React', 'Node.js'],
-      source: 'skills_injected',
+      extracted_phrases: ['senior engineer', 'full stack'],
+      keyword_stream: ['TypeScript', 'React', 'Node.js'],
+      phrase_stream: ['senior engineer', 'full stack'],
+      impact_signals: ['TypeScript', 'React'],
+      keyword_weights: { TypeScript: 1, React: 0.95, 'Node.js': 0.9 },
+      phrase_weights: { 'senior engineer': 0.8, 'full stack': 0.7 },
+      source: 'resume_text',
     },
     profile: { skills: ['TypeScript', 'React', 'Node.js'], targetRoles: ['Senior Engineer'] },
     resumeText: 'Experienced fullstack engineer.',
