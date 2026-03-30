@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.5.0...v0.5.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* **api:** disable SDK retries and bump @anthropic-ai/sdk to 0.80.0 ([c0e562e](https://github.com/orestes-garcia-martinez/clawos/commit/c0e562e48de5f22f03d6c77e96a5ad4b7bdcc279))
+* **api:** disable SDK retries and bump @anthropic-ai/sdk to 0.80.0 ([6ba8d62](https://github.com/orestes-garcia-martinez/clawos/commit/6ba8d62a11fae8dc7412c6acd56af0d7e4023301))
+* **api:** reorder shouldFailover checks — test APIConnection* before APIError base class ([9c5fe02](https://github.com/orestes-garcia-martinez/clawos/commit/9c5fe02b2ec581f5d7f49a60fa7bbf4eeaefa37d))
+* **api:** spread required array to satisfy SDK 0.80.0 mutable string[] constraint ([d2748b4](https://github.com/orestes-garcia-martinez/clawos/commit/d2748b4e6fc366e85609056ec223a4e10db38547))
+
 ## [0.5.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.4.0...v0.5.0) (2026-03-29)
 
 
