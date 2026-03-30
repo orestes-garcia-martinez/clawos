@@ -793,12 +793,15 @@ export async function chatHandler(c: Context): Promise<Response> {
           { role: 'user', content: message, timestamp: new Date().toISOString() },
           { role: 'assistant', content: formattedResponse, timestamp: new Date().toISOString() },
         ]
+        const coverLetterStateUpdate: Partial<SessionState> = {
+          coverLetterResults: { [jobId]: coverLetterResult },
+        }
         const savedId = await saveSession(
           userId,
           channel as Channel,
           updatedMessages,
           activeSessionId,
-          undefined,
+          coverLetterStateUpdate,
           sessionState,
         )
 
