@@ -8,15 +8,15 @@ Multi-channel AI agent platform — Web + Telegram. Node ≥22, npm ≥10, Turbo
 
 ## Apps & Packages
 
-| Path | Runtime | Deploy |
-|------|---------|--------|
-| `apps/api` | Hono + Anthropic SDK + SSE | Vercel serverless |
-| `apps/web` | React 19 + Vite 7 + Tailwind 4 + Router 7 | Vercel |
-| `apps/telegram` | Telegram Bot API adapter | Lightsail |
-| `apps/worker` | Express 5 + careerclaw-js CLI | Lightsail |
-| `packages/shared` | Supabase types, domain types, prompts | — |
-| `packages/security` | Zod schemas, rate-limit, audit log | — |
-| `packages/billing` | Polar.sh billing client | — |
+| Path                | Runtime                                   | Deploy            |
+| ------------------- | ----------------------------------------- | ----------------- |
+| `apps/api`          | Hono + Anthropic SDK + SSE                | Vercel serverless |
+| `apps/web`          | React 19 + Vite 7 + Tailwind 4 + Router 7 | Vercel            |
+| `apps/telegram`     | Telegram Bot API adapter                  | Lightsail         |
+| `apps/worker`       | Express 5 + careerclaw-js CLI             | Lightsail         |
+| `packages/shared`   | Supabase types, domain types, prompts     | —                 |
+| `packages/security` | Zod schemas, rate-limit, audit log        | —                 |
+| `packages/billing`  | Polar.sh billing client                   | —                 |
 
 ## Quick Commands
 
@@ -35,16 +35,16 @@ or invoke directly via `/slash-command`.
 
 ### Project Skills (`.claude/skills/`)
 
-| Trigger | Skill | Covers |
-|---------|-------|--------|
-| Modifying chat pipeline or auth | `/clawos-architecture` | Two-call pattern, assertions, auth, session, failover, rate limiting, routing, billing |
-| Asking about build/test/dev commands | `/clawos-commands` | All dev, build, test, lint, format, gen:types commands |
-| Writing or reviewing code | `/clawos-conventions` | Code style, architecture rules, security non-negotiables, testing patterns |
-| Bumping versions or step 5 of ship | `/clawos-versioning` | Monorepo semver bump + changelog procedure |
-| Asking about deployment | `/clawos-deployment` | Vercel + Lightsail deploy targets, smoke tests |
+| Trigger                              | Skill                  | Covers                                                                                 |
+| ------------------------------------ | ---------------------- | -------------------------------------------------------------------------------------- |
+| Modifying chat pipeline or auth      | `/clawos-architecture` | Two-call pattern, assertions, auth, session, failover, rate limiting, routing, billing |
+| Asking about build/test/dev commands | `/clawos-commands`     | All dev, build, test, lint, format, gen:types commands                                 |
+| Writing or reviewing code            | `/clawos-conventions`  | Code style, architecture rules, security non-negotiables, testing patterns             |
+| Bumping versions or step 5 of ship   | `/clawos-versioning`   | Monorepo semver bump + changelog procedure                                             |
+| Asking about deployment              | `/clawos-deployment`   | Vercel + Lightsail deploy targets, smoke tests                                         |
 
 ### Global Skills (`~/.claude/skills/`)
 
-| Trigger | Skill | Covers |
-|---------|-------|--------|
+| Trigger                          | Skill           | Covers                                                                                                      |
+| -------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------- |
 | Shipping changes or opening a PR | `/ship-changes` | Git workflow, conventional commits, PR creation (reads `references/clawos.md` for scopes and test commands) |

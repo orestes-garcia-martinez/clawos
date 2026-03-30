@@ -38,13 +38,13 @@ changes declared only in the commit footer (`BREAKING CHANGE:`) are not missed.
 Apply semver rules (use the highest applicable across all commits for that
 package):
 
-| Condition | Bump |
-|-----------|------|
-| Subject matches `^[a-z]+(\(.+\))?!:` (bang notation) | **major** |
-| Body/footer contains a line starting with `BREAKING CHANGE:` | **major** |
-| Subject starts with `feat` | **minor** |
-| Subject starts with `fix`, `perf`, or `refactor` | **patch** |
-| Only `chore`, `docs`, `test`, `ci`, `style` commits | no bump — skip |
+| Condition                                                    | Bump           |
+| ------------------------------------------------------------ | -------------- |
+| Subject matches `^[a-z]+(\(.+\))?!:` (bang notation)         | **major**      |
+| Body/footer contains a line starting with `BREAKING CHANGE:` | **major**      |
+| Subject starts with `feat`                                   | **minor**      |
+| Subject starts with `fix`, `perf`, or `refactor`             | **patch**      |
+| Only `chore`, `docs`, `test`, `ci`, `style` commits          | no bump — skip |
 
 If no bump-worthy commits touch a package, leave it unchanged.
 

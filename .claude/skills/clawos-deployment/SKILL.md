@@ -12,11 +12,11 @@ description: >
 
 ## Deploy Targets
 
-| App | Platform | Trigger |
-|-----|----------|---------|
-| `apps/web` | Vercel | Automatic on merge to `main` |
-| `apps/api` | Lightsail | `infra/lightsail/deploy-api.sh` or git pull on instance |
-| `apps/worker` | Lightsail | `infra/lightsail/deploy-worker.sh` or git pull on instance |
+| App             | Platform  | Trigger                                                      |
+| --------------- | --------- | ------------------------------------------------------------ |
+| `apps/web`      | Vercel    | Automatic on merge to `main`                                 |
+| `apps/api`      | Lightsail | `infra/lightsail/deploy-api.sh` or git pull on instance      |
+| `apps/worker`   | Lightsail | `infra/lightsail/deploy-worker.sh` or git pull on instance   |
 | `apps/telegram` | Lightsail | `infra/lightsail/deploy-telegram.sh` or git pull on instance |
 
 ## Post-Deploy Verification

@@ -49,11 +49,11 @@ bearer tokens:
 
 Three distinct auth paths into `apps/api`:
 
-| Client | Header | Validated by |
-|--------|--------|-------------|
-| Web frontend | `Authorization: Bearer <supabase-jwt>` | Supabase auth endpoint |
-| Telegram / channel adapters | `X-Service-Secret` + `X-Service-Name` + `X-User-Id` | `safeCompare()` against `SERVICE_SECRET` |
-| Worker (inbound) | `x-worker-secret` | Timing-safe comparison against `WORKER_SECRET` |
+| Client                      | Header                                              | Validated by                                   |
+| --------------------------- | --------------------------------------------------- | ---------------------------------------------- |
+| Web frontend                | `Authorization: Bearer <supabase-jwt>`              | Supabase auth endpoint                         |
+| Telegram / channel adapters | `X-Service-Secret` + `X-Service-Name` + `X-User-Id` | `safeCompare()` against `SERVICE_SECRET`       |
+| Worker (inbound)            | `x-worker-secret`                                   | Timing-safe comparison against `WORKER_SECRET` |
 
 ## Session Management
 
