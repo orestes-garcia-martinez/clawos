@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.6.0...v0.7.0) (2026-03-31)
+
+
+### Features
+
+* **api,shared:** extend tool-target enforcer to track_application ([#122](https://github.com/orestes-garcia-martinez/clawos/issues/122)) ([53feb3f](https://github.com/orestes-garcia-martinez/clawos/commit/53feb3f6e90e981f8ccf6e6b23b3ebc50282bfd2))
+
 ## [0.6.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.5.1...v0.6.0) (2026-03-31)
 
 
