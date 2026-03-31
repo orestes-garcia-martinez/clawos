@@ -6,11 +6,8 @@
 ### Features
 
 * **api,shared:** add briefing grounding context injection ([0dd1ef2](https://github.com/orestes-garcia-martinez/clawos/commit/0dd1ef22fbdf466a00f72efb47c9012ae51a9e1d))
-* **api,shared:** add briefing grounding context injection ([8179ed6](https://github.com/orestes-garcia-martinez/clawos/commit/8179ed60071fc18ab623cacefddf7b9211d392c3))
 * **api,shared:** add server-side intent resolver for briefing follow-up turns ([53792c8](https://github.com/orestes-garcia-martinez/clawos/commit/53792c892170af3ffa0e8f6d008d114419756f5d))
-* **api,shared:** add server-side intent resolver for briefing follow-up turns ([d0361d7](https://github.com/orestes-garcia-martinez/clawos/commit/d0361d7330e5274ffb0c6fc778085c2080dbb2e2))
 * **api:** add tool-target enforcer and fix mergeSessionState for coverLetterResults ([382c2b9](https://github.com/orestes-garcia-martinez/clawos/commit/382c2b91917438477c32320a0ca8e83ade20e0b2))
-* **api:** add tool-target enforcer and fix mergeSessionState for coverLetterResults ([662fc8a](https://github.com/orestes-garcia-martinez/clawos/commit/662fc8a5893659c6f5bdf7af6a6c88e2bceb705a))
 
 
 ### Bug Fixes
