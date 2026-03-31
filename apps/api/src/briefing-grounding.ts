@@ -8,7 +8,7 @@ interface ResolvedMatchReference {
   score: number
 }
 
-function normalize(value: string): string {
+export function normalize(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
@@ -39,33 +39,43 @@ function ordinalToIndex(message: string): number[] {
   const patterns: Array<[RegExp, number]> = [
     [/\btop match\b/, 0],
     [/\bfirst match\b/, 0],
+    [/\bfirst one\b/, 0],
     [/\bmatch\s*#?\s*1\b/, 0],
 
     [/\bsecond match\b/, 1],
+    [/\bsecond one\b/, 1],
     [/\bmatch\s*#?\s*2\b/, 1],
 
     [/\bthird match\b/, 2],
+    [/\bthird one\b/, 2],
     [/\bmatch\s*#?\s*3\b/, 2],
 
     [/\bfourth match\b/, 3],
+    [/\bfourth one\b/, 3],
     [/\bmatch\s*#?\s*4\b/, 3],
 
     [/\bfifth match\b/, 4],
+    [/\bfifth one\b/, 4],
     [/\bmatch\s*#?\s*5\b/, 4],
 
     [/\bsixth match\b/, 5],
+    [/\bsixth one\b/, 5],
     [/\bmatch\s*#?\s*6\b/, 5],
 
     [/\bseventh match\b/, 6],
+    [/\bseventh one\b/, 6],
     [/\bmatch\s*#?\s*7\b/, 6],
 
     [/\beighth match\b/, 7],
+    [/\beighth one\b/, 7],
     [/\bmatch\s*#?\s*8\b/, 7],
 
     [/\bninth match\b/, 8],
+    [/\bninth one\b/, 8],
     [/\bmatch\s*#?\s*9\b/, 8],
 
     [/\btenth match\b/, 9],
+    [/\btenth one\b/, 9],
     [/\bmatch\s*#?\s*10\b/, 9],
   ]
 
