@@ -27,7 +27,14 @@ function currentBriefingHasJobId(state: SessionState, jobId: string): boolean {
   return Boolean(state.briefing?.matches.some((match) => match.job_id === jobId))
 }
 
-function buildChoiceLabel(reference: { title: string; company: string }): string {
+function buildChoiceLabel(
+  reference: { title: string; company: string },
+  allReferences: Array<{ title: string; company: string }>,
+): string {
+  const companySiblings = allReferences.filter((r) => r.company === reference.company)
+  if (companySiblings.length > 1) {
+    return `${reference.title} at ${reference.company}`
+  }
   return reference.company.trim() || `${reference.title} role`
 }
 
@@ -35,8 +42,7 @@ function buildAmbiguousMessage(
   references: Array<{ title: string; company: string }>,
   toolName: EnforceableToolName,
 ): string {
-  const uniqueLabels = Array.from(new Set(references.map((ref) => buildChoiceLabel(ref))))
-  const joined = uniqueLabels.join(' or ')
+  const joined = references.map((ref) => buildChoiceLabel(ref, references)).join(' or ')
 
   if (toolName === 'run_cover_letter') {
     return `I can write one cover letter at a time. Which role do you want first: ${joined}?`

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1] (2026-03-31)
+
+### Bug Fixes
+
+- **api:** fix `buildChoiceLabel` to include title when multiple matches share the same company, preventing infinite clarification loops where "Acme or Acme?" collapsed to an indistinguishable prompt ([382c2b9](https://github.com/orestes-garcia-martinez/clawos/commit/382c2b9))
+
 ## [0.7.0] (2026-03-31)
 
 ### Features

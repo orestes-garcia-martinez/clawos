@@ -161,12 +161,70 @@ describe('POST /chat — tool target enforcement', () => {
     expect(mockCallLLMWithToolResult).not.toHaveBeenCalled()
   })
 
-  // ── Case 5: no-match reference → clarify, no worker call ──────────────────
+  // ── Case 5a: same-company two-match ambiguity → uses title+company labels ──
+  it('uses "title at company" labels when two referenced matches share the same company', async () => {
+    buildSupabaseMock({
+      userId: TARGET_USER,
+      tier: 'pro',
+      entitlementTier: 'pro',
+      entitlementStatus: 'active',
+      sessionState: {
+        ...MOCK_SESSION_STATE,
+        briefing: {
+          ...MOCK_SESSION_STATE.briefing,
+          matches: [
+            {
+              job_id: 'job-acme-001',
+              title: 'Senior Engineer',
+              company: 'Acme',
+              score: 0.92,
+              url: 'https://acme.com',
+            },
+            {
+              job_id: 'job-acme-002',
+              title: 'Staff Engineer',
+              company: 'Acme',
+              score: 0.85,
+              url: 'https://acme.com/staff',
+            },
+          ],
+        },
+      },
+    })
+
+    mockCallLLM.mockResolvedValueOnce({
+      type: 'tool_use',
+      toolName: 'run_gap_analysis',
+      toolUseId: 'tool-gap-5a',
+      toolInput: { job_id: 'hallucinated-job-999' },
+      provider: 'anthropic',
+    })
+
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        ...VALID_BODY,
+        userId: TARGET_USER,
+        message: 'Analyze Acme',
+      }),
+    })
+
+    const events = parseSSEEvents(await res.text())
+    const doneEvent = events.find((e) => e['type'] === 'done')
+
+    expect(doneEvent?.['message']).toBe(
+      'I can do one at a time. Which role do you want first: Senior Engineer at Acme or Staff Engineer at Acme?',
+    )
+    expect(mockRunWorkerGapAnalysis).not.toHaveBeenCalled()
+  })
+
+  // ── Case 6: no-match reference → clarify, no worker call ─────────────────
   it('returns a clarification and skips the worker when nothing matches the current briefing', async () => {
     mockCallLLM.mockResolvedValueOnce({
       type: 'tool_use',
       toolName: 'run_gap_analysis',
-      toolUseId: 'tool-gap-5',
+      toolUseId: 'tool-gap-6',
       toolInput: { job_id: 'hallucinated-job-999' },
       provider: 'anthropic',
     })
