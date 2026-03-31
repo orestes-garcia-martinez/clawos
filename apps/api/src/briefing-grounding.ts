@@ -116,26 +116,29 @@ function matchesReference(normalizedMessage: string, rawValue: string): boolean 
 
 function resolveByText(message: string, matches: SessionMatchEntry[]): ResolvedMatchReference[] {
   const normalizedMessage = normalize(message)
-  const resolved: ResolvedMatchReference[] = []
+  const specific: ResolvedMatchReference[] = []
+  const broad: ResolvedMatchReference[] = []
 
   for (let i = 0; i < matches.length; i += 1) {
-    const match = matches[i]
+    const match = matches[i]!
+    const companyMatched = matchesReference(normalizedMessage, match.company)
+    const titleMatched = matchesReference(normalizedMessage, match.title)
+    const entry: ResolvedMatchReference = {
+      rank: i + 1,
+      job_id: match.job_id,
+      title: match.title,
+      company: match.company,
+      score: match.score,
+    }
 
-    const companyMatched = matchesReference(normalizedMessage, match!.company)
-    const titleMatched = matchesReference(normalizedMessage, match!.title)
-
-    if (companyMatched || titleMatched) {
-      resolved.push({
-        rank: i + 1,
-        job_id: match!.job_id,
-        title: match!.title,
-        company: match!.company,
-        score: match!.score,
-      })
+    if (companyMatched && titleMatched) {
+      specific.push(entry)
+    } else if (companyMatched || titleMatched) {
+      broad.push(entry)
     }
   }
 
-  return resolved
+  return specific.length > 0 ? specific : broad
 }
 
 export function resolveReferencedMatches(
