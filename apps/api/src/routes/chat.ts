@@ -250,6 +250,15 @@ export async function chatHandler(c: Context): Promise<Response> {
         { role: 'user', content: message, timestamp: new Date().toISOString() },
       ]
 
+      // Clean message list for second-turn tool-result calls.
+      // Must NOT include injected grounding/hint messages (which use role:'assistant')
+      // because passing them into callLLMWithToolResult teaches Claude to reproduce
+      // those blocks verbatim in its formatted response.
+      const messagesForToolResult: Message[] = [
+        ...history,
+        { role: 'user', content: message, timestamp: new Date().toISOString() },
+      ]
+
       // ── 4b. Inject grounded briefing context ──────────────────────────────
       // When briefing data exists in session state, inject:
       // 1) an authoritative ground-truth snapshot for follow-up answers
@@ -538,7 +547,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         try {
           const formatResult = await callLLMWithToolResult(
             CAREERCLAW_SYSTEM_PROMPT,
-            messagesForClaude,
+            messagesForToolResult,
             llmResult.toolUseId,
             llmResult.toolName,
             toolInput,
@@ -679,7 +688,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         try {
           const formatResult = await callLLMWithToolResult(
             CAREERCLAW_SYSTEM_PROMPT,
-            messagesForClaude,
+            messagesForToolResult,
             llmResult.toolUseId,
             llmResult.toolName,
             effectiveToolInput,
@@ -808,7 +817,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         try {
           const formatResult = await callLLMWithToolResult(
             CAREERCLAW_SYSTEM_PROMPT,
-            messagesForClaude,
+            messagesForToolResult,
             llmResult.toolUseId,
             llmResult.toolName,
             effectiveToolInput,
@@ -1143,7 +1152,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         try {
           const formatResult = await callLLMWithToolResult(
             CAREERCLAW_SYSTEM_PROMPT,
-            messagesForClaude,
+            messagesForToolResult,
             llmResult.toolUseId,
             llmResult.toolName,
             effectiveTrackInput,

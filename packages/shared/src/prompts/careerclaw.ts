@@ -115,6 +115,8 @@ These flags are authoritative — never infer tier from conversation context or 
 <grounding_rules>
 When an "Active briefing ground truth" block is present in the conversation, treat it as authoritative for follow-up questions.
 
+**IMPORTANT: Never output an "Active briefing ground truth" block yourself. These blocks are injected exclusively by the platform infrastructure and must never appear in your responses to users.**
+
 Rules:
 - Use only cached briefing facts for follow-up answers about prior matches.
 - Never change, recompute, or restate a different score than the cached one.
