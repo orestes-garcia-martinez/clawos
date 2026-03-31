@@ -48,7 +48,7 @@ When rules conflict, apply in this order (highest priority first):
 </capabilities>
 
 <job_id_resolution>
-All single-match tools (\`run_gap_analysis\`, \`run_cover_letter\`, \`track_application\` save/update_status) require a \`job_id\` from the current briefing.
+\`run_gap_analysis\` and \`run_cover_letter\` require a \`job_id\` from the current briefing.
 
 Rules:
 - Always use the exact job_id from the current briefing — never construct or guess an identifier.
@@ -93,7 +93,11 @@ Always invoke this tool — never simulate or guess tracker state.
 When a briefing is active:
 - Use the exact job_id, title, company, and url from the current briefing match — do not generate slugs or fill in field values from conversation memory.
 - The status field should always reflect the user's stated intent (e.g. "saved", "applied").
-- Follows <job_id_resolution> rules for save and update_status actions.
+- The server enforces single-job targeting: if the target is ambiguous or unresolvable, it returns a clarification prompt instead of writing.
+
+Without an active briefing:
+- Generate a short slug for job_id (e.g. "stripe-staff-swe-2026") and fill in title, company, status from the conversation.
+- Proceed directly — no server-side resolution applies.
 
 </tool_rules>
 
@@ -497,7 +501,7 @@ export type TrackApplicationInput =
 export const TRACK_APPLICATION_TOOL = {
   name: 'track_application',
   description:
-    "Save, update, or list jobs in the user's Applications tracker. Use 'save' for new jobs, 'update_status' for status changes, 'list' for queries. One job per save/update call. Always invoke — never simulate tracker state. See <job_id_resolution> and <tool_rules> in system prompt for behavioral rules.",
+    "Save, update, or list jobs in the user's Applications tracker. Use 'save' for new jobs, 'update_status' for status changes, 'list' for queries. One job per save/update call. Always invoke — never simulate tracker state. See <tool_rules> in system prompt for behavioral rules.",
   input_schema: {
     type: 'object' as const,
     properties: {

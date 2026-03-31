@@ -72,20 +72,24 @@ export function enforceSingleMatchToolTarget({
     resolution = { kind: 'clarify', message: NO_MATCH_MESSAGE }
     reason = 'no_match'
   } else {
-    const requestedJobId = isNonEmptyString(toolInput.job_id) ? toolInput.job_id.trim() : null
+    // Check message ambiguity before accepting a valid job_id. A message that
+    // references multiple briefing matches must clarify even when Claude supplies
+    // a technically valid job_id — otherwise one match silently proceeds while
+    // the rest of the user's request is dropped.
+    const references = resolveReferencedMatches(message, state)
 
-    if (requestedJobId && currentBriefingHasJobId(state, requestedJobId)) {
-      resolution = { kind: 'proceed', jobId: requestedJobId }
-      reason = 'valid_input'
+    if (references.length > 1) {
+      resolution = { kind: 'clarify', message: buildAmbiguousMessage(references, toolName) }
+      reason = 'ambiguous'
     } else {
-      const references = resolveReferencedMatches(message, state)
+      const requestedJobId = isNonEmptyString(toolInput.job_id) ? toolInput.job_id.trim() : null
 
-      if (references.length === 1) {
+      if (requestedJobId && currentBriefingHasJobId(state, requestedJobId)) {
+        resolution = { kind: 'proceed', jobId: requestedJobId }
+        reason = 'valid_input'
+      } else if (references.length === 1) {
         resolution = { kind: 'proceed', jobId: references[0]!.job_id }
         reason = 'resolved_from_message'
-      } else if (references.length > 1) {
-        resolution = { kind: 'clarify', message: buildAmbiguousMessage(references, toolName) }
-        reason = 'ambiguous'
       } else {
         resolution = { kind: 'clarify', message: NO_MATCH_MESSAGE }
         reason = 'no_match'
