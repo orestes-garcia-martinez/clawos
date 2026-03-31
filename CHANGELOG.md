@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/orestes-garcia-martinez/clawos/compare/v0.7.1...v0.7.2) (2026-03-31)
+
+
+### Bug Fixes
+
+* **api:** move grounding context from messages to system prompt ([#126](https://github.com/orestes-garcia-martinez/clawos/issues/126)) ([ac3571d](https://github.com/orestes-garcia-martinez/clawos/commit/ac3571d4559da6786d976da8034649f0a64b09d6))
+
 ## [0.7.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.7.0...v0.7.1) (2026-03-31)
 
 
