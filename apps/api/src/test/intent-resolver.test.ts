@@ -40,6 +40,13 @@ describe('intent-resolver', () => {
     expect(message).toContain('resolved_job_id=job-acme-001')
   })
 
+  it('does not classify as comparison when only one match is referenced but "better" is present', () => {
+    const result = resolveIntentHint('Write a better cover letter for Acme', MOCK_SESSION_STATE)
+
+    expect(result.kind).toBe('single_match_cover_letter')
+    expect(result.jobId).toBe('job-acme-001')
+  })
+
   it('returns null when nothing is confidently resolved', () => {
     const message = buildResolvedIntentMessage(
       'Tell me something interesting about my search',

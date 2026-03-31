@@ -77,15 +77,15 @@ export function resolveIntentHint(message: string, state: SessionState): Resolve
     }
   }
 
-  if (looksLikeComparison(normalized)) {
-    return {
-      kind: 'comparison',
-      referencedJobIds: references.map((r) => r.job_id),
-      reason: 'The user appears to be comparing multiple cached briefing matches.',
-    }
-  }
-
   if (references.length > 1) {
+    if (looksLikeComparison(normalized)) {
+      return {
+        kind: 'comparison',
+        referencedJobIds: references.map((r) => r.job_id),
+        reason: 'The user appears to be comparing multiple cached briefing matches.',
+      }
+    }
+
     return {
       kind: 'ambiguous_multi_match',
       referencedJobIds: references.map((r) => r.job_id),
