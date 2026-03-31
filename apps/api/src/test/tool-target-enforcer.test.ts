@@ -55,4 +55,29 @@ describe('tool-target-enforcer', () => {
         "I couldn't match that to your current briefing. Tell me the company name or match number.",
     })
   })
+
+  it('resolves a single referenced match for track_application', () => {
+    expect(
+      enforceSingleMatchToolTarget({
+        toolName: 'track_application',
+        message: 'Save the second one to my tracker',
+        state: MOCK_SESSION_STATE,
+        toolInput: { job_id: 'hallucinated-job' },
+      }),
+    ).toEqual({ kind: 'proceed', jobId: 'job-beta-002' })
+  })
+
+  it('returns a tracking-specific clarification for ambiguous references', () => {
+    expect(
+      enforceSingleMatchToolTarget({
+        toolName: 'track_application',
+        message: 'Save Acme and Beta to my tracker',
+        state: MOCK_SESSION_STATE,
+        toolInput: { job_id: 'hallucinated-job' },
+      }),
+    ).toEqual({
+      kind: 'clarify',
+      message: 'I can track one role at a time. Which role do you want first: Acme or Beta?',
+    })
+  })
 })

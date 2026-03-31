@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0] (2026-03-31)
+
+### Features
+
+- **shared:** update CAREERCLAW_SYSTEM_PROMPT tool_rules, grounding_rules, and tool descriptions to reflect one-job-at-a-time enforcement and briefing-as-source-of-truth for all single-match tools ([b6d7842](https://github.com/orestes-garcia-martinez/clawos/commit/b6d7842653e317c74e7179b94a985d4fc249ab77))
+
 ## [0.5.0] (2026-03-31)
 
 ### Features

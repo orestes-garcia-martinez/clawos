@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0] (2026-03-31)
+
+### Features
+
+- **api:** extend tool-target enforcer to track_application — enforces single-match targeting for save/update_status when a briefing is active, overrides hallucinated fields with cached briefing data, returns clarification on ambiguous requests ([b6d7842](https://github.com/orestes-garcia-martinez/clawos/commit/b6d7842653e317c74e7179b94a985d4fc249ab77))
+- **api:** add structured enforcement outcome logging (event, toolName, enforcementKind, resolvedJobId, reason) ([b6d7842](https://github.com/orestes-garcia-martinez/clawos/commit/b6d7842653e317c74e7179b94a985d4fc249ab77))
+
 ## [0.7.1] (2026-03-31)
 
 ### Bug Fixes

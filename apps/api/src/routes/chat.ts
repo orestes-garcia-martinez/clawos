@@ -614,20 +614,19 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        const targetResolution = enforceSingleMatchToolTarget({
+        const enforcedTarget = enforceSingleMatchToolTarget({
           toolName: 'run_gap_analysis',
           message,
           state: sessionState,
           toolInput,
         })
-
-        if (targetResolution.kind === 'clarify') {
-          await sendGatedResponse(targetResolution.message)
+        if (enforcedTarget.kind === 'clarify') {
+          await sendGatedResponse(enforcedTarget.message)
           return
         }
 
-        const jobId = targetResolution.jobId
-        const effectiveToolInput: RunGapAnalysisInput = { ...toolInput, job_id: jobId }
+        const jobId = enforcedTarget.jobId
+        const effectiveToolInput: RunGapAnalysisInput = { job_id: jobId }
 
         // Look up match from session state
         const cached = getMatchFromState(sessionState, jobId)
@@ -738,20 +737,19 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        const targetResolution = enforceSingleMatchToolTarget({
+        const enforcedTarget = enforceSingleMatchToolTarget({
           toolName: 'run_cover_letter',
           message,
           state: sessionState,
           toolInput,
         })
-
-        if (targetResolution.kind === 'clarify') {
-          await sendGatedResponse(targetResolution.message)
+        if (enforcedTarget.kind === 'clarify') {
+          await sendGatedResponse(enforcedTarget.message)
           return
         }
 
-        const jobId = targetResolution.jobId
-        const effectiveToolInput: RunCoverLetterInput = { ...toolInput, job_id: jobId }
+        const jobId = enforcedTarget.jobId
+        const effectiveToolInput: RunCoverLetterInput = { job_id: jobId }
 
         // Look up match from session state
         const cached = getMatchFromState(sessionState, jobId)
@@ -867,6 +865,46 @@ export async function chatHandler(c: Context): Promise<Response> {
         // conflicts between the try branches and the catch/summary blocks.
         const trackAction = llmResult.toolInput['action'] as string
 
+        const hasActiveBriefing = (sessionState.briefing?.matches.length ?? 0) > 0
+        let effectiveTrackInput = trackInput
+
+        if (hasActiveBriefing && (trackAction === 'save' || trackAction === 'update_status')) {
+          const enforcedTarget = enforceSingleMatchToolTarget({
+            toolName: 'track_application',
+            message,
+            state: sessionState,
+            toolInput: llmResult.toolInput,
+          })
+
+          if (enforcedTarget.kind === 'clarify') {
+            await sendGatedResponse(enforcedTarget.message)
+            return
+          }
+
+          const cached = getMatchFromState(sessionState, enforcedTarget.jobId)
+          if (!cached) {
+            await sendGatedResponse(
+              "I couldn't match that to your current briefing. Tell me the company name or match number.",
+            )
+            return
+          }
+
+          const narrowedInput = trackInput as Exclude<TrackApplicationInput, { action: 'list' }>
+          const overrideBase = {
+            job_id: enforcedTarget.jobId,
+            title: cached.entry.title,
+            company: cached.entry.company,
+            status: narrowedInput.status,
+            ...(cached.entry.url ? { url: cached.entry.url } : {}),
+          }
+
+          if (trackAction === 'save') {
+            effectiveTrackInput = { action: 'save', ...overrideBase }
+          } else {
+            effectiveTrackInput = { action: 'update_status', ...overrideBase }
+          }
+        }
+
         await sendProgress(
           'tracking',
           trackAction === 'list' ? 'Checking your tracker...' : 'Updating your tracker...',
@@ -925,9 +963,9 @@ export async function chatHandler(c: Context): Promise<Response> {
                 message: `Found ${rows.length} tracked application${rows.length === 1 ? '' : 's'}.`,
               }
             }
-          } else if (trackInput.action === 'save') {
+          } else if (effectiveTrackInput.action === 'save') {
             // Validate required fields — defense-in-depth against incomplete LLM tool calls.
-            if (!validateTrackFields(llmResult.toolInput)) {
+            if (!validateTrackFields(effectiveTrackInput)) {
               trackResult = {
                 success: false,
                 action: 'save',
@@ -940,11 +978,11 @@ export async function chatHandler(c: Context): Promise<Response> {
               const { error } = await supabase.from('careerclaw_job_tracking').upsert(
                 {
                   user_id: userId,
-                  job_id: trackInput.job_id,
-                  title: trackInput.title,
-                  company: trackInput.company,
-                  status: trackInput.status,
-                  url: trackInput.url ?? null,
+                  job_id: effectiveTrackInput.job_id,
+                  title: effectiveTrackInput.title,
+                  company: effectiveTrackInput.company,
+                  status: effectiveTrackInput.status,
+                  url: effectiveTrackInput.url ?? null,
                 },
                 {
                   onConflict: 'user_id,job_id',
@@ -955,23 +993,23 @@ export async function chatHandler(c: Context): Promise<Response> {
                 ? {
                     success: false,
                     action: 'save',
-                    title: trackInput.title,
-                    company: trackInput.company,
-                    status: trackInput.status,
+                    title: effectiveTrackInput.title,
+                    company: effectiveTrackInput.company,
+                    status: effectiveTrackInput.status,
                     message: 'Database write failed.',
                   }
                 : {
                     success: true,
                     action: 'save',
-                    title: trackInput.title,
-                    company: trackInput.company,
-                    status: trackInput.status,
-                    message: `Saved "${trackInput.title}" at ${trackInput.company} with status "${trackInput.status}".`,
+                    title: effectiveTrackInput.title,
+                    company: effectiveTrackInput.company,
+                    status: effectiveTrackInput.status,
+                    message: `Saved "${effectiveTrackInput.title}" at ${effectiveTrackInput.company} with status "${effectiveTrackInput.status}".`,
                   }
             }
           } else if (trackAction === 'update_status') {
             // Validate required fields — defense-in-depth against incomplete LLM tool calls.
-            if (!validateTrackFields(llmResult.toolInput)) {
+            if (!validateTrackFields(effectiveTrackInput)) {
               trackResult = {
                 success: false,
                 action: 'update_status',
@@ -983,7 +1021,7 @@ export async function chatHandler(c: Context): Promise<Response> {
               // If job_id produces 0 rows (agent invented a slug after a list turn),
               // fall back to a case-insensitive company name match so cross-turn
               // follow-ups like "change the Stripe one to rejected" still work.
-              const updateInput = trackInput as Exclude<
+              const updateInput = effectiveTrackInput as Exclude<
                 TrackApplicationInput,
                 { action: 'list' | 'save' }
               >
@@ -1079,13 +1117,16 @@ export async function chatHandler(c: Context): Promise<Response> {
               applications: [],
               message: 'An unexpected error occurred loading your tracker.',
             }
-          } else if (trackInput.action === 'save' || trackInput.action === 'update_status') {
+          } else if (
+            effectiveTrackInput.action === 'save' ||
+            effectiveTrackInput.action === 'update_status'
+          ) {
             trackResult = {
               success: false,
-              action: trackInput.action,
-              title: trackInput.title,
-              company: trackInput.company,
-              status: trackInput.status,
+              action: effectiveTrackInput.action,
+              title: effectiveTrackInput.title,
+              company: effectiveTrackInput.company,
+              status: effectiveTrackInput.status,
               message: 'An unexpected error occurred during tracking.',
             }
           } else {
@@ -1105,7 +1146,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             messagesForClaude,
             llmResult.toolUseId,
             llmResult.toolName,
-            trackInput,
+            effectiveTrackInput,
             trackResult,
           )
           formattedResponse = requireNonEmptyAssistantMessage(
@@ -1130,7 +1171,7 @@ export async function chatHandler(c: Context): Promise<Response> {
               ? `Listed ${trackResult.count ?? 0} tracked application${(trackResult.count ?? 0) === 1 ? '' : 's'}.`
               : 'Tracker list failed.'
             : trackResult.success
-              ? `Tracker ${trackInput.action === 'save' ? 'save' : 'status update'}: ${trackResult.title} at ${trackResult.company} → ${trackResult.status}.`
+              ? `Tracker ${effectiveTrackInput.action === 'save' ? 'save' : 'status update'}: ${trackResult.title} at ${trackResult.company} → ${trackResult.status}.`
               : `Tracker action failed for ${trackResult.title} at ${trackResult.company}.`
 
         const updatedMessages: Message[] = [
