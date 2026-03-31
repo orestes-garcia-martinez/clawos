@@ -314,4 +314,68 @@ describe('POST /chat — tool target enforcement', () => {
     expect(mockRunWorkerGapAnalysis).not.toHaveBeenCalled()
     expect(mockCallLLMWithToolResult).not.toHaveBeenCalled()
   })
+
+  // ── Case 7: cover_letter valid job_id → proceeds unchanged ────────────────
+  it('proceeds directly when Claude provides a valid current-briefing job_id for cover letter', async () => {
+    mockCallLLM.mockResolvedValueOnce({
+      type: 'tool_use',
+      toolName: 'run_cover_letter',
+      toolUseId: 'tool-cover-7',
+      toolInput: { job_id: 'job-beta-002' },
+      provider: 'anthropic',
+    })
+    mockRunWorkerCoverLetter.mockResolvedValueOnce(COVER_WORKER_RESULT)
+    mockCallLLMWithToolResult.mockResolvedValueOnce({
+      type: 'text',
+      content: 'Here is your cover letter for Beta.',
+      provider: 'anthropic',
+    })
+
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        ...VALID_BODY,
+        userId: TARGET_USER,
+        message: 'Write me a cover letter for Beta',
+      }),
+    })
+
+    const events = parseSSEEvents(await res.text())
+    const doneEvent = events.find((e) => e['type'] === 'done')
+
+    expect(doneEvent?.['message']).toBe('Here is your cover letter for Beta.')
+    expect(mockRunWorkerCoverLetter).toHaveBeenCalledTimes(1)
+    expect(mockCallLLMWithToolResult.mock.calls[0]?.[4]).toEqual({ job_id: 'job-beta-002' })
+  })
+
+  // ── Case 8: cover_letter no match → clarify, no worker call ──────────────
+  it('returns a clarification and skips the worker when the cover letter target is unresolvable', async () => {
+    mockCallLLM.mockResolvedValueOnce({
+      type: 'tool_use',
+      toolName: 'run_cover_letter',
+      toolUseId: 'tool-cover-8',
+      toolInput: { job_id: 'hallucinated-job-999' },
+      provider: 'anthropic',
+    })
+
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer valid' },
+      body: JSON.stringify({
+        ...VALID_BODY,
+        userId: TARGET_USER,
+        message: 'Write a cover letter for the Stripe role',
+      }),
+    })
+
+    const events = parseSSEEvents(await res.text())
+    const doneEvent = events.find((e) => e['type'] === 'done')
+
+    expect(doneEvent?.['message']).toBe(
+      "I couldn't match that to your current briefing. Tell me the company name or match number.",
+    )
+    expect(mockRunWorkerCoverLetter).not.toHaveBeenCalled()
+    expect(mockCallLLMWithToolResult).not.toHaveBeenCalled()
+  })
 })

@@ -55,4 +55,48 @@ describe('tool-target-enforcer', () => {
         "I couldn't match that to your current briefing. Tell me the company name or match number.",
     })
   })
+
+  it('clarifies when the message is ambiguous even if the provided job_id is valid', () => {
+    // Claude supplies a valid briefing job_id, but the user's message references
+    // multiple matches. The ambiguity check must take priority so the user is
+    // asked to pick one rather than silently proceeding with Claude's guess.
+    const result = enforceSingleMatchToolTarget({
+      toolName: 'track_application',
+      message: 'Save Acme and Beta to my tracker',
+      state: MOCK_SESSION_STATE,
+      toolInput: { job_id: 'job-acme-001' },
+    })
+
+    expect(result.kind).toBe('clarify')
+    if (result.kind === 'clarify') {
+      expect(result.message).toContain('one role at a time')
+      expect(result.message).toContain('Acme')
+      expect(result.message).toContain('Beta')
+    }
+  })
+
+  it('resolves a single referenced match for track_application', () => {
+    expect(
+      enforceSingleMatchToolTarget({
+        toolName: 'track_application',
+        message: 'Save the second one to my tracker',
+        state: MOCK_SESSION_STATE,
+        toolInput: { job_id: 'hallucinated-job' },
+      }),
+    ).toEqual({ kind: 'proceed', jobId: 'job-beta-002' })
+  })
+
+  it('returns a tracking-specific clarification for ambiguous references', () => {
+    expect(
+      enforceSingleMatchToolTarget({
+        toolName: 'track_application',
+        message: 'Save Acme and Beta to my tracker',
+        state: MOCK_SESSION_STATE,
+        toolInput: { job_id: 'hallucinated-job' },
+      }),
+    ).toEqual({
+      kind: 'clarify',
+      message: 'I can track one role at a time. Which role do you want first: Acme or Beta?',
+    })
+  })
 })
