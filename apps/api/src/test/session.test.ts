@@ -39,6 +39,7 @@ import {
   loadSession,
   saveSession,
 } from '../session.js'
+import { buildActiveBriefingGroundingMessage } from '../briefing-grounding.js'
 
 // ── Test data ────────────────────────────────────────────────────────────────
 
@@ -197,6 +198,40 @@ describe('mergeSessionState', () => {
     const merged = mergeSessionState(existing, {})
     expect(merged.briefing).toBe(existing.briefing)
     expect(merged.gapResults).toBe(existing.gapResults)
+  })
+
+  it('merges coverLetterResults additively', () => {
+    const existing: SessionState = {
+      briefing: BRIEFING_STATE.briefing,
+      coverLetterResults: { [JOB_ID_1]: { content: 'Cover letter for job 1' } },
+    }
+    const merged = mergeSessionState(existing, {
+      coverLetterResults: { [JOB_ID_2]: { content: 'Cover letter for job 2' } },
+    })
+    expect(merged.coverLetterResults![JOB_ID_1]).toEqual({ content: 'Cover letter for job 1' })
+    expect(merged.coverLetterResults![JOB_ID_2]).toEqual({ content: 'Cover letter for job 2' })
+  })
+
+  it('overwrites coverLetterResult for the same job_id', () => {
+    const existing: SessionState = {
+      coverLetterResults: { [JOB_ID_1]: { content: 'old draft' } },
+    }
+    const merged = mergeSessionState(existing, {
+      coverLetterResults: { [JOB_ID_1]: { content: 'revised draft' } },
+    })
+    expect(merged.coverLetterResults![JOB_ID_1]).toEqual({ content: 'revised draft' })
+  })
+
+  it('clears stale coverLetterResults when briefing is replaced', () => {
+    const existing: SessionState = {
+      briefing: BRIEFING_STATE.briefing,
+      gapResults: { [JOB_ID_1]: GAP_RESULT },
+      coverLetterResults: { [JOB_ID_1]: { content: 'stale cover letter' } },
+    }
+    const newBriefing = { ...BRIEFING_STATE.briefing!, cachedAt: new Date().toISOString() }
+    const merged = mergeSessionState(existing, { briefing: newBriefing })
+    expect(merged.gapResults).toEqual({})
+    expect(merged.coverLetterResults).toEqual({})
   })
 })
 
@@ -453,6 +488,28 @@ describe('saveSession', () => {
     expect(savedState.gapResults![JOB_ID_2]).toEqual({ fit_score: 0.65 })
   })
 
+  it('merges coverLetterResults into existing state', async () => {
+    const updateEq2 = vi.fn().mockResolvedValue({ error: null })
+    const updateEq1 = vi.fn().mockReturnValue({ eq: updateEq2 })
+    const updateFn = vi.fn().mockReturnValue({ eq: updateEq1 })
+    mockFrom.mockReturnValue({ update: updateFn })
+
+    const existing: SessionState = {
+      briefing: BRIEFING_STATE.briefing,
+      coverLetterResults: { [JOB_ID_1]: { content: 'Cover letter for job 1' } },
+    }
+    const stateUpdate: Partial<SessionState> = {
+      coverLetterResults: { [JOB_ID_2]: { content: 'Cover letter for job 2' } },
+    }
+
+    await saveSession(USER_ID, 'web', [makeMessage('hi')], SESSION_ID, stateUpdate, existing)
+
+    const payload = updateFn.mock.calls[0]![0] as Record<string, unknown>
+    const savedState = payload['state'] as SessionState
+    expect(savedState.coverLetterResults![JOB_ID_1]).toEqual({ content: 'Cover letter for job 1' })
+    expect(savedState.coverLetterResults![JOB_ID_2]).toEqual({ content: 'Cover letter for job 2' })
+  })
+
   it('creates new session with state on insert', async () => {
     const singleFn = vi.fn().mockResolvedValue({ data: { id: SESSION_ID }, error: null })
     const selectFn = vi.fn().mockReturnValue({ single: singleFn })
@@ -480,5 +537,81 @@ describe('saveSession', () => {
     const savedMsgs = payload['messages'] as Message[]
     expect(savedMsgs).toHaveLength(20)
     expect(savedMsgs[0]!.content).toBe('msg 5')
+  })
+})
+
+// ── buildActiveBriefingGroundingMessage — cached flags ───────────────────────
+
+describe('buildActiveBriefingGroundingMessage — gap_analysis_cached and cover_letter_cached', () => {
+  it('emits gap_analysis_cached=no and cover_letter_cached=no when no results are stored', () => {
+    const state: SessionState = { briefing: BRIEFING_STATE.briefing }
+    const message = buildActiveBriefingGroundingMessage(state)
+    expect(message).not.toBeNull()
+    expect(message).toContain('gap_analysis_cached=no')
+    expect(message).toContain('cover_letter_cached=no')
+  })
+
+  it('emits gap_analysis_cached=yes for a job_id with a stored gap result', () => {
+    const state: SessionState = {
+      briefing: BRIEFING_STATE.briefing,
+      gapResults: { [JOB_ID_1]: { overall_score: 0.92 } },
+    }
+    const message = buildActiveBriefingGroundingMessage(state)!
+    const lines = message.split('\n')
+    const job1Line = lines.find((l) => l.includes(`job_id=${JOB_ID_1}`))
+    const job2Line = lines.find((l) => l.includes(`job_id=${JOB_ID_2}`))
+    expect(job1Line).toContain('gap_analysis_cached=yes')
+    expect(job1Line).toContain('cover_letter_cached=no')
+    expect(job2Line).toContain('gap_analysis_cached=no')
+  })
+
+  it('emits cover_letter_cached=yes for a job_id with a stored cover letter result', () => {
+    const state: SessionState = {
+      briefing: BRIEFING_STATE.briefing,
+      coverLetterResults: { [JOB_ID_2]: { content: 'Dear Hiring Team...' } },
+    }
+    const message = buildActiveBriefingGroundingMessage(state)!
+    const lines = message.split('\n')
+    const job1Line = lines.find((l) => l.includes(`job_id=${JOB_ID_1}`))
+    const job2Line = lines.find((l) => l.includes(`job_id=${JOB_ID_2}`))
+    expect(job2Line).toContain('cover_letter_cached=yes')
+    expect(job2Line).toContain('gap_analysis_cached=no')
+    expect(job1Line).toContain('cover_letter_cached=no')
+  })
+
+  it('emits correct independent flags when both results are stored for different jobs', () => {
+    const state: SessionState = {
+      briefing: BRIEFING_STATE.briefing,
+      gapResults: { [JOB_ID_1]: { overall_score: 0.92 } },
+      coverLetterResults: { [JOB_ID_2]: { content: 'Dear Hiring Team...' } },
+    }
+    const message = buildActiveBriefingGroundingMessage(state)!
+    const lines = message.split('\n')
+    const job1Line = lines.find((l) => l.includes(`job_id=${JOB_ID_1}`))
+    const job2Line = lines.find((l) => l.includes(`job_id=${JOB_ID_2}`))
+    expect(job1Line).toContain('gap_analysis_cached=yes')
+    expect(job1Line).toContain('cover_letter_cached=no')
+    expect(job2Line).toContain('gap_analysis_cached=no')
+    expect(job2Line).toContain('cover_letter_cached=yes')
+  })
+
+  it('reflects gap result persisted via mergeSessionState', () => {
+    const after = mergeSessionState(
+      { briefing: BRIEFING_STATE.briefing },
+      { gapResults: { [JOB_ID_1]: { overall_score: 0.92 } } },
+    )
+    const message = buildActiveBriefingGroundingMessage(after)!
+    expect(message).toContain('gap_analysis_cached=yes')
+  })
+
+  it('reflects cover letter result persisted via mergeSessionState', () => {
+    const after = mergeSessionState(
+      { briefing: BRIEFING_STATE.briefing },
+      { coverLetterResults: { [JOB_ID_2]: { content: 'Dear...' } } },
+    )
+    const message = buildActiveBriefingGroundingMessage(after)!
+    const lines = message.split('\n')
+    const job2Line = lines.find((l) => l.includes(`job_id=${JOB_ID_2}`))
+    expect(job2Line).toContain('cover_letter_cached=yes')
   })
 })

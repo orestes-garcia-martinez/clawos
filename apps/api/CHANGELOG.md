@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.0] (2026-03-31)
+
+### Features
+
+- **api:** add `tool-target-enforcer.ts` — server-side backstop for `run_gap_analysis` and `run_cover_letter` that validates and corrects `job_id` before each worker call; auto-corrects missing/hallucinated IDs via message reference resolution, clarifies on ambiguous multi-match, and rejects unresolvable references ([662fc8a](https://github.com/orestes-garcia-martinez/clawos/commit/662fc8a5893659c6f5bdf7af6a6c88e2bceb705a))
+
+### Bug Fixes
+
+- **api:** fix `mergeSessionState` to merge `coverLetterResults` additively per `job_id` and clear it on new briefing, preventing stale `cover_letter_cached=yes` flags in the grounding block ([662fc8a](https://github.com/orestes-garcia-martinez/clawos/commit/662fc8a5893659c6f5bdf7af6a6c88e2bceb705a))
+
 ## [0.6.0] (2026-03-31)
 
 ### Features
