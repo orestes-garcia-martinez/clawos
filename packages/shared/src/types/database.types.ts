@@ -8,15 +8,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      billing_webhook_events: {
+        Row: {
+          error: string | null
+          event_id: string
+          event_type: string
+          payload: Json | null
+          processed_at: string | null
+          received_at: string
+          status: string
+        }
+        Insert: {
+          error?: string | null
+          event_id: string
+          event_type: string
+          payload?: Json | null
+          processed_at?: string | null
+          received_at?: string
+          status: string
+        }
+        Update: {
+          error?: string | null
+          event_id?: string
+          event_type?: string
+          payload?: Json | null
+          processed_at?: string | null
+          received_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       careerclaw_job_tracking: {
         Row: {
           company: string
           created_at: string
           id: string
           job_id: string
+          notes: string | null
           status: string
           title: string
           updated_at: string
+          url: string | null
           user_id: string
         }
         Insert: {
@@ -24,9 +56,11 @@ export type Database = {
           created_at?: string
           id?: string
           job_id: string
+          notes?: string | null
           status?: string
           title: string
           updated_at?: string
+          url?: string | null
           user_id: string
         }
         Update: {
@@ -34,9 +68,11 @@ export type Database = {
           created_at?: string
           id?: string
           job_id?: string
+          notes?: string | null
           status?: string
           title?: string
           updated_at?: string
+          url?: string | null
           user_id?: string
         }
         Relationships: [
@@ -215,6 +251,7 @@ export type Database = {
           id: string
           last_active: string
           messages: Json
+          state: Json
           user_id: string
         }
         Insert: {
@@ -224,6 +261,7 @@ export type Database = {
           id?: string
           last_active?: string
           messages?: Json
+          state?: Json
           user_id: string
         }
         Update: {
@@ -233,6 +271,7 @@ export type Database = {
           id?: string
           last_active?: string
           messages?: Json
+          state?: Json
           user_id?: string
         }
         Relationships: [
@@ -244,6 +283,51 @@ export type Database = {
             referencedColumns: ['id']
           },
         ]
+      }
+      user_skill_entitlements: {
+        Row: {
+          id: string
+          metadata: Json
+          period_ends_at: string | null
+          provider: string
+          provider_customer_external_id: string | null
+          provider_product_id: string | null
+          provider_subscription_id: string | null
+          skill_slug: string
+          status: string
+          tier: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          metadata?: Json
+          period_ends_at?: string | null
+          provider?: string
+          provider_customer_external_id?: string | null
+          provider_product_id?: string | null
+          provider_subscription_id?: string | null
+          skill_slug: string
+          status?: string
+          tier?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          metadata?: Json
+          period_ends_at?: string | null
+          provider?: string
+          provider_customer_external_id?: string | null
+          provider_product_id?: string | null
+          provider_subscription_id?: string | null
+          skill_slug?: string
+          status?: string
+          tier?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_skills: {
         Row: {
@@ -321,7 +405,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      refresh_user_tier: { Args: { p_user_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

@@ -20,6 +20,7 @@ export class AgentApiError extends Error {
   constructor(
     message: string,
     public readonly code: string,
+    public readonly httpStatus?: number,
   ) {
     super(message)
     this.name = 'AgentApiError'
@@ -70,7 +71,11 @@ export async function callAgentApi(
 
   if (!response.ok) {
     clearTimeout(timeoutId)
-    throw new AgentApiError(`Agent API HTTP error: ${response.status}`, 'HTTP_ERROR')
+    throw new AgentApiError(
+      `Agent API HTTP error: ${response.status}`,
+      'HTTP_ERROR',
+      response.status,
+    )
   }
 
   if (!response.body) {

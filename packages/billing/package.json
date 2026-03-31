@@ -1,6 +1,6 @@
 {
   "name": "@clawos/billing",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Polar.sh billing client stub",
   "type": "module",
@@ -22,7 +22,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@clawos/shared": "*"
+    "@clawos/shared": "*",
+    "@polar-sh/sdk": "^0.46.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

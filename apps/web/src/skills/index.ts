@@ -63,7 +63,9 @@ const careerclaw: SkillDefinition = {
   nav: [
     { id: 'chat', label: 'Chat' },
     { id: 'jobs', label: 'Jobs' },
+    { id: 'applications', label: 'Applications' },
     { id: 'history', label: 'History' },
+    { id: 'settings', label: 'Settings' },
   ],
   quickActions: [
     {
@@ -84,7 +86,7 @@ const careerclaw: SkillDefinition = {
       description: 'Search across all sources',
     },
   ],
-  composerPlaceholder: "Upload your resume or ask for today's briefing",
+  composerPlaceholder: "Ask for today's briefing",
 }
 
 const scrapeclaw: SkillDefinition = {
@@ -144,7 +146,7 @@ export const SKILL_MAP: Record<SkillKey, SkillDefinition> = {
 }
 
 // Platform-level nav sections (ClawOS-owned, not skill-specific).
-// Order: Sessions · Notifications · Settings
+// Order: Sessions · Notifications · Account
 export interface PlatformNavItem {
   id: string
   label: string
@@ -154,5 +156,5 @@ export interface PlatformNavItem {
 export const PLATFORM_NAV: PlatformNavItem[] = [
   { id: 'sessions', label: 'Sessions', path: '/sessions' },
   { id: 'notifications', label: 'Notifications', path: '/notifications' },
-  { id: 'settings', label: 'Settings', path: '/settings' },
+  { id: 'account', label: 'Account', path: '/account' },
 ]

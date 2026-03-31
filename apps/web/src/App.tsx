@@ -2,16 +2,18 @@
  * App.tsx — ClawOS route tree.
  *
  * Route structure:
- *   /auth                    → AuthPage (public; skipped if signed in)
- *   /skills                  → SkillsPage (auth-guarded, no AppShell)
- *   /home                    → HomePage (auth-guarded, inside AppShell)
- *   /careerclaw/chat         → ChatView    (inside AppShell, auth-guarded)
- *   /careerclaw/jobs         → JobsView
- *   /careerclaw/history      → HistoryView
- *   /sessions                → SessionsPage
- *   /notifications           → NotificationsPage
- *   /settings                → SettingsPage
- *   / and *                  → RootRedirect (skills-aware, localStorage-backed)
+ *   /auth                          → AuthPage (public; skipped if signed in)
+ *   /skills                        → SkillsPage (auth-guarded, no AppShell)
+ *   /home                          → HomePage (auth-guarded, inside AppShell)
+ *   /careerclaw/chat               → ChatView    (inside AppShell, auth-guarded)
+ *   /careerclaw/jobs               → JobsView
+ *   /careerclaw/applications       → ApplicationsView
+ *   /careerclaw/history            → HistoryView
+ *   /careerclaw/settings           → CareerClawSettingsPage
+ *   /sessions                      → SessionsPage
+ *   /notifications                 → NotificationsPage
+ *   /settings                      → AccountPage (legacy redirect)
+ *   / and *                        → RootRedirect (skills-aware, localStorage-backed)
  *
  * Auth redirect rules (skills-aware):
  *   0 installed skills   → /home
@@ -29,16 +31,19 @@ import type { JSX } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext.tsx'
 import { SkillsProvider, useSkills } from './context/SkillsContext.tsx'
+import { ChatSessionProvider } from './context/ChatSessionContext.tsx'
 import { AuthPage } from './pages/auth/AuthPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
 import { SkillsPage } from './pages/SkillsPage.tsx'
 import { SessionsPage } from './pages/SessionsPage.tsx'
 import { NotificationsPage } from './pages/NotificationsPage.tsx'
 import { AppShell } from './shell/AppShell.tsx'
-import { ChatView } from './pages/workspace/ChatView.tsx'
-import { JobsView } from './pages/workspace/JobsView.tsx'
-import { HistoryView } from './pages/workspace/HistoryView.tsx'
-import { SettingsPage } from './pages/SettingsPage.tsx'
+import { ChatView } from './pages/workspace/careerclaw/ChatView.tsx'
+import { JobsView } from './pages/workspace/careerclaw/JobsView.tsx'
+import { ApplicationsView } from './pages/workspace/careerclaw/ApplicationsView.tsx'
+import { HistoryView } from './pages/workspace/careerclaw/HistoryView.tsx'
+import { AccountPage } from './pages/AccountPage.tsx'
+import { SettingsView } from './pages/workspace/careerclaw/SettingsView.tsx'
 import type { SkillKey } from './skills'
 import { SKILL_MAP } from './skills'
 
@@ -117,6 +122,22 @@ function RootRedirect(): JSX.Element {
   return <Navigate to={`/${destination}/chat`} replace />
 }
 
+// ── ChatSessionWrapper ──────────────────────────────────────────────────────
+// Thin component that reads auth state and supplies it to ChatSessionProvider.
+// Must be a child of AuthProvider (to call useAuth) and AuthGuard (user is
+// guaranteed non-null here). Keeps App() free of hook calls.
+
+function ChatSessionWrapper({ children }: { children: JSX.Element }): JSX.Element {
+  const { user, session } = useAuth()
+  const jwt = session?.access_token ?? ''
+  const userId = user?.id ?? ''
+  return (
+    <ChatSessionProvider jwt={jwt} userId={userId}>
+      {children}
+    </ChatSessionProvider>
+  )
+}
+
 // ── App ─────────────────────────────────────────────────────────────────────
 
 function AppRoutes(): JSX.Element {
@@ -139,7 +160,9 @@ function AppRoutes(): JSX.Element {
       <Route
         element={
           <AuthGuard>
-            <AppShell />
+            <ChatSessionWrapper>
+              <AppShell />
+            </ChatSessionWrapper>
           </AuthGuard>
         }
       >
@@ -149,12 +172,16 @@ function AppRoutes(): JSX.Element {
         {/* CareerClaw workspace */}
         <Route path="/careerclaw/chat" element={<ChatView />} />
         <Route path="/careerclaw/jobs" element={<JobsView />} />
+        <Route path="/careerclaw/applications" element={<ApplicationsView />} />
         <Route path="/careerclaw/history" element={<HistoryView />} />
+        <Route path="/careerclaw/settings" element={<SettingsView />} />
 
         {/* Platform pages */}
         <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/account" element={<AccountPage />} />
+        {/* Legacy redirect — keep old /settings links working */}
+        <Route path="/settings" element={<AccountPage />} />
 
         {/* Root and catch-all */}
         <Route path="/" element={<RootRedirect />} />

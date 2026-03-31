@@ -1,6 +1,6 @@
 {
   "name": "@clawos/web",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "description": "ClawOS web frontend — React + Vite + Tailwind 4",
   "type": "module",
@@ -24,7 +24,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.1.4",
-    "msw": "^2.12.10",
+    "msw": "^2.12.14",
     "tailwindcss": "^4.0.0",
     "typescript": "*",
     "vite": "^7.3.1",

@@ -6,7 +6,9 @@ updates:
       interval: "daily"
     open-pull-requests-limit: 10
     commit-message:
-      prefix: "security"
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
     labels:
       - "dependencies"
       - "security"

@@ -1,10 +1,11 @@
 # ClawOS
 
-Multi-channel AI agent platform delivering career, research, and investment intelligence via Web and Telegram.
+One platform. Purpose-built AI skills.
 
-> **Status**: Chat 1 of 8 — Turborepo scaffold + CI/CD  
-> **Strategy**: `ClawOS_Platform_Strategy_v1.4.docx`  
-> **Build plan**: `ClawOS_MVP_Chat_Guide_v2.docx`
+ClawOS is the platform for focused AI skills. Each skill has its own workspace,  
+first-party engine, and secure foundation. Use ClawOS on Web today, with Telegram support available now.  
+One account, one platform, built to grow across channels as new access points launch.  
+CareerClaw — job search and outreach automation — is live now.
 
 ---
 
@@ -13,7 +14,7 @@ Multi-channel AI agent platform delivering career, research, and investment inte
 ```
 clawos/
 ├── apps/
-│   ├── api/          Node.js + Hono — Agent API (Vercel serverless)
+│   ├── api/          Node.js + Hono — Agent API (Lightsail)
 │   ├── web/          React + Vite + Tailwind 4 — Web frontend (Vercel)
 │   ├── telegram/     Telegram bot adapter (Lightsail)
 │   └── worker/       Lightsail skill CLI worker — Express wrapper for careerclaw-js
@@ -106,19 +107,6 @@ Add these at `Settings → Secrets and variables → Actions`:
 | `SOCKET_API_KEY` | https://socket.dev          |
 | `SNYK_TOKEN`     | https://app.snyk.io/account |
 
----
-
-## Lightsail SSH
-
-```bash
-ssh -i "$env:USERPROFILE\.ssh\LightsailDefaultKey-us-east-1.pem" \
-    openclaw-admin@100.103.12.74
-```
-
-`careerclaw-js` is already installed globally on this instance.
-
----
-
 ## Build
 
 ```bash
@@ -140,7 +128,7 @@ User (Web / Telegram)
   Channel Layer         Web chat UI · Telegram Bot API
         │
         ▼
-  Agent Layer           Hono API (Vercel) · Claude API orchestration · SSE streaming
+  Agent Layer           Hono API (Lightsail) · Claude API orchestration · SSE streaming
         │
         ▼
   Skills Layer          careerclaw-js CLI (Lightsail worker · Express)
@@ -158,21 +146,6 @@ User (Web / Telegram)
 3. **Lockfile enforced** — `npm ci` in all pipelines. `npm install` never runs in production.
 4. **Secrets never in code** — environment variables only. See `.env.example` files.
 5. **Principle of least privilege** — RLS on every Supabase table, non-root CLI execution, isolated API keys.
-
----
-
-## MVP Build Plan
-
-| Chat | Deliverable                     | Status  |
-| ---- | ------------------------------- | ------- |
-| 1    | Turborepo scaffold + CI/CD      | ✅ Done |
-| 2    | Supabase schema + RLS           | ✅ Done |
-| 3    | Lightsail skill worker          | ✅ Done |
-| 4    | Agent API (Hono + Claude + SSE) | ✅ Done |
-| 5    | Telegram adapter                | ✅ Done |
-| 6    | Web frontend                    | ✅ Done |
-| 7    | Billing (Polar.sh)              | ⬜      |
-| 8    | E2E testing + security review   | ⬜      |
 
 ---
 

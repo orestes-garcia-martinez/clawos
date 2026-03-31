@@ -2,7 +2,7 @@
  * PlatformNav.tsx — ClawOS-owned platform navigation.
  *
  * Items here are stable across skill switches (Sessions, Notifications,
- * Settings). The active item is determined by the current path.
+ * Account). The active item is determined by the current path.
  */
 
 import type { JSX } from 'react'
@@ -18,7 +18,7 @@ interface IconProps {
 const NAV_ICONS: Record<string, (props: IconProps) => JSX.Element> = {
   sessions: IconLayers,
   notifications: IconBell,
-  settings: IconSettings,
+  account: IconSettings,
 }
 
 export function PlatformNav(): JSX.Element {
