@@ -4,7 +4,7 @@
 
 ### Bug Fixes
 
-- **shared:** add explicit prohibition to `<grounding_rules>` in `CAREERCLAW_SYSTEM_PROMPT` — instructs Claude never to output an "Active briefing ground truth" block, as these are injected exclusively by the platform infrastructure
+- **shared:** add explicit prohibition to `<grounding_rules>` in `CAREERCLAW_SYSTEM_PROMPT` — instructs Claude never to output an "Active briefing ground truth" block, as these are injected exclusively by the platform infrastructure ([680372f](https://github.com/orestes-garcia-martinez/clawos/commit/680372f))
 
 ## [0.6.0] (2026-03-31)
 
