@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] (2026-03-31)
+
+### Features
+
+- **shared:** add `<resolved_intent_rules>` section to `CAREERCLAW_SYSTEM_PROMPT` instructing Claude to use server-side intent hints for job_id disambiguation ([d0361d7](https://github.com/orestes-garcia-martinez/clawos/commit/d0361d7330e5274ffb0c6fc778085c2080dbb2e2))
+
 ## [0.4.0] (2026-03-30)
 
 ### Features

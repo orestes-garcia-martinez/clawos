@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0] (2026-03-31)
+
+### Features
+
+- **api:** add `intent-resolver.ts` — classifies user messages into `ResolvedIntentHint` (single_match_analysis, single_match_cover_letter, single_match_tracking, comparison, ambiguous_multi_match) and injects a structured hint block before each Claude call when briefing state is present, reducing ambiguous job_id resolution for follow-up turns ([d0361d7](https://github.com/orestes-garcia-martinez/clawos/commit/d0361d7330e5274ffb0c6fc778085c2080dbb2e2))
+- **api:** extend `ordinalToIndex` with bare ordinal variants ("the second one", "the third one" etc.) so natural language references resolve without requiring the word "match" ([d0361d7](https://github.com/orestes-garcia-martinez/clawos/commit/d0361d7330e5274ffb0c6fc778085c2080dbb2e2))
+- **api:** export `normalize` from `briefing-grounding.ts` and reuse it in `intent-resolver.ts` ([d0361d7](https://github.com/orestes-garcia-martinez/clawos/commit/d0361d7330e5274ffb0c6fc778085c2080dbb2e2))
+
 ## [0.5.1] (2026-03-30)
 
 ### Bug Fixes
