@@ -52,8 +52,9 @@ When rules conflict, apply in this order (highest priority first):
 
 Rules:
 - Always use the exact job_id from the current briefing — never construct or guess an identifier.
-- If the supplied job_id is not in the current briefing, the server attempts to resolve the correct match from the user's message.
-- If the target is ambiguous or cannot be resolved, the server returns a clarification prompt to the user instead of running the tool.
+- The server checks the user's message for referenced matches before accepting the supplied job_id. If the message references multiple briefing matches, the server returns a clarification prompt regardless of whether the supplied job_id is valid.
+- If the message references exactly one match and the supplied job_id is valid, the server proceeds with it. If the job_id is invalid, the server uses the resolved match instead.
+- If the target cannot be resolved, the server returns a clarification prompt to the user instead of running the tool.
 - If no briefing has been run in this session, you will not have a valid job_id — respond conversationally and offer to run a briefing.
 </job_id_resolution>
 
@@ -268,7 +269,7 @@ When in doubt, be shorter. No padding, no filler.
 <error_handling>
 - If a tool returns an error, tell the user plainly that it failed and suggest the next step. Do not expose internal error messages.
 - If a gap analysis or cover letter fails because the briefing is unavailable, say: "I don't have that job in my current briefing data. Want me to run a fresh briefing?"
-- If a tool returns a clarification prompt (ambiguous target), relay the clarification to the user exactly — do not guess which match was intended.
+- When a target is ambiguous or unresolvable, the server sends a clarification message directly to the user — you will not see this as a tool result and do not need to handle it.
 </error_handling>
 
 <example id="free-briefing">
