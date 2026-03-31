@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.6.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.5.1...v0.6.0) (2026-03-31)
+
+
+### Features
+
+* **api,shared:** add briefing grounding context injection ([0dd1ef2](https://github.com/orestes-garcia-martinez/clawos/commit/0dd1ef22fbdf466a00f72efb47c9012ae51a9e1d))
+* **api,shared:** add briefing grounding context injection ([8179ed6](https://github.com/orestes-garcia-martinez/clawos/commit/8179ed60071fc18ab623cacefddf7b9211d392c3))
+* **api,shared:** add server-side intent resolver for briefing follow-up turns ([53792c8](https://github.com/orestes-garcia-martinez/clawos/commit/53792c892170af3ffa0e8f6d008d114419756f5d))
+* **api,shared:** add server-side intent resolver for briefing follow-up turns ([d0361d7](https://github.com/orestes-garcia-martinez/clawos/commit/d0361d7330e5274ffb0c6fc778085c2080dbb2e2))
+* **api:** add tool-target enforcer and fix mergeSessionState for coverLetterResults ([382c2b9](https://github.com/orestes-garcia-martinez/clawos/commit/382c2b91917438477c32320a0ca8e83ade20e0b2))
+* **api:** add tool-target enforcer and fix mergeSessionState for coverLetterResults ([662fc8a](https://github.com/orestes-garcia-martinez/clawos/commit/662fc8a5893659c6f5bdf7af6a6c88e2bceb705a))
+
+
+### Bug Fixes
+
+* **api,web,worker:** throw on empty LLM responses, bump careerclaw-js to 1.5 ([cc38b07](https://github.com/orestes-garcia-martinez/clawos/commit/cc38b0791ddc7e9071c298d5455f9f198c12ae72))
+* **api,web:** throw on empty LLM responses, read resume_intel from briefing ([bd6e110](https://github.com/orestes-garcia-martinez/clawos/commit/bd6e110208d156df9a02913411f5011d699d7048))
+* **api:** guard comparison classification behind references.length &gt; 1 ([3cb0c20](https://github.com/orestes-garcia-martinez/clawos/commit/3cb0c208882655fd12fea0ba7b3c0b2d84d54796))
+* **api:** persist cover letter result to session state after run_cover_letter ([87d5cf2](https://github.com/orestes-garcia-martinez/clawos/commit/87d5cf2ac5ea251093a09fb6372ca1c4af13e180))
+* **api:** restore synthesised resumeIntel fallback for missing briefing field ([1583d7d](https://github.com/orestes-garcia-martinez/clawos/commit/1583d7d900f692e9788eac007867e3ae69b5ef18))
+* **api:** use title+company labels for same-company ambiguous matches ([#121](https://github.com/orestes-garcia-martinez/clawos/issues/121)) ([8967a6b](https://github.com/orestes-garcia-martinez/clawos/commit/8967a6bfd56cab0425e82581b5f60c08c80fb0ab))
+* **worker:** bump careerclaw-js to ^1.5.0 ([295d39e](https://github.com/orestes-garcia-martinez/clawos/commit/295d39ef2de32ace4d70a0dc5a240cdd1dc7baf4))
+
 ## [0.5.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.5.0...v0.5.1) (2026-03-30)
 
 
