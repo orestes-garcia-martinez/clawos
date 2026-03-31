@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.7.0...v0.7.1) (2026-03-31)
+
+
+### Bug Fixes
+
+* **api,shared:** prevent grounding block from leaking into user-facing responses ([#124](https://github.com/orestes-garcia-martinez/clawos/issues/124)) ([1f4cfc9](https://github.com/orestes-garcia-martinez/clawos/commit/1f4cfc94fd59958f77a75e4ddb10e055051a869c))
+
 ## [0.7.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.6.0...v0.7.0) (2026-03-31)
 
 
