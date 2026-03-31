@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.2] (2026-03-31)
+
+### Bug Fixes
+
+- **shared:** fix `<grounding_rules>` and `<resolved_intent_rules>` wording — "in the conversation" → "in the system prompt" to stop Claude from treating those blocks as reproducible conversation output ([585262d](https://github.com/orestes-garcia-martinez/clawos/commit/585262d))
+
 ## [0.6.1] (2026-03-31)
 
 ### Bug Fixes

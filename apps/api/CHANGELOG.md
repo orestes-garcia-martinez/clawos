@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2] (2026-03-31)
+
+### Bug Fixes
+
+- **api:** skip `loadSession` when `newSession: true` so "New Conversation" never loads the previous session's history or state ([585262d](https://github.com/orestes-garcia-martinez/clawos/commit/585262d))
+- **api:** add `stripGroundingBlock()` applied to all Claude text outputs to prevent `[Active briefing ground truth]` blocks from appearing in user-facing responses ([585262d](https://github.com/orestes-garcia-martinez/clawos/commit/585262d))
+
 ## [0.8.1] (2026-03-31)
 
 ### Bug Fixes

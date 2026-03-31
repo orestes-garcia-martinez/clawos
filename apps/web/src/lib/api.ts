@@ -55,7 +55,7 @@ export interface ChatSSEHandlers {
 export function chatSSE(
   jwt: string,
   userId: string,
-  body: { channel: 'web'; message: string; sessionId?: string },
+  body: { channel: 'web'; message: string; sessionId?: string; newSession?: boolean },
   handlers: ChatSSEHandlers,
 ): AbortController {
   const controller = new AbortController()

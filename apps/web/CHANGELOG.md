@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.2] (2026-03-31)
+
+### Bug Fixes
+
+- **web:** set `pendingNewSessionRef` on `reset()` and send `newSession: true` on the first message after "New Conversation" so the API creates a fresh session instead of loading the previous one ([585262d](https://github.com/orestes-garcia-martinez/clawos/commit/585262d))
+
 ## [0.2.1] (2026-03-30)
 
 ### Bug Fixes

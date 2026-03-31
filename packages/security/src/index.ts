@@ -20,6 +20,9 @@ export const ChatRequestSchema = z.object({
     .min(1, 'Message cannot be empty')
     .max(4_000, 'Message too long (max 4000 chars)'),
   sessionId: z.string().uuid().optional(),
+  /** When true, the server skips loading any existing session and creates a fresh one.
+   * Set by the web client when the user explicitly clicks "New Conversation". */
+  newSession: z.boolean().optional(),
 })
 
 export const ResumeUploadSchema = z.object({
