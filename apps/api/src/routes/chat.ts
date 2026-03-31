@@ -69,6 +69,7 @@ import {
   buildActiveBriefingGroundingMessage,
   buildReferencedMatchesHint,
 } from '../briefing-grounding.js'
+import { buildResolvedIntentMessage } from '../intent-resolver.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -248,10 +249,11 @@ export async function chatHandler(c: Context): Promise<Response> {
         { role: 'user', content: message, timestamp: new Date().toISOString() },
       ]
 
-      // ── 4b. Inject active briefing context ────────────────────────────────
+      // ── 4b. Inject grounded briefing context ──────────────────────────────
       // When briefing data exists in session state, inject:
       // 1) an authoritative ground-truth snapshot for follow-up answers
       // 2) a targeted hint if the current user message references one or more matches
+      // 3) a server-side resolved intent helper for common single-match actions
       if (sessionState.briefing && sessionState.briefing.matches.length > 0) {
         const groundingMessage = buildActiveBriefingGroundingMessage(sessionState)
         if (groundingMessage) {
@@ -271,6 +273,16 @@ export async function chatHandler(c: Context): Promise<Response> {
             timestamp: new Date().toISOString(),
           }
           messagesForClaude.splice(messagesForClaude.length - 1, 0, referenceContext)
+        }
+
+        const resolvedIntentHint = buildResolvedIntentMessage(message, sessionState)
+        if (resolvedIntentHint) {
+          const resolvedIntentContext: Message = {
+            role: 'assistant',
+            content: resolvedIntentHint,
+            timestamp: new Date().toISOString(),
+          }
+          messagesForClaude.splice(messagesForClaude.length - 1, 0, resolvedIntentContext)
         }
       }
 

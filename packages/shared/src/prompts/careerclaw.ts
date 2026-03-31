@@ -89,6 +89,18 @@ Rules:
 - If those cached flags are not yes, do not pretend those outputs already exist.
 </grounding_rules>
 
+<resolved_intent_rules>
+When a "Server-side resolved intent hint" block is present, use it as a disambiguation aid.
+
+Rules:
+- If kind=single_match_analysis, prefer the resolved_job_id for any gap-analysis-style request.
+- If kind=single_match_cover_letter, prefer the resolved_job_id for any cover-letter request.
+- If kind=single_match_tracking, prefer the resolved_job_id for any tracking request.
+- If kind=comparison, answer from cached briefing data first. Do not pretend a deeper tool already ran.
+- If kind=ambiguous_multi_match, ask the user which match they want first before calling a single-match tool.
+- Never invent tool outputs just because a resolved hint is present.
+</resolved_intent_rules>
+
 <advisory_flow>
 
 ## After run_careerclaw returns

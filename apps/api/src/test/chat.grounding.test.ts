@@ -149,4 +149,36 @@ describe('POST /chat — grounded briefing follow-up context', () => {
     expect(doneEvent).toBeDefined()
     expect(doneEvent?.['message']).toBe('Acme is your top match at 92%, followed by Beta at 85%.')
   })
+
+  it('injects a server-side resolved intent hint for a single-match analysis request', async () => {
+    mockCallLLM.mockResolvedValueOnce({
+      type: 'text',
+      content: 'I can analyze Beta more deeply next.',
+      provider: 'anthropic',
+    })
+
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer valid',
+      },
+      body: JSON.stringify({
+        ...VALID_BODY,
+        userId: GROUND_USER,
+        message: 'Analyze the second one',
+      }),
+    })
+
+    await res.text()
+
+    const llmMessages = mockCallLLM.mock.calls[0]![1] as Array<{ role: string; content: string }>
+    const resolvedIntentMessage = llmMessages.find((m) =>
+      m.content.includes('[Server-side resolved intent hint]'),
+    )
+
+    expect(resolvedIntentMessage).toBeDefined()
+    expect(resolvedIntentMessage?.content).toContain('kind=single_match_analysis')
+    expect(resolvedIntentMessage?.content).toContain('resolved_job_id=job-beta-002')
+  })
 })
