@@ -124,7 +124,10 @@ export function pruneMessages(messages: Message[]): Message[] {
 
 /**
  * Deep-merge a partial state update into an existing SessionState.
- * Top-level keys are merged (not replaced). `gapResults` is merged additively.
+ * Top-level keys are merged (not replaced). `gapResults` and
+ * `coverLetterResults` are merged additively (per-job_id entries are
+ * added without removing existing ones). A new briefing clears both
+ * caches to prevent stale job_ids from a previous briefing run surviving.
  */
 export function mergeSessionState(
   existing: SessionState,
@@ -135,8 +138,9 @@ export function mergeSessionState(
   // If briefing is provided, replace entirely (new briefing replaces old)
   if (update.briefing !== undefined) {
     merged.briefing = update.briefing
-    // A new briefing also clears stale gap results from the previous briefing
+    // A new briefing clears stale results from the previous briefing
     merged.gapResults = {}
+    merged.coverLetterResults = {}
   }
 
   // Merge gap results additively (new results added to existing)
@@ -144,6 +148,14 @@ export function mergeSessionState(
     merged.gapResults = {
       ...(merged.gapResults ?? {}),
       ...update.gapResults,
+    }
+  }
+
+  // Merge cover letter results additively (new results added to existing)
+  if (update.coverLetterResults) {
+    merged.coverLetterResults = {
+      ...(merged.coverLetterResults ?? {}),
+      ...update.coverLetterResults,
     }
   }
 
@@ -202,7 +214,8 @@ export function getGapResultFromState(
  * threshold for storage is softer than the Claude context limit.
  *
  * stateUpdate: optional partial state to merge into the existing session state.
- * Uses mergeSessionState() — briefing replaces, gapResults merge additively.
+ * Uses mergeSessionState() — briefing replaces, gapResults and coverLetterResults
+ * merge additively. A new briefing clears both result caches.
  */
 export async function saveSession(
   userId: string,

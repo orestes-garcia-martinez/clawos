@@ -70,6 +70,7 @@ import {
   buildReferencedMatchesHint,
 } from '../briefing-grounding.js'
 import { buildResolvedIntentMessage } from '../intent-resolver.js'
+import { enforceSingleMatchToolTarget } from '../tool-target-enforcer.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -604,7 +605,6 @@ export async function chatHandler(c: Context): Promise<Response> {
       // ── 7c. run_gap_analysis tool (Pro only) ─────────────────────────────
       if (llmResult.toolName === 'run_gap_analysis') {
         const toolInput = llmResult.toolInput as RunGapAnalysisInput
-        const jobId = toolInput.job_id
 
         // Pro gate
         if (!featureSet.has('careerclaw.resume_gap_analysis')) {
@@ -614,11 +614,26 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
+        const targetResolution = enforceSingleMatchToolTarget({
+          toolName: 'run_gap_analysis',
+          message,
+          state: sessionState,
+          toolInput,
+        })
+
+        if (targetResolution.kind === 'clarify') {
+          await sendGatedResponse(targetResolution.message)
+          return
+        }
+
+        const jobId = targetResolution.jobId
+        const effectiveToolInput: RunGapAnalysisInput = { ...toolInput, job_id: jobId }
+
         // Look up match from session state
         const cached = getMatchFromState(sessionState, jobId)
         if (!cached) {
           await sendGatedResponse(
-            "I don't have that job in my current briefing data. Want me to run a fresh briefing?",
+            "I couldn't match that to your current briefing. Tell me the company name or match number.",
           )
           return
         }
@@ -668,7 +683,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             messagesForClaude,
             llmResult.toolUseId,
             llmResult.toolName,
-            toolInput,
+            effectiveToolInput,
             gapResult,
           )
           formattedResponse = requireNonEmptyAssistantMessage(
@@ -714,7 +729,6 @@ export async function chatHandler(c: Context): Promise<Response> {
       // ── 7d. run_cover_letter tool (Pro only) ─────────────────────────────
       if (llmResult.toolName === 'run_cover_letter') {
         const toolInput = llmResult.toolInput as RunCoverLetterInput
-        const jobId = toolInput.job_id
 
         // Pro gate
         if (!featureSet.has('careerclaw.tailored_cover_letter')) {
@@ -724,11 +738,26 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
+        const targetResolution = enforceSingleMatchToolTarget({
+          toolName: 'run_cover_letter',
+          message,
+          state: sessionState,
+          toolInput,
+        })
+
+        if (targetResolution.kind === 'clarify') {
+          await sendGatedResponse(targetResolution.message)
+          return
+        }
+
+        const jobId = targetResolution.jobId
+        const effectiveToolInput: RunCoverLetterInput = { ...toolInput, job_id: jobId }
+
         // Look up match from session state
         const cached = getMatchFromState(sessionState, jobId)
         if (!cached) {
           await sendGatedResponse(
-            "I don't have that job in my current briefing data. Want me to run a fresh briefing?",
+            "I couldn't match that to your current briefing. Tell me the company name or match number.",
           )
           return
         }
@@ -784,7 +813,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             messagesForClaude,
             llmResult.toolUseId,
             llmResult.toolName,
-            toolInput,
+            effectiveToolInput,
             coverLetterResult,
           )
           formattedResponse = requireNonEmptyAssistantMessage(
