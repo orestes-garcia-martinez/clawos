@@ -44,17 +44,13 @@ describe('POST /chat — grounded briefing follow-up context', () => {
 
     await res.text()
 
-    const llmMessages = mockCallLLM.mock.calls[0]![1] as Array<{ role: string; content: string }>
-    const groundingMessage = llmMessages.find((m) =>
-      m.content.includes('[Active briefing ground truth'),
-    )
-
-    expect(groundingMessage).toBeDefined()
-    expect(groundingMessage?.content).toContain('job_id=job-acme-001')
-    expect(groundingMessage?.content).toContain('company=Acme')
-    expect(groundingMessage?.content).toContain('score=92%')
-    expect(groundingMessage?.content).toContain('job_id=job-beta-002')
-    expect(groundingMessage?.content).toContain('cover_letter_cached=')
+    const systemPrompt = mockCallLLM.mock.calls[0]![0] as string
+    expect(systemPrompt).toContain('[Active briefing ground truth')
+    expect(systemPrompt).toContain('job_id=job-acme-001')
+    expect(systemPrompt).toContain('company=Acme')
+    expect(systemPrompt).toContain('score=92%')
+    expect(systemPrompt).toContain('job_id=job-beta-002')
+    expect(systemPrompt).toContain('cover_letter_cached=')
   })
 
   it('injects a multi-match hint when the user references more than one cached match', async () => {
@@ -79,15 +75,13 @@ describe('POST /chat — grounded briefing follow-up context', () => {
 
     await res.text()
 
-    const llmMessages = mockCallLLM.mock.calls[0]![1] as Array<{ role: string; content: string }>
-    const hintMessage = llmMessages.find((m) =>
-      m.content.includes('[The user referenced multiple current-briefing matches in this turn]'),
+    const systemPrompt = mockCallLLM.mock.calls[0]![0] as string
+    expect(systemPrompt).toContain(
+      '[The user referenced multiple current-briefing matches in this turn]',
     )
-
-    expect(hintMessage).toBeDefined()
-    expect(hintMessage?.content).toContain('job_id=job-acme-001')
-    expect(hintMessage?.content).toContain('job_id=job-beta-002')
-    expect(hintMessage?.content).toContain('ask them to choose one match first')
+    expect(systemPrompt).toContain('job_id=job-acme-001')
+    expect(systemPrompt).toContain('job_id=job-beta-002')
+    expect(systemPrompt).toContain('ask them to choose one match first')
   })
 
   it('injects a single-match hint when the user references exactly one cached match', async () => {
@@ -112,14 +106,10 @@ describe('POST /chat — grounded briefing follow-up context', () => {
 
     await res.text()
 
-    const llmMessages = mockCallLLM.mock.calls[0]![1] as Array<{ role: string; content: string }>
-    const hintMessage = llmMessages.find((m) =>
-      m.content.includes('[Referenced current-briefing match for this turn]'),
-    )
-
-    expect(hintMessage).toBeDefined()
-    expect(hintMessage?.content).toContain('rank=1 | job_id=job-acme-001')
-    expect(hintMessage?.content).toContain('use this exact job_id')
+    const systemPrompt = mockCallLLM.mock.calls[0]![0] as string
+    expect(systemPrompt).toContain('[Referenced current-briefing match for this turn]')
+    expect(systemPrompt).toContain('rank=1 | job_id=job-acme-001')
+    expect(systemPrompt).toContain('use this exact job_id')
   })
 
   it('still returns a normal done event for a grounded follow-up question', async () => {
@@ -172,13 +162,9 @@ describe('POST /chat — grounded briefing follow-up context', () => {
 
     await res.text()
 
-    const llmMessages = mockCallLLM.mock.calls[0]![1] as Array<{ role: string; content: string }>
-    const resolvedIntentMessage = llmMessages.find((m) =>
-      m.content.includes('[Server-side resolved intent hint]'),
-    )
-
-    expect(resolvedIntentMessage).toBeDefined()
-    expect(resolvedIntentMessage?.content).toContain('kind=single_match_analysis')
-    expect(resolvedIntentMessage?.content).toContain('resolved_job_id=job-beta-002')
+    const systemPrompt = mockCallLLM.mock.calls[0]![0] as string
+    expect(systemPrompt).toContain('[Server-side resolved intent hint]')
+    expect(systemPrompt).toContain('kind=single_match_analysis')
+    expect(systemPrompt).toContain('resolved_job_id=job-beta-002')
   })
 })

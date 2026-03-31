@@ -244,62 +244,37 @@ export async function chatHandler(c: Context): Promise<Response> {
         missingFields.push('your location preference (required for On-site searches)')
       }
 
-      // Append the new user message to history for Claude
-      const messagesForClaude: Message[] = [
+      // Single message list used by both the first-turn call and all second-turn
+      // tool-result calls. Never contains injected grounding/hint content — those
+      // are appended to the system prompt instead so they cannot be reproduced in
+      // Claude's output or saved into session history.
+      const baseMessages: Message[] = [
         ...history,
         { role: 'user', content: message, timestamp: new Date().toISOString() },
       ]
 
-      // Clean message list for second-turn tool-result calls.
-      // Must NOT include injected grounding/hint messages (which use role:'assistant')
-      // because passing them into callLLMWithToolResult teaches Claude to reproduce
-      // those blocks verbatim in its formatted response.
-      const messagesForToolResult: Message[] = [
-        ...history,
-        { role: 'user', content: message, timestamp: new Date().toISOString() },
-      ]
-
-      // ── 4b. Inject grounded briefing context ──────────────────────────────
-      // When briefing data exists in session state, inject:
-      // 1) an authoritative ground-truth snapshot for follow-up answers
-      // 2) a targeted hint if the current user message references one or more matches
-      // 3) a server-side resolved intent helper for common single-match actions
+      // ── 4b. Build effective system prompt with grounded briefing context ──
+      // Grounding, reference hints, and resolved-intent hints are appended to the
+      // system prompt rather than injected as role:'assistant' messages. This
+      // prevents Claude from treating them as prior output it should reproduce, and
+      // ensures they are never persisted to session history.
+      let effectiveSystemPrompt = CAREERCLAW_SYSTEM_PROMPT
       if (sessionState.briefing && sessionState.briefing.matches.length > 0) {
-        const groundingMessage = buildActiveBriefingGroundingMessage(sessionState)
-        if (groundingMessage) {
-          const groundingContext: Message = {
-            role: 'assistant',
-            content: groundingMessage,
-            timestamp: sessionState.briefing.cachedAt,
-          }
-          messagesForClaude.splice(messagesForClaude.length - 1, 0, groundingContext)
-        }
+        const contextBlocks = [
+          buildActiveBriefingGroundingMessage(sessionState),
+          buildReferencedMatchesHint(message, sessionState),
+          buildResolvedIntentMessage(message, sessionState),
+        ].filter(Boolean) as string[]
 
-        const referenceHint = buildReferencedMatchesHint(message, sessionState)
-        if (referenceHint) {
-          const referenceContext: Message = {
-            role: 'assistant',
-            content: referenceHint,
-            timestamp: new Date().toISOString(),
-          }
-          messagesForClaude.splice(messagesForClaude.length - 1, 0, referenceContext)
-        }
-
-        const resolvedIntentHint = buildResolvedIntentMessage(message, sessionState)
-        if (resolvedIntentHint) {
-          const resolvedIntentContext: Message = {
-            role: 'assistant',
-            content: resolvedIntentHint,
-            timestamp: new Date().toISOString(),
-          }
-          messagesForClaude.splice(messagesForClaude.length - 1, 0, resolvedIntentContext)
+        if (contextBlocks.length > 0) {
+          effectiveSystemPrompt = CAREERCLAW_SYSTEM_PROMPT + '\n\n' + contextBlocks.join('\n\n')
         }
       }
 
       // ── 5. First Claude call — all tools available ────────────────────────
       await sendProgress('thinking', 'Thinking...')
 
-      const llmResult = await callLLM(CAREERCLAW_SYSTEM_PROMPT, messagesForClaude, [
+      const llmResult = await callLLM(effectiveSystemPrompt, baseMessages, [
         RUN_CAREERCLAW_TOOL,
         RUN_GAP_ANALYSIS_TOOL,
         RUN_COVER_LETTER_TOOL,
@@ -547,7 +522,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         try {
           const formatResult = await callLLMWithToolResult(
             CAREERCLAW_SYSTEM_PROMPT,
-            messagesForToolResult,
+            baseMessages,
             llmResult.toolUseId,
             llmResult.toolName,
             toolInput,
@@ -688,7 +663,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         try {
           const formatResult = await callLLMWithToolResult(
             CAREERCLAW_SYSTEM_PROMPT,
-            messagesForToolResult,
+            baseMessages,
             llmResult.toolUseId,
             llmResult.toolName,
             effectiveToolInput,
@@ -817,7 +792,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         try {
           const formatResult = await callLLMWithToolResult(
             CAREERCLAW_SYSTEM_PROMPT,
-            messagesForToolResult,
+            baseMessages,
             llmResult.toolUseId,
             llmResult.toolName,
             effectiveToolInput,
@@ -1152,7 +1127,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         try {
           const formatResult = await callLLMWithToolResult(
             CAREERCLAW_SYSTEM_PROMPT,
-            messagesForToolResult,
+            baseMessages,
             llmResult.toolUseId,
             llmResult.toolName,
             effectiveTrackInput,
