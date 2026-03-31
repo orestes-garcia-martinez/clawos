@@ -1,6 +1,6 @@
 {
   "name": "@clawos/api",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "private": true,
   "description": "ClawOS Agent API — Hono + Claude orchestration",
   "type": "module",

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.1] (2026-03-31)
+
+### Bug Fixes
+
+- **api:** introduce `messagesForToolResult` — a clean history snapshot (no injected grounding/hint messages) passed to all four `callLLMWithToolResult` call sites; prevents Claude from reproducing internal grounding blocks in user-facing responses ([680372f](https://github.com/orestes-garcia-martinez/clawos/commit/680372f))
+
 ## [0.8.0] (2026-03-31)
 
 ### Features
