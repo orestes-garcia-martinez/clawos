@@ -58,6 +58,8 @@ import {
   logIntentAudit,
   logWorkerSignal,
   detectFalseActionClaims,
+  filterFalseClaims,
+  sanitizeHallucinatedClaims,
   logTextAudit,
 } from '../forensic-logger.js'
 import {
@@ -163,6 +165,83 @@ async function handleProfileGate(opts: {
 
   await opts.sendDone(savedId, gateMessage)
   return true
+}
+
+/**
+ * Detect, filter, and strip false action claims from a format call output.
+ * Returns the (possibly sanitized) text. Logs when claims are stripped.
+ */
+function sanitizeFormatOutput(
+  text: string,
+  toolsInvoked: string[],
+  rid: string,
+  callLabel: string,
+): string {
+  const rawClaims = detectFalseActionClaims(text)
+  const falseClaims = filterFalseClaims(rawClaims, toolsInvoked)
+  if (falseClaims.length === 0) return text
+
+  logTextAudit({ rid, claims: falseClaims, toolsInvoked })
+  const { sanitized, stripped } = sanitizeHallucinatedClaims(text, falseClaims)
+  if (stripped) {
+    console.warn(
+      `[chat] P0: stripped ${falseClaims.length} false claim(s) from ${callLabel}`,
+      JSON.stringify({ rid, claims: falseClaims }),
+    )
+  }
+  return stripped ? sanitized : text
+}
+
+/**
+ * P0 Part B — Execute a pending track_save when the user's message
+ * included a save intent that the LLM's single tool invocation didn't fulfil.
+ *
+ * Returns a confirmation note to append to the response, or '' on
+ * failure / not applicable.
+ */
+async function executePendingSave(opts: {
+  unfulfilled: string[]
+  match: { job_id: string; title: string; company: string; url: string | null } | null
+  userId: string
+  rid: string
+  supabase: ReturnType<typeof createServerClient>
+  sendProgress: (step: string, message: string) => Promise<void>
+}): Promise<string> {
+  if (!opts.unfulfilled.includes('track_save') || !opts.match) return ''
+
+  try {
+    await opts.sendProgress('tracking', 'Saving to tracker...')
+    const { error } = await opts.supabase.from('careerclaw_job_tracking').upsert(
+      {
+        user_id: opts.userId,
+        job_id: opts.match.job_id,
+        title: opts.match.title,
+        company: opts.match.company,
+        status: 'saved',
+        url: opts.match.url ?? null,
+      },
+      { onConflict: 'user_id,job_id', ignoreDuplicates: true },
+    )
+    if (!error) {
+      console.log(
+        JSON.stringify({
+          event: 'forensic_pending_action',
+          rid: opts.rid,
+          action: 'track_save',
+          status: 'success',
+          jobId: opts.match.job_id,
+        }),
+      )
+      return `\n\nDone — ${opts.match.title} at ${opts.match.company} is saved to your tracker.`
+    }
+    return ''
+  } catch (err) {
+    console.error(
+      '[chat] P0 pending-action save failed:',
+      err instanceof Error ? err.message : String(err),
+    )
+    return ''
+  }
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -326,28 +405,18 @@ export async function chatHandler(c: Context): Promise<Response> {
         return
       }
 
-      // Forensic: intent audit — log for all response types at the routing boundary.
-      // For tool_use, the single invoked tool is known; for text, no tools were invoked.
-      if (llmResult.type === 'tool_use') {
-        logIntentAudit({
-          rid,
-          detectedIntents,
-          toolsInvoked: [llmResult.toolName],
-          responseType: 'tool_use',
-        })
-      }
+      // Forensic: intent audit — unified capture for ALL response paths.
+      // The result is used downstream for hallucination detection (Part A)
+      // and pending-action auto-execution (Part B).
+      const intentAudit = logIntentAudit({
+        rid,
+        detectedIntents,
+        toolsInvoked: llmResult.type === 'tool_use' ? [llmResult.toolName] : [],
+        responseType: llmResult.type === 'tool_use' ? 'tool_use' : 'text',
+      })
 
       // ── 7a. Direct text response ─────────────────────────────────────────
       if (llmResult.type === 'text') {
-        // Intent audit — detect if the user asked for tool actions that weren't executed.
-        // Return value captured for P0 pending-action queue (next phase).
-        const _auditResult = logIntentAudit({
-          rid,
-          detectedIntents,
-          toolsInvoked: [],
-          responseType: 'text',
-        })
-
         let finalText: string
         try {
           finalText = requireNonEmptyAssistantMessage(
@@ -371,11 +440,9 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        // Text audit — detect false action claims (hallucinated saves, etc.)
-        const falseClaims = detectFalseActionClaims(finalText)
-        if (falseClaims.length > 0) {
-          logTextAudit({ rid, claims: falseClaims, toolsInvoked: [] })
-        }
+        // P0 Part A — detect and strip hallucinated action claims.
+        // No tools were invoked in the text path, so ALL detected claims are false.
+        finalText = sanitizeFormatOutput(finalText, [], rid, 'text_response')
 
         const updatedMessages: Message[] = [
           ...history,
@@ -622,11 +689,13 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        // Forensic: scan format output for false action claims
-        const briefingFalseClaims = detectFalseActionClaims(formattedResponse)
-        if (briefingFalseClaims.length > 0) {
-          logTextAudit({ rid, claims: briefingFalseClaims, toolsInvoked: ['run_careerclaw'] })
-        }
+        // P0 Part A — detect and strip hallucinated claims from format output
+        formattedResponse = sanitizeFormatOutput(
+          formattedResponse,
+          ['run_careerclaw'],
+          rid,
+          'run_careerclaw_format',
+        )
 
         const updatedMessages: Message[] = [
           ...history,
@@ -762,16 +831,29 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        // Forensic: scan format output for false action claims
-        const gapFalseClaims = detectFalseActionClaims(formattedResponse)
-        if (gapFalseClaims.length > 0) {
-          logTextAudit({ rid, claims: gapFalseClaims, toolsInvoked: ['run_gap_analysis'] })
-        }
+        // P0 Part A — sanitize hallucinated claims from format output
+        formattedResponse = sanitizeFormatOutput(
+          formattedResponse,
+          ['run_gap_analysis'],
+          rid,
+          'gap_analysis_format',
+        )
+
+        // P0 Part B — pending-action auto-save
+        const gapPendingNote = await executePendingSave({
+          unfulfilled: intentAudit.unfulfilled,
+          match: cached ? cached.entry : null,
+          userId,
+          rid,
+          supabase,
+          sendProgress,
+        })
+        const gapFinalOutput = formattedResponse + gapPendingNote
 
         const updatedMessages: Message[] = [
           ...history,
           { role: 'user', content: message, timestamp: new Date().toISOString() },
-          { role: 'assistant', content: formattedResponse, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: gapFinalOutput, timestamp: new Date().toISOString() },
         ]
         const savedId = await saveSession(
           userId,
@@ -791,7 +873,7 @@ export async function chatHandler(c: Context): Promise<Response> {
           durationMs: Date.now() - startMs,
         })
 
-        await sendDone(savedId, formattedResponse)
+        await sendDone(savedId, gapFinalOutput)
         return
       }
 
@@ -908,16 +990,29 @@ export async function chatHandler(c: Context): Promise<Response> {
           return
         }
 
-        // Forensic: scan format output for false action claims
-        const coverLetterFalseClaims = detectFalseActionClaims(formattedResponse)
-        if (coverLetterFalseClaims.length > 0) {
-          logTextAudit({ rid, claims: coverLetterFalseClaims, toolsInvoked: ['run_cover_letter'] })
-        }
+        // P0 Part A — sanitize hallucinated claims from format output
+        formattedResponse = sanitizeFormatOutput(
+          formattedResponse,
+          ['run_cover_letter'],
+          rid,
+          'cover_letter_format',
+        )
+
+        // P0 Part B — pending-action auto-save
+        const clPendingNote = await executePendingSave({
+          unfulfilled: intentAudit.unfulfilled,
+          match: cached ? cached.entry : null,
+          userId,
+          rid,
+          supabase,
+          sendProgress,
+        })
+        const clFinalOutput = formattedResponse + clPendingNote
 
         const updatedMessages: Message[] = [
           ...history,
           { role: 'user', content: message, timestamp: new Date().toISOString() },
-          { role: 'assistant', content: formattedResponse, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: clFinalOutput, timestamp: new Date().toISOString() },
         ]
         const coverLetterStateUpdate: Partial<SessionState> = {
           coverLetterResults: { [jobId]: coverLetterResult },
@@ -940,7 +1035,7 @@ export async function chatHandler(c: Context): Promise<Response> {
           durationMs: Date.now() - startMs,
         })
 
-        await sendDone(savedId, formattedResponse)
+        await sendDone(savedId, clFinalOutput)
         return
       }
 
@@ -1253,13 +1348,13 @@ export async function chatHandler(c: Context): Promise<Response> {
             : "I wasn't able to update your tracker right now — please try adding it manually in your Applications tab."
         }
 
-        // Forensic: scan format output for false action claims.
-        // track_application is a real tool, so false claims here would mean
-        // the format LLM is claiming extra actions beyond what was executed.
-        const trackFalseClaims = detectFalseActionClaims(formattedResponse)
-        if (trackFalseClaims.length > 0) {
-          logTextAudit({ rid, claims: trackFalseClaims, toolsInvoked: ['track_application'] })
-        }
+        // P0 Part A — sanitize hallucinated claims from format output
+        formattedResponse = sanitizeFormatOutput(
+          formattedResponse,
+          ['track_application'],
+          rid,
+          'track_application_format',
+        )
 
         // Save session with a brief summary (audit only — no job details in session)
         const sessionSummary =

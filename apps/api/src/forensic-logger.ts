@@ -250,7 +250,7 @@ const FALSE_ACTION_PATTERNS: ReadonlyArray<{ claim: string; pattern: RegExp }> =
   },
   {
     claim: 'cover_letter_generated',
-    pattern: /^(Here'?s\s+your\s+tailored\s+cover\s+letter|Subject:\s+)/im,
+    pattern: /^(Here'?s\s+your\s+tailored\s+cover\s+letter|Subject:\s+)/i,
   },
 ]
 
@@ -281,4 +281,85 @@ export function logTextAudit(params: {
       severity: params.claims.length > 0 ? 'warning' : 'clean',
     }),
   )
+}
+
+// ── Hallucination Sanitization (P0) ──────────────────────────────────────────
+
+/**
+ * Static mapping from claim types to the tools that would make them real.
+ * A claim is "false" when none of its backing tools were invoked.
+ */
+const CLAIM_TO_BACKING_TOOLS: Readonly<Record<string, readonly string[]>> = {
+  tracker_save: ['track_application'],
+  tracker_update: ['track_application'],
+  cover_letter_generated: ['run_cover_letter'],
+}
+
+/**
+ * Filter out claims that are backed by an actual tool invocation.
+ *
+ * Example: `tracker_save` + `toolsInvoked: ['track_application']` → filtered out (real).
+ * Example: `tracker_save` + `toolsInvoked: ['run_cover_letter']` → kept (false).
+ */
+export function filterFalseClaims(claims: string[], toolsInvoked: string[]): string[] {
+  return claims.filter((claim) => {
+    const backingTools = CLAIM_TO_BACKING_TOOLS[claim] ?? []
+    return !backingTools.some((tool) => toolsInvoked.includes(tool))
+  })
+}
+
+/**
+ * Corrective notes appended when false claims are stripped.
+ * Keyed by claim type.
+ */
+const CORRECTIVE_NOTES: Readonly<Record<string, string>> = {
+  tracker_save: '(To save this job to your tracker, just ask me.)',
+  tracker_update: "(To update this job's status, just ask me.)",
+  cover_letter_generated: '(Want me to generate a cover letter for this match?)',
+}
+
+/**
+ * Remove lines containing false action claims from a response.
+ *
+ * Approach: split on newlines, remove lines matching the false claim
+ * patterns, rejoin, and append a corrective note for the most relevant
+ * stripped claim. Line-based splitting is more reliable than sentence
+ * splitting for markdown-formatted chat responses.
+ *
+ * Returns the sanitized text and a flag indicating whether anything was stripped.
+ */
+export function sanitizeHallucinatedClaims(
+  text: string,
+  falseClaims: string[],
+): { sanitized: string; stripped: boolean } {
+  if (falseClaims.length === 0) return { sanitized: text, stripped: false }
+
+  // Build combined patterns from the false claims
+  const patterns = falseClaims.flatMap((claim) => {
+    const entry = FALSE_ACTION_PATTERNS.find((p) => p.claim === claim)
+    return entry ? [entry.pattern] : []
+  })
+
+  if (patterns.length === 0) return { sanitized: text, stripped: false }
+
+  // Split on newlines, filter out matching lines
+  const lines = text.split('\n')
+  const filtered = lines.filter((line) => !patterns.some((pattern) => pattern.test(line)))
+
+  if (filtered.length === lines.length) {
+    return { sanitized: text, stripped: false }
+  }
+
+  // Pick the most relevant corrective note (first matching false claim)
+  const note = falseClaims.map((claim) => CORRECTIVE_NOTES[claim]).find(Boolean)
+
+  const sanitized = filtered
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n') // collapse excessive blank lines from removal
+    .trim()
+
+  return {
+    sanitized: note ? `${sanitized}\n\n${note}` : sanitized,
+    stripped: true,
+  }
 }

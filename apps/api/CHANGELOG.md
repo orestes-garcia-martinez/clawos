@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.0] (2026-04-01)
+
+### Features
+
+- **api:** add P0 hallucination sanitizer — strips false action claims from all LLM response paths and appends corrective notes; adds pending-action auto-save for unfulfilled `track_save` intents in gap analysis and cover letter paths ([90637b5](https://github.com/orestes-garcia-martinez/clawos/commit/90637b530a0509436d79e27f3f68951b3c7d935f))
+
 ## [0.9.0] (2026-04-01)
 
 ### Features
