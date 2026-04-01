@@ -32,6 +32,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { ENV } from './env.js'
 import type { Message } from '@clawos/shared'
+import { logLLMResponse } from './forensic-logger.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -133,6 +134,8 @@ export async function callLLM(
   systemPrompt: string,
   messages: Message[],
   tools?: LLMTool[],
+  rid?: string,
+  callLabel?: string,
 ): Promise<LLMResult> {
   const anthropicMessages = messages.map((m) => ({
     role: m.role as 'user' | 'assistant',
@@ -140,12 +143,12 @@ export async function callLLM(
   }))
 
   try {
-    return await callAnthropic(systemPrompt, anthropicMessages, tools)
+    return await callAnthropic(systemPrompt, anthropicMessages, tools, rid, callLabel)
   } catch (err) {
     // Decide whether to failover or re-throw
     if (shouldFailover(err)) {
       console.warn('[llm] Anthropic call failed — attempting OpenAI failover', errorCode(err))
-      return await callOpenAI(systemPrompt, anthropicMessages)
+      return await callOpenAI(systemPrompt, anthropicMessages, rid, callLabel)
     }
     throw err
   }
@@ -164,6 +167,8 @@ export async function callLLMWithToolResult(
   toolInput: Record<string, any>,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toolResult: Record<string, any>,
+  rid?: string,
+  callLabel?: string,
 ): Promise<LLMTextResult> {
   const anthropicMessages: Anthropic.MessageParam[] = [
     ...messages.map((m) => ({
@@ -203,6 +208,22 @@ export async function callLLMWithToolResult(
       messages: anthropicMessages,
     })
 
+    // Forensic logging — block inventory for the tool-result format call
+    if (rid) {
+      logLLMResponse({
+        rid,
+        call: callLabel ?? `${toolName}_format`,
+        blocks: response.content.map((b) => ({
+          type: b.type,
+          ...(b.type === 'text' ? { text: b.text } : {}),
+          ...(b.type === 'tool_use' ? { name: b.name } : {}),
+        })),
+        stopReason: response.stop_reason,
+        provider: 'anthropic',
+        model: response.model,
+      })
+    }
+
     return {
       type: 'text',
       content: extractTextOrThrow(response.content, 'tool_result'),
@@ -211,13 +232,18 @@ export async function callLLMWithToolResult(
   } catch (err) {
     if (shouldFailover(err)) {
       console.warn('[llm] Anthropic tool-result call failed — OpenAI failover (plain summary)')
-      return await callOpenAI(systemPrompt, [
-        ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-        {
-          role: 'user',
-          content: `The job search returned these results: ${JSON.stringify(toolResult)}. Please summarise them for the user.`,
-        },
-      ])
+      return await callOpenAI(
+        systemPrompt,
+        [
+          ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          {
+            role: 'user',
+            content: `The job search returned these results: ${JSON.stringify(toolResult)}. Please summarise them for the user.`,
+          },
+        ],
+        rid,
+        callLabel,
+      )
     }
     throw err
   }
@@ -229,6 +255,8 @@ async function callAnthropic(
   systemPrompt: string,
   messages: Anthropic.MessageParam[],
   tools?: LLMTool[],
+  rid?: string,
+  callLabel?: string,
 ): Promise<LLMResult> {
   const params: Anthropic.MessageCreateParamsNonStreaming = {
     model: 'claude-sonnet-4-20250514',
@@ -246,6 +274,22 @@ async function callAnthropic(
   }
 
   const response = await getAnthropic().messages.create(params)
+
+  // Forensic logging — block inventory for every Anthropic call
+  if (rid) {
+    logLLMResponse({
+      rid,
+      call: callLabel ?? 'anthropic_call',
+      blocks: response.content.map((b) => ({
+        type: b.type,
+        ...(b.type === 'text' ? { text: b.text } : {}),
+        ...(b.type === 'tool_use' ? { name: b.name } : {}),
+      })),
+      stopReason: response.stop_reason,
+      provider: 'anthropic',
+      model: response.model,
+    })
+  }
 
   // Check for tool use first
   const toolUseBlock = response.content.find((b) => b.type === 'tool_use')
@@ -271,6 +315,8 @@ async function callAnthropic(
 async function callOpenAI(
   systemPrompt: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  rid?: string,
+  callLabel?: string,
 ): Promise<LLMTextResult> {
   const openai = getOpenAI()
   if (!openai) {
@@ -288,9 +334,23 @@ async function callOpenAI(
     messages: openaiMessages,
   })
 
+  const content = response.choices[0]?.message.content ?? ''
+
+  // Forensic logging — block inventory for OpenAI failover
+  if (rid) {
+    logLLMResponse({
+      rid,
+      call: callLabel ? `${callLabel}_openai_failover` : 'openai_failover',
+      blocks: [{ type: 'text', text: content }],
+      stopReason: response.choices[0]?.finish_reason ?? null,
+      provider: 'openai',
+      model: response.model,
+    })
+  }
+
   return {
     type: 'text',
-    content: response.choices[0]?.message.content ?? '',
+    content,
     provider: 'openai',
   }
 }

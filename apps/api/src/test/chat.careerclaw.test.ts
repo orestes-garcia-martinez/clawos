@@ -143,6 +143,8 @@ describe('POST /chat — CareerClaw tool use path', () => {
           includeGapAnalysis: true,
         }),
       }),
+      expect.any(String),
+      expect.any(String),
     )
   })
 
@@ -183,6 +185,8 @@ describe('POST /chat — CareerClaw tool use path', () => {
           includeGapAnalysis: false,
         }),
       }),
+      expect.any(String),
+      expect.any(String),
     )
   })
 })

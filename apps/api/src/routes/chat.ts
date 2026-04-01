@@ -53,6 +53,14 @@ import { callLLM, callLLMWithToolResult } from '../llm.js'
 import { resolveCareerClawEntitlements } from '../entitlements.js'
 import { issueSkillAssertion } from '../skill-assertions.js'
 import {
+  generateRequestId,
+  detectUserIntents,
+  logIntentAudit,
+  logWorkerSignal,
+  detectFalseActionClaims,
+  logTextAudit,
+} from '../forensic-logger.js'
+import {
   runWorkerCareerclaw,
   runWorkerGapAnalysis,
   runWorkerCoverLetter,
@@ -162,6 +170,7 @@ async function handleProfileGate(opts: {
 export async function chatHandler(c: Context): Promise<Response> {
   const startMs = Date.now()
   const userId = c.get('userId') as string
+  const rid = generateRequestId()
 
   // ── 1. Input validation ────────────────────────────────────────────────────
   let body: unknown
@@ -286,12 +295,16 @@ export async function chatHandler(c: Context): Promise<Response> {
       // ── 5. First Claude call — all tools available ────────────────────────
       await sendProgress('thinking', 'Thinking...')
 
-      const llmResult = await callLLM(effectiveSystemPrompt, baseMessages, [
-        RUN_CAREERCLAW_TOOL,
-        RUN_GAP_ANALYSIS_TOOL,
-        RUN_COVER_LETTER_TOOL,
-        TRACK_APPLICATION_TOOL,
-      ])
+      // Detect user intents before the LLM call for post-turn audit
+      const detectedIntents = detectUserIntents(message)
+
+      const llmResult = await callLLM(
+        effectiveSystemPrompt,
+        baseMessages,
+        [RUN_CAREERCLAW_TOOL, RUN_GAP_ANALYSIS_TOOL, RUN_COVER_LETTER_TOOL, TRACK_APPLICATION_TOOL],
+        rid,
+        'first_turn',
+      )
 
       // ── 6. Profile gate — keyed on Claude's tool decision ────────────────
       if (
@@ -313,8 +326,28 @@ export async function chatHandler(c: Context): Promise<Response> {
         return
       }
 
+      // Forensic: intent audit — log for all response types at the routing boundary.
+      // For tool_use, the single invoked tool is known; for text, no tools were invoked.
+      if (llmResult.type === 'tool_use') {
+        logIntentAudit({
+          rid,
+          detectedIntents,
+          toolsInvoked: [llmResult.toolName],
+          responseType: 'tool_use',
+        })
+      }
+
       // ── 7a. Direct text response ─────────────────────────────────────────
       if (llmResult.type === 'text') {
+        // Intent audit — detect if the user asked for tool actions that weren't executed.
+        // Return value captured for P0 pending-action queue (next phase).
+        const _auditResult = logIntentAudit({
+          rid,
+          detectedIntents,
+          toolsInvoked: [],
+          responseType: 'text',
+        })
+
         let finalText: string
         try {
           finalText = requireNonEmptyAssistantMessage(
@@ -336,6 +369,12 @@ export async function chatHandler(c: Context): Promise<Response> {
           })
           await sendError('LLM_ERROR', 'Failed to generate a response. Please try again.')
           return
+        }
+
+        // Text audit — detect false action claims (hallucinated saves, etc.)
+        const falseClaims = detectFalseActionClaims(finalText)
+        if (falseClaims.length > 0) {
+          logTextAudit({ rid, claims: falseClaims, toolsInvoked: [] })
         }
 
         const updatedMessages: Message[] = [
@@ -446,6 +485,14 @@ export async function chatHandler(c: Context): Promise<Response> {
         const topMatch = (briefing['matches'] as Array<{ score?: number }>)?.[0]
         const topScore = topMatch?.score ?? null
 
+        // Forensic: log briefing worker signal
+        logWorkerSignal({
+          rid,
+          skill: 'careerclaw',
+          action: 'briefing',
+          durationMs: workerResult.durationMs,
+        })
+
         // Log run (fire and forget — don't block SSE)
         supabase
           .from('careerclaw_runs')
@@ -551,6 +598,8 @@ export async function chatHandler(c: Context): Promise<Response> {
                 includeGapAnalysis: featureSet.has('careerclaw.resume_gap_analysis'),
               },
             },
+            rid,
+            'run_careerclaw_format',
           )
           formattedResponse = requireNonEmptyAssistantMessage(
             stripGroundingBlock(formatResult.content),
@@ -571,6 +620,12 @@ export async function chatHandler(c: Context): Promise<Response> {
           })
           await sendError('LLM_ERROR', 'Failed to format job results. Please try again.')
           return
+        }
+
+        // Forensic: scan format output for false action claims
+        const briefingFalseClaims = detectFalseActionClaims(formattedResponse)
+        if (briefingFalseClaims.length > 0) {
+          logTextAudit({ rid, claims: briefingFalseClaims, toolsInvoked: ['run_careerclaw'] })
         }
 
         const updatedMessages: Message[] = [
@@ -655,6 +710,14 @@ export async function chatHandler(c: Context): Promise<Response> {
             },
           })
           gapResult = workerResult.result
+
+          // Forensic: log gap analysis worker signal
+          logWorkerSignal({
+            rid,
+            skill: 'careerclaw',
+            action: 'gap_analysis',
+            durationMs: workerResult.durationMs,
+          })
         } catch (err) {
           console.error(
             '[chat] Gap analysis worker error:',
@@ -683,6 +746,8 @@ export async function chatHandler(c: Context): Promise<Response> {
             llmResult.toolName,
             effectiveToolInput,
             gapResult,
+            rid,
+            'gap_analysis_format',
           )
           formattedResponse = requireNonEmptyAssistantMessage(
             formatResult.content,
@@ -695,6 +760,12 @@ export async function chatHandler(c: Context): Promise<Response> {
           )
           await sendError('LLM_ERROR', 'Failed to format gap analysis. Please try again.')
           return
+        }
+
+        // Forensic: scan format output for false action claims
+        const gapFalseClaims = detectFalseActionClaims(formattedResponse)
+        if (gapFalseClaims.length > 0) {
+          logTextAudit({ rid, claims: gapFalseClaims, toolsInvoked: ['run_gap_analysis'] })
         }
 
         const updatedMessages: Message[] = [
@@ -787,6 +858,15 @@ export async function chatHandler(c: Context): Promise<Response> {
             },
           })
           coverLetterResult = workerResult.result
+
+          // Forensic: log worker quality signal for cover letter
+          logWorkerSignal({
+            rid,
+            skill: 'careerclaw',
+            action: 'cover_letter',
+            isTemplate: (coverLetterResult as { is_template?: boolean }).is_template,
+            durationMs: workerResult.durationMs,
+          })
         } catch (err) {
           const isTimeout = err instanceof WorkerError && err.isTimeout
           console.error(
@@ -812,6 +892,8 @@ export async function chatHandler(c: Context): Promise<Response> {
             llmResult.toolName,
             effectiveToolInput,
             coverLetterResult,
+            rid,
+            'cover_letter_format',
           )
           formattedResponse = requireNonEmptyAssistantMessage(
             formatResult.content,
@@ -824,6 +906,12 @@ export async function chatHandler(c: Context): Promise<Response> {
           )
           await sendError('LLM_ERROR', 'Failed to format cover letter. Please try again.')
           return
+        }
+
+        // Forensic: scan format output for false action claims
+        const coverLetterFalseClaims = detectFalseActionClaims(formattedResponse)
+        if (coverLetterFalseClaims.length > 0) {
+          logTextAudit({ rid, claims: coverLetterFalseClaims, toolsInvoked: ['run_cover_letter'] })
         }
 
         const updatedMessages: Message[] = [
@@ -1147,6 +1235,8 @@ export async function chatHandler(c: Context): Promise<Response> {
             llmResult.toolName,
             effectiveTrackInput,
             trackResult,
+            rid,
+            'track_application_format',
           )
           formattedResponse = requireNonEmptyAssistantMessage(
             formatResult.content,
@@ -1161,6 +1251,14 @@ export async function chatHandler(c: Context): Promise<Response> {
           formattedResponse = trackResult.success
             ? trackResult.message
             : "I wasn't able to update your tracker right now — please try adding it manually in your Applications tab."
+        }
+
+        // Forensic: scan format output for false action claims.
+        // track_application is a real tool, so false claims here would mean
+        // the format LLM is claiming extra actions beyond what was executed.
+        const trackFalseClaims = detectFalseActionClaims(formattedResponse)
+        if (trackFalseClaims.length > 0) {
+          logTextAudit({ rid, claims: trackFalseClaims, toolsInvoked: ['track_application'] })
         }
 
         // Save session with a brief summary (audit only — no job details in session)

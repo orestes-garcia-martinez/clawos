@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.0] (2026-04-01)
+
+### Features
+
+- **api:** add forensic logger for structured LLM observability — logs block inventory, intent audits, worker quality signals, and false-action claim detection per request, all keyed by a `rid` for cross-event correlation ([82fe636](https://github.com/orestes-garcia-martinez/clawos/commit/82fe636948d21d9e291832332af1c3f8a0eb5b18))
+
 ## [0.8.3] (2026-04-01)
 
 ### Bug Fixes
