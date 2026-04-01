@@ -81,6 +81,10 @@ import {
 } from '../briefing-grounding.js'
 import { buildResolvedIntentMessage } from '../intent-resolver.js'
 import { enforceSingleMatchToolTarget } from '../tool-target-enforcer.js'
+import {
+  shouldForceWorkerCoverLetter,
+  formatCoverLetterResponse,
+} from '../cover-letter-enforcer.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -443,6 +447,133 @@ export async function chatHandler(c: Context): Promise<Response> {
         // P0 Part A — detect and strip hallucinated action claims.
         // No tools were invoked in the text path, so ALL detected claims are false.
         finalText = sanitizeFormatOutput(finalText, [], rid, 'text_response')
+
+        // ── P1a: Cover letter worker bypass prevention ──────────────────────
+        // If the user asked to rewrite/revise a cover letter AND a previous
+        // cover letter exists in session state, reject the text response and
+        // force the worker path. This prevents the LLM from generating cover
+        // letters from memory instead of using the worker pipeline.
+        const enforcer = shouldForceWorkerCoverLetter(message, sessionState)
+        if (enforcer.shouldEnforce && enforcer.jobId) {
+          console.log(
+            JSON.stringify({
+              event: 'forensic_cover_letter_enforced',
+              rid,
+              jobId: enforcer.jobId,
+              company: enforcer.company,
+              reason: 'text_response_rejected_rewrite_detected',
+            }),
+          )
+
+          // Pro gate — same check as 7d
+          if (!featureSet.has('careerclaw.tailored_cover_letter')) {
+            await sendGatedResponse(
+              'Tailored cover letters are a Pro feature. Upgrade in Settings > Billing to unlock them.',
+            )
+            return
+          }
+
+          const cached = getMatchFromState(sessionState, enforcer.jobId)
+          if (!cached) {
+            // Match data gone (shouldn't happen if coverLetterResults exists) — let text through
+            console.warn(
+              '[chat] P1a: enforcer fired but match data missing, falling through to text',
+            )
+          } else {
+            await sendProgress('writing', 'Regenerating cover letter...')
+
+            const assertion = issueSkillAssertion({
+              userId,
+              skill: 'careerclaw',
+              tier: entitlements.effectiveTier,
+              features: entitlements.features,
+            })
+
+            const precomputedGap = getGapResultFromState(sessionState, enforcer.jobId)
+
+            try {
+              const workerResult = await runWorkerCoverLetter({
+                assertion,
+                input: {
+                  match: cached.matchData,
+                  profile: cached.profile as Record<string, unknown> & {
+                    skills?: string[]
+                    targetRoles?: string[]
+                  },
+                  resumeIntel: cached.resumeIntel,
+                  ...(cached.resumeText ? { resumeText: cached.resumeText } : {}),
+                  ...(precomputedGap ? { precomputedGap } : {}),
+                },
+              })
+
+              // Forensic: log worker quality signal
+              logWorkerSignal({
+                rid,
+                skill: 'careerclaw',
+                action: 'cover_letter_enforced',
+                isTemplate: (workerResult.result as { is_template?: boolean }).is_template,
+                durationMs: workerResult.durationMs,
+              })
+
+              // Format deterministically — no second LLM call
+              const formattedResponse = formatCoverLetterResponse(
+                workerResult.result,
+                enforcer.company ?? cached.entry.company,
+              )
+
+              // P0 Part B — pending-action auto-save
+              const enforcerPendingNote = await executePendingSave({
+                unfulfilled: intentAudit.unfulfilled,
+                match: cached.entry,
+                userId,
+                rid,
+                supabase,
+                sendProgress,
+              })
+              const enforcerFinalOutput = formattedResponse + enforcerPendingNote
+
+              // Save session with updated cover letter results
+              const coverLetterStateUpdate: Partial<SessionState> = {
+                coverLetterResults: { [enforcer.jobId]: workerResult.result },
+              }
+              const savedId = await saveSession(
+                userId,
+                channel as Channel,
+                [
+                  ...history,
+                  { role: 'user', content: message, timestamp: new Date().toISOString() },
+                  {
+                    role: 'assistant',
+                    content: enforcerFinalOutput,
+                    timestamp: new Date().toISOString(),
+                  },
+                ],
+                activeSessionId,
+                coverLetterStateUpdate,
+                sessionState,
+              )
+
+              logAudit({
+                userId,
+                skill: 'careerclaw',
+                channel,
+                status: 'success',
+                statusCode: 200,
+                durationMs: Date.now() - startMs,
+              })
+
+              await sendDone(savedId, enforcerFinalOutput)
+              return
+            } catch (err) {
+              // Worker failed — log and fall through to the original text response
+              console.error(
+                '[chat] P1a: cover letter worker failed during enforcement, falling through to text',
+                err instanceof Error ? err.message : String(err),
+              )
+            }
+          }
+        }
+        // ── End P1a ─────────────────────────────────────────────────────────
 
         const updatedMessages: Message[] = [
           ...history,
