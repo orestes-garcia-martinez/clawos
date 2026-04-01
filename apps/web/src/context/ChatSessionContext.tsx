@@ -82,6 +82,9 @@ export function ChatSessionProvider({
   const activeSkillRef = useRef<SkillKey | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const progressIdRef = useRef<string | null>(null)
+  // Set to true when reset() is called; cleared after the first send() so the API
+  // knows to start a fresh session rather than loading the previous one.
+  const pendingNewSessionRef = useRef(false)
 
   // Helper: update a specific skill's thread
   const updateThread = useCallback(
@@ -159,6 +162,8 @@ export function ChatSessionProvider({
       }
 
       const currentSessionId = threads[skillKey]?.sessionId
+      const isNewSession = pendingNewSessionRef.current
+      pendingNewSessionRef.current = false
 
       updateThread(skillKey, (prev) => ({
         ...prev,
@@ -170,7 +175,12 @@ export function ChatSessionProvider({
       abortRef.current = chatSSE(
         jwt,
         userId,
-        { channel: 'web', message: text.trim(), sessionId: currentSessionId },
+        {
+          channel: 'web',
+          message: text.trim(),
+          sessionId: currentSessionId,
+          ...(isNewSession ? { newSession: true } : {}),
+        },
         {
           onProgress: (event: ApiProgressEvent) => {
             updateThread(skillKey, (prev) => {
@@ -262,6 +272,7 @@ export function ChatSessionProvider({
     (skillKey: SkillKey) => {
       abort()
       setThreads((prev) => ({ ...prev, [skillKey]: emptyThread() }))
+      pendingNewSessionRef.current = true
     },
     [abort],
   )

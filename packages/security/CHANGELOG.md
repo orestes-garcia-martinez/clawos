@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.2] (2026-03-31)
+
+### Bug Fixes
+
+- **security:** add `newSession?: boolean` to `ChatRequestSchema` so the web client can signal a fresh conversation start ([585262d](https://github.com/orestes-garcia-martinez/clawos/commit/585262d))
+
 ## [0.2.1](https://github.com/orestes-garcia-martinez/clawos/compare/security-v0.2.0...security-v0.2.1) (2026-03-26)
 
 

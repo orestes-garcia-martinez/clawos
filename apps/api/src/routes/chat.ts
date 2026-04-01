@@ -82,6 +82,16 @@ function requireNonEmptyAssistantMessage(content: string, context: string): stri
   return normalized
 }
 
+/**
+ * Strip any [Active briefing ground truth ...] block that Claude incorrectly
+ * outputs, despite the system prompt prohibition. These blocks are injected
+ * exclusively by platform infrastructure and must never appear in user-facing
+ * responses. This is a last-resort defensive filter.
+ */
+function stripGroundingBlock(text: string): string {
+  return text.replace(/\[Active briefing ground truth[\s\S]*$/, '').trim()
+}
+
 /** Validate that required fields are present for save/update_status actions. */
 function validateTrackFields(
   input: Record<string, unknown>,
@@ -169,7 +179,7 @@ export async function chatHandler(c: Context): Promise<Response> {
     )
   }
 
-  const { channel, message, sessionId } = parseResult.data
+  const { channel, message, sessionId, newSession } = parseResult.data
 
   // ── 2. SSE stream ──────────────────────────────────────────────────────────
   return streamSSE(c, async (stream) => {
@@ -195,7 +205,9 @@ export async function chatHandler(c: Context): Promise<Response> {
       // ── 3. Load session ──────────────────────────────────────────────────
       await sendProgress('session', 'Loading context...')
 
-      const session = await loadSession(userId, channel as Channel, sessionId)
+      // newSession: true means the user explicitly started a new conversation.
+      // Skip loading any existing session so history and state don't bleed across.
+      const session = newSession ? null : await loadSession(userId, channel as Channel, sessionId)
       const history: Message[] = session ? pruneMessages(session.messages) : []
       const activeSessionId = session?.id
       const sessionState: SessionState = session?.state ?? {}
@@ -305,7 +317,10 @@ export async function chatHandler(c: Context): Promise<Response> {
       if (llmResult.type === 'text') {
         let finalText: string
         try {
-          finalText = requireNonEmptyAssistantMessage(llmResult.content, 'direct_response')
+          finalText = requireNonEmptyAssistantMessage(
+            stripGroundingBlock(llmResult.content),
+            'direct_response',
+          )
         } catch (err) {
           console.error(
             '[chat] Direct Claude response error:',
@@ -538,7 +553,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             },
           )
           formattedResponse = requireNonEmptyAssistantMessage(
-            formatResult.content,
+            stripGroundingBlock(formatResult.content),
             'run_careerclaw_format',
           )
         } catch (err) {
