@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.0] (2026-04-01)
+
+### Features
+
+- **api:** prevent cover letter worker bypass on rewrite requests — deterministically detects rewrite/personalize intent against session state and forces the careerclaw-js worker path instead of allowing LLM text responses for cover letter rewrites ([174fc0e](https://github.com/orestes-garcia-martinez/clawos/commit/174fc0e54cb4d3fffb7d4db01fc6ba818c30f495))
+
 ## [0.10.0] (2026-04-01)
 
 ### Features
