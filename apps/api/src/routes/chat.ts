@@ -298,12 +298,13 @@ export async function chatHandler(c: Context): Promise<Response> {
       // Detect user intents before the LLM call for post-turn audit
       const detectedIntents = detectUserIntents(message)
 
-      const llmResult = await callLLM(effectiveSystemPrompt, baseMessages, [
-        RUN_CAREERCLAW_TOOL,
-        RUN_GAP_ANALYSIS_TOOL,
-        RUN_COVER_LETTER_TOOL,
-        TRACK_APPLICATION_TOOL,
-      ], rid, 'first_turn')
+      const llmResult = await callLLM(
+        effectiveSystemPrompt,
+        baseMessages,
+        [RUN_CAREERCLAW_TOOL, RUN_GAP_ANALYSIS_TOOL, RUN_COVER_LETTER_TOOL, TRACK_APPLICATION_TOOL],
+        rid,
+        'first_turn',
+      )
 
       // ── 6. Profile gate — keyed on Claude's tool decision ────────────────
       if (

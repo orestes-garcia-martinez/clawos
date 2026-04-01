@@ -94,19 +94,23 @@ export function logLLMResponse(params: {
 const INTENT_PATTERNS: ReadonlyArray<{ intent: string; pattern: RegExp }> = [
   {
     intent: 'briefing',
-    pattern: /\b(find\s+(me\s+)?jobs|job\s+search|run\s+(a\s+)?briefing|what'?s\s+out\s+there|any\s+(new\s+)?(jobs|openings|roles))\b/i,
+    pattern:
+      /\b(find\s+(me\s+)?jobs|job\s+search|run\s+(a\s+)?briefing|what'?s\s+out\s+there|any\s+(new\s+)?(jobs|openings|roles))\b/i,
   },
   {
     intent: 'gap_analysis',
-    pattern: /\b(analy[sz]e|gap\s+analysis|what'?s\s+missing|why\s+(is\s+)?(the\s+)?score\s+(so\s+)?low|deep[\s-]?dive)\b/i,
+    pattern:
+      /\b(analy[sz]e|gap\s+analysis|what'?s\s+missing|why\s+(is\s+)?(the\s+)?score\s+(so\s+)?low|deep[\s-]?dive)\b/i,
   },
   {
     intent: 'cover_letter',
-    pattern: /\b(cover\s+letter|write\s+(a\s+|me\s+a\s+)?letter|generate\s+(a\s+)?letter|re[\s-]?write|personali[sz]e.*letter|more\s+personali[sz]ed)\b/i,
+    pattern:
+      /\b(cover\s+letter|write\s+(a\s+|me\s+a\s+)?letter|generate\s+(a\s+)?letter|re[\s-]?write|personali[sz]e.*letter|more\s+personali[sz]ed)\b/i,
   },
   {
     intent: 'track_save',
-    pattern: /\b(save\s+(the\s+|this\s+|it\s+)?(job|to\s+(my\s+)?track)|track\s+(it|this|the\s+job)|add\s+(it\s+)?to\s+(my\s+)?track)/i,
+    pattern:
+      /\b(save\s+(the\s+|this\s+|it\s+)?(job|to\s+(my\s+)?track)|track\s+(it|this|the\s+job)|add\s+(it\s+)?to\s+(my\s+)?track)/i,
   },
   {
     intent: 'track_update',
@@ -114,15 +118,14 @@ const INTENT_PATTERNS: ReadonlyArray<{ intent: string; pattern: RegExp }> = [
   },
   {
     intent: 'track_list',
-    pattern: /\b(list\s+(my\s+)?track|show\s+(my\s+)?track|my\s+applications|what('?s|\s+is)\s+tracked)\b/i,
+    pattern:
+      /\b(list\s+(my\s+)?track|show\s+(my\s+)?track|my\s+applications|what('?s|\s+is)\s+tracked)\b/i,
   },
 ]
 
 /** Detect tool-level intents from the user's message text. */
 export function detectUserIntents(message: string): string[] {
-  return INTENT_PATTERNS.filter(({ pattern }) => pattern.test(message)).map(
-    ({ intent }) => intent,
-  )
+  return INTENT_PATTERNS.filter(({ pattern }) => pattern.test(message)).map(({ intent }) => intent)
 }
 
 /**
@@ -238,7 +241,8 @@ export function logWorkerSignal(params: {
 const FALSE_ACTION_PATTERNS: ReadonlyArray<{ claim: string; pattern: RegExp }> = [
   {
     claim: 'tracker_save',
-    pattern: /\b(saved?\s+(to\s+)?(your\s+)?tracker|is\s+saved\s+to\s+your|tracked\s+.*successfully|added\s+to\s+your\s+(application|track))/i,
+    pattern:
+      /\b(saved?\s+(to\s+)?(your\s+)?tracker|is\s+saved\s+to\s+your|tracked\s+.*successfully|added\s+to\s+your\s+(application|track))/i,
   },
   {
     claim: 'tracker_update',
@@ -257,9 +261,7 @@ const FALSE_ACTION_PATTERNS: ReadonlyArray<{ claim: string; pattern: RegExp }> =
  * suspicious claims were detected.
  */
 export function detectFalseActionClaims(text: string): string[] {
-  return FALSE_ACTION_PATTERNS.filter(({ pattern }) => pattern.test(text)).map(
-    ({ claim }) => claim,
-  )
+  return FALSE_ACTION_PATTERNS.filter(({ pattern }) => pattern.test(text)).map(({ claim }) => claim)
 }
 
 /**

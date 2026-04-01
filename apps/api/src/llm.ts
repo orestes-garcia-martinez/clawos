@@ -232,13 +232,18 @@ export async function callLLMWithToolResult(
   } catch (err) {
     if (shouldFailover(err)) {
       console.warn('[llm] Anthropic tool-result call failed — OpenAI failover (plain summary)')
-      return await callOpenAI(systemPrompt, [
-        ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-        {
-          role: 'user',
-          content: `The job search returned these results: ${JSON.stringify(toolResult)}. Please summarise them for the user.`,
-        },
-      ], rid, callLabel)
+      return await callOpenAI(
+        systemPrompt,
+        [
+          ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+          {
+            role: 'user',
+            content: `The job search returned these results: ${JSON.stringify(toolResult)}. Please summarise them for the user.`,
+          },
+        ],
+        rid,
+        callLabel,
+      )
     }
     throw err
   }
