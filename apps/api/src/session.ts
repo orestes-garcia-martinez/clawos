@@ -268,9 +268,14 @@ export async function saveSession(
     insertPayload['state'] = mergedState as unknown as Json
   }
 
+  // onConflict: 'user_id,channel' — when a session already exists for this
+  // (user, channel) pair (e.g. after "New Conversation" clears activeSessionId),
+  // UPDATE the existing row with fresh messages and state instead of failing
+  // with a unique-constraint violation. The existing session UUID is returned
+  // so the web client can reference it on subsequent turns.
   const { data, error } = await supabase
     .from('sessions')
-    .upsert(insertPayload)
+    .upsert(insertPayload, { onConflict: 'user_id,channel' })
     .select('id')
     .single()
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.3] (2026-04-01)
+
+### Bug Fixes
+
+- **api:** add `onConflict: 'user_id,channel'` to `saveSession` upsert so that "New Conversation" (which clears `activeSessionId`) updates the existing session row instead of failing with a unique-constraint violation and returning `'unknown'` as the session ID ([88dba62](https://github.com/orestes-garcia-martinez/clawos/commit/88dba62))
+
 ## [0.8.2] (2026-03-31)
 
 ### Bug Fixes
