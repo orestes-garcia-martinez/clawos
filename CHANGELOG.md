@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.3](https://github.com/orestes-garcia-martinez/clawos/compare/v0.7.2...v0.7.3) (2026-04-01)
+
+
+### Bug Fixes
+
+* **api,web,security,shared:** prevent session leak and grounding block in responses ([#128](https://github.com/orestes-garcia-martinez/clawos/issues/128)) ([9b1d258](https://github.com/orestes-garcia-martinez/clawos/commit/9b1d2584ef078f6f56b253123d25a2a643191d6b))
+
 ## [0.7.2](https://github.com/orestes-garcia-martinez/clawos/compare/v0.7.1...v0.7.2) (2026-03-31)
 
 
