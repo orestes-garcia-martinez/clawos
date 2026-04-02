@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0] (2026-04-02)
+
+### Features
+
+- **worker:** bump careerclaw-js `^1.5.0` → `^1.6.1` — consumes template quality guard (gap keyword filtering, `_meta` observability field, structured LLM chain logging) ([dc64fc8](https://github.com/orestes-garcia-martinez/clawos/commit/dc64fc87bd9b21704868d4acb7890fc137b652fb))
+
 ## [0.3.1] (2026-03-30)
 
 ### Bug Fixes
