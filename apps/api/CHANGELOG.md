@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.1] (2026-04-02)
+
+### Bug Fixes
+
+- **api:** issue a fresh skill assertion for each P1b cover letter retry — the consumed assertion was being reused on both the 7d and enforced-rewrite paths, causing the worker to reject retries with 403 ([4d4a93d](https://github.com/orestes-garcia-martinez/clawos/commit/4d4a93d9e65335050e7717d9d9bd73d4102a6378))
+
 ## [0.12.0] (2026-04-02)
 
 ### Features
