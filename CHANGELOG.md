@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.8.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.7.4...v0.8.0) (2026-04-02)
+
+
+### Features
+
+* **api,worker:** template quality guard and LLM chain observability (P1b) ([#136](https://github.com/orestes-garcia-martinez/clawos/issues/136)) ([b064bb3](https://github.com/orestes-garcia-martinez/clawos/commit/b064bb39d46737ef868481b3c54d21322c2a7b87))
+* **api:** add forensic logger for LLM observability ([#132](https://github.com/orestes-garcia-martinez/clawos/issues/132)) ([755f586](https://github.com/orestes-garcia-martinez/clawos/commit/755f586dac9d0c86dedf327af148fceafd8a453b))
+* **api:** add P0 hallucination sanitizer and pending-action auto-save ([#134](https://github.com/orestes-garcia-martinez/clawos/issues/134)) ([526d80c](https://github.com/orestes-garcia-martinez/clawos/commit/526d80c940f9f423eeaf53318be98c3decd5ca4f))
+* **api:** prevent cover letter worker bypass on rewrite requests (P1a) ([#135](https://github.com/orestes-garcia-martinez/clawos/issues/135)) ([beb6b77](https://github.com/orestes-garcia-martinez/clawos/commit/beb6b77fc74089fb10d7d8599eefbf8481f3a3f3))
+
 ## [0.7.4](https://github.com/orestes-garcia-martinez/clawos/compare/v0.7.3...v0.7.4) (2026-04-01)
 
 
