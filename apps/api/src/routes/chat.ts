@@ -521,7 +521,6 @@ export async function chatHandler(c: Context): Promise<Response> {
             const precomputedGap = getGapResultFromState(sessionState, enforcer.jobId)
 
             try {
-              // Build worker input once — reused on retry
               const enforcerWorkerInput = {
                 assertion,
                 input: {
@@ -565,7 +564,15 @@ export async function chatHandler(c: Context): Promise<Response> {
                 await sendProgress('writing', 'Refining cover letter...')
 
                 try {
-                  const retryResult = await runWorkerCoverLetter(enforcerWorkerInput)
+                  const retryResult = await runWorkerCoverLetter({
+                    assertion: issueSkillAssertion({
+                      userId,
+                      skill: 'careerclaw',
+                      tier: entitlements.effectiveTier,
+                      features: entitlements.features,
+                    }),
+                    input: enforcerWorkerInput.input,
+                  })
                   const retrySignals = extractCoverLetterSignals(retryResult.result)
 
                   logWorkerSignal({
@@ -1130,7 +1137,6 @@ export async function chatHandler(c: Context): Promise<Response> {
 
         let coverLetterResult: Record<string, unknown>
         try {
-          // Build worker input once — reused on retry
           const workerInput = {
             assertion,
             input: {
@@ -1179,7 +1185,15 @@ export async function chatHandler(c: Context): Promise<Response> {
             await sendProgress('writing', 'Refining cover letter...')
 
             try {
-              const retryResult = await runWorkerCoverLetter(workerInput)
+              const retryResult = await runWorkerCoverLetter({
+                assertion: issueSkillAssertion({
+                  userId,
+                  skill: 'careerclaw',
+                  tier: entitlements.effectiveTier,
+                  features: entitlements.features,
+                }),
+                input: workerInput.input,
+              })
               const retrySignals = extractCoverLetterSignals(retryResult.result)
 
               logWorkerSignal({
