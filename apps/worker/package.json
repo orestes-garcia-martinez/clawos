@@ -17,7 +17,7 @@
   "dependencies": {
     "@clawos/security": "*",
     "@clawos/shared": "*",
-    "careerclaw-js": "^1.7.1",
+    "careerclaw-js": "^1.8.0",
     "express": "^5.0.0",
     "zod": "^3.24.0"
   },

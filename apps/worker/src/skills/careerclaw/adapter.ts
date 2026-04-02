@@ -85,12 +85,17 @@ export const careerClawGapAnalysisAdapter = {
   validateInput(input: unknown): CareerClawGapAnalysisWorkerInput {
     return CareerClawGapAnalysisInputSchema.parse(input)
   },
-  execute(input: CareerClawGapAnalysisWorkerInput): Record<string, unknown> {
+  execute(
+    input: CareerClawGapAnalysisWorkerInput,
+    ctx: VerifiedSkillExecutionContext,
+  ): Record<string, unknown> {
     // Intentional: match/resumeIntel arrive as Record<string,unknown> from the wire;
     // Zod validated the shape above so casting to careerclaw-js types is safe here.
     const match = input.match as unknown as ScoredJob
     const resumeIntel = input.resumeIntel as unknown as ResumeIntelligence
-    const report: GapAnalysisReport = generateGapAnalysisForMatch(match, resumeIntel)
+    const report: GapAnalysisReport = generateGapAnalysisForMatch(match, resumeIntel, {
+      executionContext: buildCareerClawExecutionContext(ctx),
+    })
     // Intentional: GapAnalysisReport erased to Record so the route handler stays
     // type-agnostic; the API reads .analysis via a structural access, not this type.
     return report as unknown as Record<string, unknown>
@@ -101,7 +106,10 @@ export const careerClawCoverLetterAdapter = {
   validateInput(input: unknown): CareerClawCoverLetterWorkerInput {
     return CareerClawCoverLetterInputSchema.parse(input)
   },
-  async execute(input: CareerClawCoverLetterWorkerInput): Promise<Record<string, unknown>> {
+  async execute(
+    input: CareerClawCoverLetterWorkerInput,
+    ctx: VerifiedSkillExecutionContext,
+  ): Promise<Record<string, unknown>> {
     // Intentional: match/resumeIntel arrive as Record<string,unknown> from the wire;
     // Zod validated the shape above so casting to careerclaw-js types is safe here.
     const match = input.match as unknown as ScoredJob
@@ -115,7 +123,10 @@ export const careerClawCoverLetterAdapter = {
       match,
       profile,
       resumeIntel,
-      { precomputedGap },
+      {
+        precomputedGap,
+        executionContext: buildCareerClawExecutionContext(ctx),
+      },
     )
 
     // Intentional: CoverLetter erased to Record so the route handler stays type-agnostic.
