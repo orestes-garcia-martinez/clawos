@@ -88,6 +88,35 @@ import {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Extract _meta and is_template from a cover letter worker result.
+ * Returns a normalized structure for logging and retry decisions.
+ */
+function extractCoverLetterSignals(result: Record<string, unknown>): {
+  isTemplate: boolean
+  generationMeta?: {
+    provider?: string
+    model?: string
+    attempts?: number
+    fallback_reason?: string | null
+    latency_ms?: number
+  }
+} {
+  const isTemplate = (result as { is_template?: boolean }).is_template ?? false
+  const meta = (result as { _meta?: Record<string, unknown> })._meta
+  if (!meta) return { isTemplate }
+  return {
+    isTemplate,
+    generationMeta: {
+      provider: meta['provider'] as string | undefined,
+      model: meta['model'] as string | undefined,
+      attempts: meta['attempts'] as number | undefined,
+      fallback_reason: meta['fallback_reason'] as string | null | undefined,
+      latency_ms: meta['latency_ms'] as number | undefined,
+    },
+  }
+}
+
 function requireNonEmptyAssistantMessage(content: string, context: string): string {
   const normalized = content.trim()
   if (!normalized) {
@@ -492,7 +521,8 @@ export async function chatHandler(c: Context): Promise<Response> {
             const precomputedGap = getGapResultFromState(sessionState, enforcer.jobId)
 
             try {
-              const workerResult = await runWorkerCoverLetter({
+              // Build worker input once — reused on retry
+              const enforcerWorkerInput = {
                 assertion,
                 input: {
                   match: cached.matchData,
@@ -504,20 +534,63 @@ export async function chatHandler(c: Context): Promise<Response> {
                   ...(cached.resumeText ? { resumeText: cached.resumeText } : {}),
                   ...(precomputedGap ? { precomputedGap } : {}),
                 },
-              })
+              }
 
-              // Forensic: log worker quality signal
+              const workerResult = await runWorkerCoverLetter(enforcerWorkerInput)
+              let effectiveResult = workerResult.result
+
+              // Forensic: log worker quality signal with generation metadata
+              const signals = extractCoverLetterSignals(effectiveResult)
               logWorkerSignal({
                 rid,
                 skill: 'careerclaw',
                 action: 'cover_letter_enforced',
-                isTemplate: (workerResult.result as { is_template?: boolean }).is_template,
+                isTemplate: signals.isTemplate,
                 durationMs: workerResult.durationMs,
+                generationMeta: signals.generationMeta,
               })
+
+              // P1b: Template retry — same logic as 7d path.
+              // The enforcer fires on rewrite requests, so template quality matters.
+              if (signals.isTemplate && precomputedGap) {
+                console.log(
+                  JSON.stringify({
+                    event: 'forensic_cover_letter_template_retry',
+                    rid,
+                    jobId: enforcer.jobId,
+                    reason: 'is_template_with_precomputed_gap_enforced',
+                  }),
+                )
+
+                await sendProgress('writing', 'Refining cover letter...')
+
+                try {
+                  const retryResult = await runWorkerCoverLetter(enforcerWorkerInput)
+                  const retrySignals = extractCoverLetterSignals(retryResult.result)
+
+                  logWorkerSignal({
+                    rid,
+                    skill: 'careerclaw',
+                    action: 'cover_letter_enforced_retry',
+                    isTemplate: retrySignals.isTemplate,
+                    durationMs: retryResult.durationMs,
+                    generationMeta: retrySignals.generationMeta,
+                  })
+
+                  if (!retrySignals.isTemplate) {
+                    effectiveResult = retryResult.result
+                  }
+                } catch (retryErr) {
+                  console.warn(
+                    '[chat] P1b: enforced cover letter retry failed, using original template',
+                    retryErr instanceof Error ? retryErr.message : String(retryErr),
+                  )
+                }
+              }
 
               // Format deterministically — no second LLM call
               const formattedResponse = formatCoverLetterResponse(
-                workerResult.result,
+                effectiveResult,
                 enforcer.company ?? cached.entry.company,
               )
 
@@ -534,7 +607,7 @@ export async function chatHandler(c: Context): Promise<Response> {
 
               // Save session with updated cover letter results
               const coverLetterStateUpdate: Partial<SessionState> = {
-                coverLetterResults: { [enforcer.jobId]: workerResult.result },
+                coverLetterResults: { [enforcer.jobId]: effectiveResult },
               }
               const savedId = await saveSession(
                 userId,
@@ -1057,7 +1130,8 @@ export async function chatHandler(c: Context): Promise<Response> {
 
         let coverLetterResult: Record<string, unknown>
         try {
-          const workerResult = await runWorkerCoverLetter({
+          // Build worker input once — reused on retry
+          const workerInput = {
             assertion,
             input: {
               match: cached.matchData,
@@ -1069,17 +1143,66 @@ export async function chatHandler(c: Context): Promise<Response> {
               ...(cached.resumeText ? { resumeText: cached.resumeText } : {}),
               ...(precomputedGap ? { precomputedGap } : {}),
             },
-          })
+          }
+
+          const workerResult = await runWorkerCoverLetter(workerInput)
           coverLetterResult = workerResult.result
 
-          // Forensic: log worker quality signal for cover letter
+          // Extract signals for logging and retry decisions
+          const signals = extractCoverLetterSignals(coverLetterResult)
+
+          // Forensic: log worker quality signal with generation metadata
           logWorkerSignal({
             rid,
             skill: 'careerclaw',
             action: 'cover_letter',
-            isTemplate: (coverLetterResult as { is_template?: boolean }).is_template,
+            isTemplate: signals.isTemplate,
             durationMs: workerResult.durationMs,
+            generationMeta: signals.generationMeta,
           })
+
+          // P1b: Template quality guard — retry once if template AND gap data exists.
+          if (signals.isTemplate && precomputedGap) {
+            console.log(
+              JSON.stringify({
+                event: 'forensic_cover_letter_template_retry',
+                rid,
+                jobId,
+                reason: 'is_template_with_precomputed_gap',
+              }),
+            )
+
+            // Note: this progress event fires after the first worker call completes.
+            // The user sees "Generating cover letter..." → (first call, silent) →
+            // "Refining cover letter..." → (retry) → done. Intentional — we need
+            // the first result to decide whether retry is warranted.
+            await sendProgress('writing', 'Refining cover letter...')
+
+            try {
+              const retryResult = await runWorkerCoverLetter(workerInput)
+              const retrySignals = extractCoverLetterSignals(retryResult.result)
+
+              logWorkerSignal({
+                rid,
+                skill: 'careerclaw',
+                action: 'cover_letter_retry',
+                isTemplate: retrySignals.isTemplate,
+                durationMs: retryResult.durationMs,
+                generationMeta: retrySignals.generationMeta,
+              })
+
+              // Use retry result only if it's better (not template)
+              if (!retrySignals.isTemplate) {
+                coverLetterResult = retryResult.result
+              }
+            } catch (retryErr) {
+              // Retry failed — proceed with the original template result
+              console.warn(
+                '[chat] P1b: cover letter retry failed, using original template',
+                retryErr instanceof Error ? retryErr.message : String(retryErr),
+              )
+            }
+          }
         } catch (err) {
           const isTimeout = err instanceof WorkerError && err.isTimeout
           console.error(

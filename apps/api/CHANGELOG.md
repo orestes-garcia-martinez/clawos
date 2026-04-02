@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0] (2026-04-02)
+
+### Features
+
+- **api:** add P1b template retry — when cover letter worker returns `is_template: true` and gap data is available, retries once and uses the non-template result if the retry succeeds; applied to both first-time (7d) and enforced-rewrite (P1a) paths ([dc64fc8](https://github.com/orestes-garcia-martinez/clawos/commit/dc64fc87bd9b21704868d4acb7890fc137b652fb))
+- **api:** forward careerclaw-js `_meta` generation signals to forensic logs via `generationMeta` field on `logWorkerSignal` ([dc64fc8](https://github.com/orestes-garcia-martinez/clawos/commit/dc64fc87bd9b21704868d4acb7890fc137b652fb))
+
 ## [0.11.0] (2026-04-01)
 
 ### Features

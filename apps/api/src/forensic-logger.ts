@@ -205,6 +205,10 @@ export function logIntentAudit(params: {
  * Captures `is_template`, quality scores, provider used, and latency
  * so template-fallback incidents are visible in logs without inspecting
  * the full response payload.
+ *
+ * When the worker result includes `_meta` (careerclaw-js v1.6+), the
+ * generation-level provider, model, attempts, and fallback reason are
+ * included for full LLM chain observability.
  */
 export function logWorkerSignal(params: {
   rid: string
@@ -215,6 +219,14 @@ export function logWorkerSignal(params: {
   provider?: string
   latencyMs?: number
   durationMs?: number
+  /** Generation metadata from careerclaw-js _meta field. */
+  generationMeta?: {
+    provider?: string
+    model?: string
+    attempts?: number
+    fallback_reason?: string | null
+    latency_ms?: number
+  }
 }): void {
   console.log(
     JSON.stringify({
@@ -227,6 +239,7 @@ export function logWorkerSignal(params: {
       ...(params.provider !== undefined ? { provider: params.provider } : {}),
       ...(params.latencyMs !== undefined ? { latency_ms: params.latencyMs } : {}),
       ...(params.durationMs !== undefined ? { duration_ms: params.durationMs } : {}),
+      ...(params.generationMeta ? { generation_meta: params.generationMeta } : {}),
     }),
   )
 }
