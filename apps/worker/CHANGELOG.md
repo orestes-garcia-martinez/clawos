@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.1] (2026-04-02)
+
+### Bug Fixes
+
+- **worker:** load `.env` via `--env-file` on startup so `CAREERCLAW_ANTHROPIC_KEY` and `CAREERCLAW_OPENAI_KEY` reach careerclaw-js config at module init time, unblocking LLM cover letter generation ([4d4a93d](https://github.com/orestes-garcia-martinez/clawos/commit/4d4a93d9e65335050e7717d9d9bd73d4102a6378))
+
 ## [0.4.0] (2026-04-02)
 
 ### Features
