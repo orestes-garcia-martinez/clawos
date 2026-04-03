@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1] (2026-04-03)
+
+### Bug Fixes
+
+- **shared:** add system prompt instruction to format only the primary tool result when `also_execute`/`_server_handles` is present — prevents Claude from generating pending-action content in format responses ([bbca1e2](https://github.com/orestes-garcia-martinez/clawos/commit/bbca1e2ea265f8eca3c68ce490e48a896e915793))
+
 ## [0.7.0] (2026-04-03)
 
 ### Features
