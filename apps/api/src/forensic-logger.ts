@@ -322,28 +322,35 @@ export function filterFalseClaims(claims: string[], toolsInvoked: string[]): str
 }
 
 /**
- * Corrective notes appended when false claims are stripped.
- * Keyed by claim type.
+ * Corrective notes appended when false claims are stripped in the 7a text path.
+ * These are only shown when no pending action will handle the claim automatically.
+ * Keyed by claim type. Written as natural follow-up offers, not system messages.
  */
 const CORRECTIVE_NOTES: Readonly<Record<string, string>> = {
-  tracker_save: '(To save this job to your tracker, just ask me.)',
-  tracker_update: "(To update this job's status, just ask me.)",
-  cover_letter_generated: '(Want me to generate a cover letter for this match?)',
+  tracker_save: 'Want me to save this job to your tracker? Just say the word.',
+  tracker_update: 'Want to update the status on this one? Just let me know.',
+  cover_letter_generated: 'Want me to write a tailored cover letter for this match?',
 }
 
 /**
  * Remove lines containing false action claims from a response.
  *
  * Approach: split on newlines, remove lines matching the false claim
- * patterns, rejoin, and append a corrective note for the most relevant
- * stripped claim. Line-based splitting is more reliable than sentence
+ * patterns, rejoin, and optionally append a corrective note for the most
+ * relevant stripped claim. Line-based splitting is more reliable than sentence
  * splitting for markdown-formatted chat responses.
+ *
+ * @param appendNote - When true (default), appends a natural follow-up offer
+ *   after stripping. Set to false in format-response paths where a pending
+ *   action will handle the claim automatically — the note would contradict
+ *   the confirmation that follows.
  *
  * Returns the sanitized text and a flag indicating whether anything was stripped.
  */
 export function sanitizeHallucinatedClaims(
   text: string,
   falseClaims: string[],
+  appendNote = true,
 ): { sanitized: string; stripped: boolean } {
   if (falseClaims.length === 0) return { sanitized: text, stripped: false }
 
@@ -363,16 +370,16 @@ export function sanitizeHallucinatedClaims(
     return { sanitized: text, stripped: false }
   }
 
-  // Pick the most relevant corrective note (first matching false claim)
-  const note = falseClaims.map((claim) => CORRECTIVE_NOTES[claim]).find(Boolean)
-
   const sanitized = filtered
     .join('\n')
     .replace(/\n{3,}/g, '\n\n') // collapse excessive blank lines from removal
     .trim()
 
-  return {
-    sanitized: note ? `${sanitized}\n\n${note}` : sanitized,
-    stripped: true,
+  if (appendNote) {
+    // Pick the most relevant corrective note (first matching false claim)
+    const note = falseClaims.map((claim) => CORRECTIVE_NOTES[claim]).find(Boolean)
+    return { sanitized: note ? `${sanitized}\n\n${note}` : sanitized, stripped: true }
   }
+
+  return { sanitized, stripped: true }
 }

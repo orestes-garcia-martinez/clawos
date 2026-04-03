@@ -239,9 +239,14 @@ function buildMock(opts: { userId: string; tier: 'free' | 'pro'; sessionState?: 
       return {
         upsert: (row: Record<string, unknown>) => {
           trackingUpsertCalls.push(row)
-          return Promise.resolve({
-            error: trackingUpsertShouldFail ? { message: 'DB write error' } : null,
-          })
+          return {
+            select: () =>
+              Promise.resolve(
+                trackingUpsertShouldFail
+                  ? { data: null, error: { message: 'DB write error' } }
+                  : { data: [row], error: null },
+              ),
+          }
         },
         select: () => makeChain({ data: [], error: null }),
         update: () => ({

@@ -224,6 +224,10 @@ async function handleProfileGate(opts: {
 /**
  * Detect, filter, and strip false action claims from a format call output.
  * Returns the (possibly sanitized) text. Logs when claims are stripped.
+ *
+ * Corrective notes are only appended in the 7a text path (toolsInvoked === []).
+ * In format paths a tool was already invoked and a pending action may follow,
+ * so a "just ask me" note would contradict the confirmation that comes next.
  */
 function sanitizeFormatOutput(
   text: string,
@@ -236,7 +240,9 @@ function sanitizeFormatOutput(
   if (falseClaims.length === 0) return text
 
   logTextAudit({ rid, claims: falseClaims, toolsInvoked })
-  const { sanitized, stripped } = sanitizeHallucinatedClaims(text, falseClaims)
+  // Suppress corrective note in format paths — pending actions handle the claim.
+  const appendNote = toolsInvoked.length === 0
+  const { sanitized, stripped } = sanitizeHallucinatedClaims(text, falseClaims, appendNote)
   if (stripped) {
     console.warn(
       `[chat] P0: stripped ${falseClaims.length} false claim(s) from ${callLabel}`,
@@ -779,20 +785,28 @@ async function executePendingActions(
 
       try {
         await opts.sendProgress('tracking', 'Saving to tracker...')
-        const { error } = await opts.supabase.from('careerclaw_job_tracking').upsert(
-          {
-            user_id: opts.userId,
-            job_id: cached.entry.job_id,
-            title: cached.entry.title,
-            company: cached.entry.company,
-            status: 'saved',
-            url: cached.entry.url ?? null,
-          },
-          { onConflict: 'user_id,job_id', ignoreDuplicates: true },
-        )
+        const { data: savedRows, error } = await opts.supabase
+          .from('careerclaw_job_tracking')
+          .upsert(
+            {
+              user_id: opts.userId,
+              job_id: cached.entry.job_id,
+              title: cached.entry.title,
+              company: cached.entry.company,
+              status: 'saved',
+              url: cached.entry.url ?? null,
+            },
+            { onConflict: 'user_id,job_id', ignoreDuplicates: true },
+          )
+          .select()
         if (!error) {
+          // ignoreDuplicates: true returns rows only when a new row was inserted.
+          // Empty data means the job was already tracked — status is preserved.
+          const isNew = savedRows && savedRows.length > 0
           textParts.push(
-            `\n\nDone — ${cached.entry.title} at ${cached.entry.company} is saved to your tracker.`,
+            isNew
+              ? `\n\nDone — ${cached.entry.title} at ${cached.entry.company} is saved to your tracker.`
+              : `\n\n${cached.entry.title} at ${cached.entry.company} is already in your tracker — your current status is preserved.`,
           )
           console.log(
             JSON.stringify({
