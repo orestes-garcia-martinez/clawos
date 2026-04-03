@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.0] (2026-04-03)
+
+### Features
+
+- **api:** add OpenAI tool support in failover — `toOpenAITools()` adapter, `callOpenAI` now accepts tools/toolChoice, detects `tool_calls` in response, and returns `LLMToolUseResult`; widen `LLMToolUseResult.provider` to `'anthropic' | 'openai'`; add `ToolChoice` export type ([11007e6](https://github.com/orestes-garcia-martinez/clawos/commit/11007e69430ddb5d06f9c24ce5e1a7d015196c0a))
+- **api:** add credit-balance failover — `shouldFailover` now detects HTTP 400 "credit balance" errors and triggers OpenAI failover instead of crashing with 500 ([11007e6](https://github.com/orestes-garcia-martinez/clawos/commit/11007e69430ddb5d06f9c24ce5e1a7d015196c0a))
+- **api:** add P1b tracker update enforcer — `track-update-enforcer.ts` fires when P0 finds a `tracker_update` false claim in a text response; forces a second `callLLM` with `tool_choice:'any'` + `TRACK_APPLICATION_TOOL`, executes Supabase `update_status` (job_id primary + `ilike` company fallback), falls through to text on any failure ([11007e6](https://github.com/orestes-garcia-martinez/clawos/commit/11007e69430ddb5d06f9c24ce5e1a7d015196c0a))
+
 ## [0.15.2] (2026-04-03)
 
 ### Bug Fixes

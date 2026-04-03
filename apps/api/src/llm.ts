@@ -12,18 +12,20 @@
  *   rather than being silently retried (default: 2×), which would multiply
  *   the actual wall-clock wait (45s × 3 = 135s) against the stated timeout.
  *
- * Tool use is supported only on the primary (Claude). If the primary fails
- * and OpenAI failover is triggered, tools are omitted — the failover path
- * produces a plain text response.
+ * Tool use is supported on both primary (Claude) and OpenAI failover.
+ * When OpenAI failover is triggered with tools, the tool schemas are adapted
+ * from Anthropic format (input_schema) to OpenAI format (parameters).
+ * If tool_calls are returned, they are normalised to LLMToolUseResult.
  *
  * The failover fires on:
  *   - Network errors contacting the Anthropic API
  *   - HTTP 5xx from Anthropic (transient outage)
  *   - APIError with status >= 500
  *   - Timeout (APIConnectionTimeoutError)
+ *   - Credit balance exhausted (HTTP 400 "credit balance" error)
  *
  * It does NOT fire on:
- *   - 400 Bad Request (caller bug — fail fast)
+ *   - Other 400 Bad Request (caller bug — fail fast)
  *   - 401/403 (key misconfiguration — fail fast)
  *   - 429 (rate limit — surface to caller, not a failover case)
  */
@@ -100,8 +102,16 @@ export interface LLMToolUseResult {
   toolUseId: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   toolInput: Record<string, any>
-  provider: 'anthropic'
+  provider: 'anthropic' | 'openai'
 }
+
+/**
+ * Controls which tool Claude/OpenAI must call.
+ *   'auto'         — model decides whether to call a tool (default)
+ *   'any'          — model must call at least one tool (Anthropic) / 'required' (OpenAI)
+ *   { name: '…' } — model must call this specific tool
+ */
+export type ToolChoice = 'auto' | 'any' | { name: string }
 
 export type LLMResult = LLMTextResult | LLMToolUseResult
 
@@ -136,6 +146,7 @@ export async function callLLM(
   tools?: LLMTool[],
   rid?: string,
   callLabel?: string,
+  toolChoice?: ToolChoice,
 ): Promise<LLMResult> {
   const anthropicMessages = messages.map((m) => ({
     role: m.role as 'user' | 'assistant',
@@ -143,12 +154,12 @@ export async function callLLM(
   }))
 
   try {
-    return await callAnthropic(systemPrompt, anthropicMessages, tools, rid, callLabel)
+    return await callAnthropic(systemPrompt, anthropicMessages, tools, rid, callLabel, toolChoice)
   } catch (err) {
     // Decide whether to failover or re-throw
     if (shouldFailover(err)) {
       console.warn('[llm] Anthropic call failed — attempting OpenAI failover', errorCode(err))
-      return await callOpenAI(systemPrompt, anthropicMessages, rid, callLabel)
+      return await callOpenAI(systemPrompt, anthropicMessages, tools, rid, callLabel, toolChoice)
     }
     throw err
   }
@@ -232,7 +243,7 @@ export async function callLLMWithToolResult(
   } catch (err) {
     if (shouldFailover(err)) {
       console.warn('[llm] Anthropic tool-result call failed — OpenAI failover (plain summary)')
-      return await callOpenAI(
+      return (await callOpenAI(
         systemPrompt,
         [
           ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
@@ -241,9 +252,10 @@ export async function callLLMWithToolResult(
             content: `The job search returned these results: ${JSON.stringify(toolResult)}. Please summarise them for the user.`,
           },
         ],
+        undefined,
         rid,
         callLabel,
-      )
+      )) as LLMTextResult
     }
     throw err
   }
@@ -257,6 +269,7 @@ async function callAnthropic(
   tools?: LLMTool[],
   rid?: string,
   callLabel?: string,
+  toolChoice?: ToolChoice,
 ): Promise<LLMResult> {
   const params: Anthropic.MessageCreateParamsNonStreaming = {
     model: 'claude-sonnet-4-20250514',
@@ -271,6 +284,16 @@ async function callAnthropic(
       description: t.description,
       input_schema: { ...t.input_schema, required: [...t.input_schema.required] },
     }))
+
+    if (toolChoice) {
+      if (toolChoice === 'auto') {
+        params.tool_choice = { type: 'auto' }
+      } else if (toolChoice === 'any') {
+        params.tool_choice = { type: 'any' }
+      } else {
+        params.tool_choice = { type: 'tool', name: toolChoice.name }
+      }
+    }
   }
 
   const response = await getAnthropic().messages.create(params)
@@ -312,12 +335,32 @@ async function callAnthropic(
 
 // ── OpenAI failover ───────────────────────────────────────────────────────────
 
+/**
+ * Convert Anthropic-format tool schemas to OpenAI function tool format.
+ * The JSON Schema body is identical — only the wrapper field names differ.
+ */
+function toOpenAITools(tools: LLMTool[]): OpenAI.ChatCompletionTool[] {
+  return tools.map((t) => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: {
+        ...t.input_schema,
+        required: [...t.input_schema.required],
+      },
+    },
+  }))
+}
+
 async function callOpenAI(
   systemPrompt: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  tools?: LLMTool[],
   rid?: string,
   callLabel?: string,
-): Promise<LLMTextResult> {
+  toolChoice?: ToolChoice,
+): Promise<LLMResult> {
   const openai = getOpenAI()
   if (!openai) {
     throw new Error('OpenAI failover requested but CLAWOS_OPENAI_KEY is not set')
@@ -328,21 +371,66 @@ async function callOpenAI(
     ...messages,
   ]
 
-  const response = await openai.chat.completions.create({
+  const params: OpenAI.ChatCompletionCreateParamsNonStreaming = {
     model: 'gpt-4o-mini',
     max_tokens: 2048,
     messages: openaiMessages,
-  })
+  }
 
-  const content = response.choices[0]?.message.content ?? ''
+  if (tools && tools.length > 0) {
+    params.tools = toOpenAITools(tools)
 
-  // Forensic logging — block inventory for OpenAI failover
+    if (toolChoice) {
+      if (toolChoice === 'auto') {
+        params.tool_choice = 'auto'
+      } else if (toolChoice === 'any') {
+        params.tool_choice = 'required'
+      } else {
+        params.tool_choice = { type: 'function', function: { name: toolChoice.name } }
+      }
+    }
+  }
+
+  const response = await openai.chat.completions.create(params)
+
+  const choice = response.choices[0]
+  const logLabel = callLabel ? `${callLabel}_openai_failover` : 'openai_failover'
+
+  // Tool call response
+  if (choice?.message.tool_calls && choice.message.tool_calls.length > 0) {
+    const tc = choice.message.tool_calls[0]!
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toolInput: Record<string, any> = JSON.parse(tc.function.arguments)
+
+    if (rid) {
+      logLLMResponse({
+        rid,
+        call: logLabel,
+        blocks: [{ type: 'tool_use', name: tc.function.name }],
+        stopReason: choice.finish_reason ?? null,
+        provider: 'openai',
+        model: response.model,
+      })
+    }
+
+    return {
+      type: 'tool_use',
+      toolName: tc.function.name,
+      toolUseId: tc.id,
+      toolInput,
+      provider: 'openai',
+    }
+  }
+
+  // Text response
+  const content = choice?.message.content ?? ''
+
   if (rid) {
     logLLMResponse({
       rid,
-      call: callLabel ? `${callLabel}_openai_failover` : 'openai_failover',
+      call: logLabel,
       blocks: [{ type: 'text', text: content }],
-      stopReason: response.choices[0]?.finish_reason ?? null,
+      stopReason: choice?.finish_reason ?? null,
       provider: 'openai',
       model: response.model,
     })
@@ -370,6 +458,12 @@ function shouldFailover(err: unknown): boolean {
   }
   // Base APIError — only reached for errors that carry a status code
   if (err instanceof Anthropic.APIError) {
+    // Credit balance exhausted — HTTP 400 with error_code "credit_balance_too_low".
+    // Treat as transient infrastructure failure and failover to OpenAI.
+    if (err.status === 400 && err.message.toLowerCase().includes('credit balance')) {
+      console.error('[llm] Anthropic credit balance exhausted — failing over to OpenAI')
+      return true
+    }
     return err.status >= 500
   }
   // Network errors (no status code)

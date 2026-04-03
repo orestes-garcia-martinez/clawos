@@ -86,6 +86,8 @@ import {
   shouldForceWorkerCoverLetter,
   formatCoverLetterResponse,
 } from '../cover-letter-enforcer.js'
+import { shouldForceTrackUpdate } from '../track-update-enforcer.js'
+import type { ToolChoice } from '../llm.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1057,7 +1059,9 @@ export async function chatHandler(c: Context): Promise<Response> {
         }
 
         // P0 Part A — detect and strip hallucinated action claims.
+        // Capture false claims BEFORE sanitisation — P1b uses them as its trigger signal.
         // No tools were invoked in the text path, so ALL detected claims are false.
+        const textFalseClaims = filterFalseClaims(detectFalseActionClaims(finalText), [])
         finalText = sanitizeFormatOutput(finalText, [], rid, 'text_response')
 
         // ── P1a: Cover letter worker bypass prevention ──────────────────────
@@ -1247,6 +1251,129 @@ export async function chatHandler(c: Context): Promise<Response> {
           }
         }
         // ── End P1a ─────────────────────────────────────────────────────────
+
+        // ── P1b: Tracker update enforcement ─────────────────────────────────
+        // If P0 found a tracker_update false claim (Claude said it updated the
+        // tracker but never called the tool), force a second LLM call with
+        // tool_choice: 'any' so Claude must call track_application.
+        // This is robust to vocabulary variation — the trigger is Claude's own
+        // output pattern, not the user's phrasing.
+        const trackEnforcer = shouldForceTrackUpdate(textFalseClaims, sessionState)
+        if (trackEnforcer.shouldEnforce && trackEnforcer.jobId) {
+          console.log(
+            JSON.stringify({
+              event: 'forensic_track_update_enforced',
+              rid,
+              jobId: trackEnforcer.jobId,
+              company: trackEnforcer.company,
+              reason: 'p0_tracker_update_false_claim_detected',
+            }),
+          )
+
+          await sendProgress('tracking', 'Updating your tracker...')
+
+          try {
+            const enforceChoice: ToolChoice = 'any'
+            const enforceResult = await callLLM(
+              CAREERCLAW_SYSTEM_PROMPT,
+              baseMessages,
+              [TRACK_APPLICATION_TOOL],
+              rid,
+              'track_update_enforce',
+              enforceChoice,
+            )
+
+            if (
+              enforceResult.type === 'tool_use' &&
+              enforceResult.toolName === 'track_application'
+            ) {
+              const enforceInput = enforceResult.toolInput as TrackApplicationInput
+
+              // Only handle update_status — if Claude calls save or list, fall through
+              if (enforceInput.action === 'update_status' && validateTrackFields(enforceInput)) {
+                const updateInput = enforceInput as Exclude<
+                  TrackApplicationInput,
+                  { action: 'list' | 'save' }
+                >
+
+                // Primary: exact job_id match
+                const { data: updatedRows, error: updateError } = await supabase
+                  .from('careerclaw_job_tracking')
+                  .update({ status: updateInput.status })
+                  .eq('user_id', userId)
+                  .eq('job_id', updateInput.job_id)
+                  .select()
+
+                const rowsAffected = updatedRows?.length ?? 0
+                let trackUpdateMessage: string
+
+                if (updateError) {
+                  trackUpdateMessage = `I tried to update your tracker but hit a database error. Please update the status manually.`
+                } else if (rowsAffected > 0) {
+                  trackUpdateMessage = `Done — I've updated **"${updateInput.title}"** at **${updateInput.company}** to **${updateInput.status}** in your tracker.`
+                } else {
+                  // Fallback: company ilike match
+                  const { data: fallbackRows, error: fallbackError } = await supabase
+                    .from('careerclaw_job_tracking')
+                    .update({ status: updateInput.status })
+                    .eq('user_id', userId)
+                    .ilike('company', updateInput.company)
+                    .select()
+
+                  const fallbackAffected = fallbackRows?.length ?? 0
+
+                  if (fallbackError || fallbackAffected === 0) {
+                    trackUpdateMessage = `I couldn't find **${updateInput.company}** in your tracker. Save it first, then update the status.`
+                  } else {
+                    const trackedTitle = fallbackRows![0]!.title ?? updateInput.title
+                    trackUpdateMessage = `Done — I've updated **"${trackedTitle}"** at **${updateInput.company}** to **${updateInput.status}** in your tracker.`
+                  }
+                }
+
+                // Combine sanitized text with tracker confirmation
+                const p1bFinalText = finalText
+                  ? `${finalText}\n\n${trackUpdateMessage}`
+                  : trackUpdateMessage
+
+                const savedId = await saveSession(
+                  userId,
+                  channel as Channel,
+                  [
+                    ...history,
+                    { role: 'user', content: message, timestamp: new Date().toISOString() },
+                    {
+                      role: 'assistant',
+                      content: p1bFinalText,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ],
+                  activeSessionId,
+                  undefined,
+                  sessionState,
+                )
+
+                logAudit({
+                  userId,
+                  skill: 'careerclaw',
+                  channel,
+                  status: 'success',
+                  statusCode: 200,
+                  durationMs: Date.now() - startMs,
+                })
+
+                await sendDone(savedId, p1bFinalText)
+                return
+              }
+            }
+          } catch (err) {
+            // Forced call failed — log and fall through to the original text response
+            console.error(
+              '[chat] P1b: tracker update forced call failed, falling through to text',
+              err instanceof Error ? err.message : String(err),
+            )
+          }
+        }
+        // ── End P1b ─────────────────────────────────────────────────────────
 
         const updatedMessages: Message[] = [
           ...history,
