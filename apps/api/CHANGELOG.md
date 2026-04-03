@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.2] (2026-04-03)
+
+### Bug Fixes
+
+- **api:** replace `also_execute` with `_server_handles` in effectiveToolInput for 7c/7d format calls — prevents Claude from generating cover letter / tracker content inside the format response (duplicate output) ([bbca1e2](https://github.com/orestes-garcia-martinez/clawos/commit/bbca1e2ea265f8eca3c68ce490e48a896e915793))
+- **api:** add `parseJobFields()` to split compound careerclaw-js company strings ("Company — Role — Stack") when `title` is empty, fixing blank title and full display string stored in tracker ([bbca1e2](https://github.com/orestes-garcia-martinez/clawos/commit/bbca1e2ea265f8eca3c68ce490e48a896e915793))
+
 ## [0.15.1] (2026-04-03)
 
 ### Bug Fixes

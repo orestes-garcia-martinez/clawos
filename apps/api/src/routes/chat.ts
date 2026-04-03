@@ -148,6 +148,24 @@ function validateTrackFields(
   )
 }
 
+/**
+ * Parse title and company from a raw careerclaw-js job object.
+ *
+ * HN job listings don't always have a separate title field — careerclaw-js often
+ * returns an empty `title` and puts the full "Company — Role — Stack" string in
+ * `company`. When that happens, split on ` — ` and use the first segment as
+ * company and the second as the job title so the tracker row is clean.
+ */
+function parseJobFields(job: Record<string, unknown>): { title: string; company: string } {
+  const rawTitle = (job['title'] as string) || ''
+  const rawCompany = (job['company'] as string) || 'Unknown'
+  if (!rawTitle && rawCompany.includes(' — ')) {
+    const parts = rawCompany.split(' — ')
+    return { company: (parts[0] ?? rawCompany).trim(), title: parts[1]?.trim() ?? 'Unknown' }
+  }
+  return { title: rawTitle || 'Unknown', company: rawCompany }
+}
+
 /** Build the profile-gate block message shown when required fields are missing. */
 function buildProfileGateMessage(missingFields: string[]): string {
   const list = missingFields.map((f, i) => `${i + 1}. ${f}`).join('\n')
@@ -366,8 +384,7 @@ async function executePendingActions(
               const job = (m['job'] ?? {}) as Record<string, unknown>
               return {
                 job_id: (job['job_id'] as string) ?? '',
-                title: (job['title'] as string) ?? 'Unknown',
-                company: (job['company'] as string) ?? 'Unknown',
+                ...parseJobFields(job),
                 score: (m['score'] as number) ?? 0,
                 url: (job['url'] as string | null) ?? null,
               }
@@ -1376,8 +1393,7 @@ export async function chatHandler(c: Context): Promise<Response> {
                     const job = (m['job'] ?? {}) as Record<string, unknown>
                     return {
                       job_id: (job['job_id'] as string) ?? '',
-                      title: (job['title'] as string) ?? 'Unknown',
-                      company: (job['company'] as string) ?? 'Unknown',
+                      ...parseJobFields(job),
                       score: (m['score'] as number) ?? 0,
                       url: (job['url'] as string | null) ?? null,
                     }
@@ -1564,12 +1580,12 @@ export async function chatHandler(c: Context): Promise<Response> {
         const jobId = enforcedTarget.jobId
         const effectiveToolInput: RunGapAnalysisInput = {
           job_id: jobId,
-          // Carry also_execute forward so the format call's reconstructed tool-use block
-          // is consistent with what Claude originally declared. Without this, Claude sees
-          // a compound user request but a single-action tool call (no also_execute), tries
-          // to call follow-up tools in the format phase, and returns blocks: [] since no
-          // tools are provided to callLLMWithToolResult.
-          ...(toolInput.also_execute?.length ? { also_execute: toolInput.also_execute } : {}),
+          // Signal pending actions via _server_handles instead of also_execute.
+          // Carrying also_execute caused Claude to generate cover letter / tracker content
+          // inside the gap format response (duplicate output). _server_handles tells Claude
+          // "these are queued server-side — format only this tool's result", per the system
+          // prompt's also_execute section, without triggering content generation.
+          ...(toolInput.also_execute?.length ? { _server_handles: toolInput.also_execute } : {}),
         }
 
         // Look up match from session state
@@ -1748,8 +1764,9 @@ export async function chatHandler(c: Context): Promise<Response> {
         const jobId = enforcedTarget.jobId
         const effectiveToolInput: RunCoverLetterInput = {
           job_id: jobId,
-          // Same reason as 7c: carry also_execute so the format call sees consistent history.
-          ...(toolInput.also_execute?.length ? { also_execute: toolInput.also_execute } : {}),
+          // Same as 7c: use _server_handles instead of also_execute to avoid Claude
+          // generating pending-action content inside the cover letter format response.
+          ...(toolInput.also_execute?.length ? { _server_handles: toolInput.also_execute } : {}),
         }
 
         // Look up match from session state
