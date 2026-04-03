@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0] (2026-04-03)
+
+### Features
+
+- **api:** add FIFO pending-action queue — `buildPendingQueue` + `executePendingActions` auto-execute unfulfilled intents (gap_analysis → cover_letter → track_save) after the primary tool completes; supports 3-action chains with in-queue gap result threading and silent Pro-gate skipping on free tier ([038d2a8](https://github.com/orestes-garcia-martinez/clawos/commit/038d2a8f715109a3a01b399a0d97d84f032723e3))
+- **api:** inject `briefing_match_score` into gap analysis format call so Claude can label "Overall match" (multi-factor briefing score) vs "Keyword coverage" (fit_score) distinctly ([038d2a8](https://github.com/orestes-garcia-martinez/clawos/commit/038d2a8f715109a3a01b399a0d97d84f032723e3))
+
 ## [0.12.1] (2026-04-02)
 
 ### Bug Fixes

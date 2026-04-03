@@ -74,6 +74,7 @@ import {
   saveSession,
   getMatchFromState,
   getGapResultFromState,
+  mergeSessionState,
 } from '../session.js'
 import {
   buildActiveBriefingGroundingMessage,
@@ -225,56 +226,249 @@ function sanitizeFormatOutput(
   return stripped ? sanitized : text
 }
 
-/**
- * P0 Part B — Execute a pending track_save when the user's message
- * included a save intent that the LLM's single tool invocation didn't fulfil.
- *
- * Returns a confirmation note to append to the response, or '' on
- * failure / not applicable.
- */
-async function executePendingSave(opts: {
-  unfulfilled: string[]
-  match: { job_id: string; title: string; company: string; url: string | null } | null
-  userId: string
-  rid: string
-  supabase: ReturnType<typeof createServerClient>
-  sendProgress: (step: string, message: string) => Promise<void>
-}): Promise<string> {
-  if (!opts.unfulfilled.includes('track_save') || !opts.match) return ''
+// ── Pending-action FIFO queue ─────────────────────────────────────────────────
 
-  try {
-    await opts.sendProgress('tracking', 'Saving to tracker...')
-    const { error } = await opts.supabase.from('careerclaw_job_tracking').upsert(
-      {
-        user_id: opts.userId,
-        job_id: opts.match.job_id,
-        title: opts.match.title,
-        company: opts.match.company,
-        status: 'saved',
-        url: opts.match.url ?? null,
-      },
-      { onConflict: 'user_id,job_id', ignoreDuplicates: true },
-    )
-    if (!error) {
-      console.log(
-        JSON.stringify({
-          event: 'forensic_pending_action',
-          rid: opts.rid,
-          action: 'track_save',
-          status: 'success',
-          jobId: opts.match.job_id,
-        }),
-      )
-      return `\n\nDone — ${opts.match.title} at ${opts.match.company} is saved to your tracker.`
-    }
-    return ''
-  } catch (err) {
-    console.error(
-      '[chat] P0 pending-action save failed:',
-      err instanceof Error ? err.message : String(err),
-    )
-    return ''
+type PendingAction =
+  | { action: 'run_gap_analysis'; jobId: string }
+  | { action: 'run_cover_letter'; jobId: string }
+  | { action: 'track_save'; jobId: string }
+
+/**
+ * Map unfulfilled intent labels to a FIFO pending-action queue.
+ *
+ * All queued actions target the same job as the primary tool invocation.
+ * This is safe because `enforceSingleMatchToolTarget` — which runs before every
+ * tool path — already blocks requests that reference more than one job
+ * (returning `{ kind: 'clarify' }`). So if we reach queue-building, exactly one
+ * job was active in the user's message and primaryJobId is authoritative.
+ *
+ * Ordering follows INTENT_PATTERNS priority: gap_analysis → cover_letter →
+ * track_save — the correct execution sequence (gap feeds the cover letter;
+ * save is always last).
+ *
+ * Returns an empty queue when primaryJobId is null (e.g. after a briefing
+ * where no single job has been selected yet).
+ */
+function buildPendingQueue(unfulfilled: string[], primaryJobId: string | null): PendingAction[] {
+  if (!primaryJobId) return []
+  const queue: PendingAction[] = []
+  for (const intent of unfulfilled) {
+    if (intent === 'gap_analysis') queue.push({ action: 'run_gap_analysis', jobId: primaryJobId })
+    else if (intent === 'cover_letter')
+      queue.push({ action: 'run_cover_letter', jobId: primaryJobId })
+    else if (intent === 'track_save') queue.push({ action: 'track_save', jobId: primaryJobId })
+    // track_update, track_list, briefing — not actionable as pending
   }
+  return queue
+}
+
+/**
+ * Execute the pending-action queue in FIFO order.
+ *
+ * State accumulates within the queue so later actions see results from
+ * earlier ones — enabling the 3-action chain gap_analysis → cover_letter →
+ * track_save in a single turn where the cover letter receives the gap result
+ * computed just moments before.
+ *
+ * Pro-gated actions are silently skipped when the feature is absent — no
+ * upgrade prompt mid-response; the user can ask explicitly.
+ *
+ * Returns the text to append to the primary response and a merged
+ * Partial<SessionState> to persist alongside the primary state update.
+ */
+async function executePendingActions(
+  queue: PendingAction[],
+  opts: {
+    sessionState: SessionState
+    featureSet: Set<string>
+    userId: string
+    tier: 'free' | 'pro'
+    features: string[]
+    rid: string
+    supabase: ReturnType<typeof createServerClient>
+    sendProgress: (step: string, message: string) => Promise<void>
+  },
+): Promise<{ appendedText: string; stateUpdate: Partial<SessionState> }> {
+  if (queue.length === 0) return { appendedText: '', stateUpdate: {} }
+
+  const textParts: string[] = []
+  // Accumulate within this queue run so later items see earlier results
+  const pendingGapResults: Record<string, Record<string, unknown>> = {}
+  const pendingCoverLetterResults: Record<string, Record<string, unknown>> = {}
+
+  for (const item of queue) {
+    const { action, jobId } = item
+
+    if (action === 'run_gap_analysis') {
+      if (!opts.featureSet.has('careerclaw.resume_gap_analysis')) continue
+      const cached = getMatchFromState(opts.sessionState, jobId)
+      if (!cached) continue
+
+      try {
+        await opts.sendProgress('analyzing', 'Running gap analysis...')
+        const workerResult = await runWorkerGapAnalysis({
+          assertion: issueSkillAssertion({
+            userId: opts.userId,
+            skill: 'careerclaw',
+            tier: opts.tier,
+            features: opts.features,
+          }),
+          input: { match: cached.matchData, resumeIntel: cached.resumeIntel },
+        })
+        logWorkerSignal({
+          rid: opts.rid,
+          skill: 'careerclaw',
+          action: 'gap_analysis_pending',
+          durationMs: workerResult.durationMs,
+        })
+
+        const gapResult = workerResult.result
+        const gapAnalysis = (gapResult as { analysis?: Record<string, unknown> }).analysis
+        if (gapAnalysis) pendingGapResults[jobId] = gapAnalysis
+
+        const fitScore = gapAnalysis?.['fit_score'] as number | undefined
+        const matched = (gapAnalysis?.['matched_keywords'] as string[] | undefined) ?? []
+        const gaps = (gapAnalysis?.['gap_keywords'] as string[] | undefined) ?? []
+        const briefingScore = opts.sessionState.briefing?.matches.find(
+          (m) => m.job_id === jobId,
+        )?.score
+
+        const lines = [`\n\n---\n\n**Gap analysis for ${cached.entry.company}:**`]
+        if (briefingScore != null)
+          lines.push(`- Overall match: ${Math.round(briefingScore * 100)}%`)
+        if (fitScore != null) lines.push(`- Keyword coverage: ${Math.round(fitScore * 100)}%`)
+        if (matched.length > 0) lines.push(`- Matched: ${matched.slice(0, 8).join(', ')}`)
+        if (gaps.length > 0) lines.push(`- Gaps: ${gaps.slice(0, 5).join(', ')}`)
+        textParts.push(lines.join('\n'))
+
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action: 'run_gap_analysis',
+            status: 'success',
+            jobId,
+          }),
+        )
+      } catch (err) {
+        console.error(
+          '[chat] Pending gap analysis failed:',
+          err instanceof Error ? err.message : String(err),
+        )
+      }
+    } else if (action === 'run_cover_letter') {
+      if (!opts.featureSet.has('careerclaw.tailored_cover_letter')) continue
+      const cached = getMatchFromState(opts.sessionState, jobId)
+      if (!cached) continue
+
+      try {
+        await opts.sendProgress('writing', 'Generating cover letter...')
+        // Use gap result from earlier in this queue run, then fall back to session state
+        const precomputedGap =
+          pendingGapResults[jobId] ?? getGapResultFromState(opts.sessionState, jobId)
+
+        const workerResult = await runWorkerCoverLetter({
+          assertion: issueSkillAssertion({
+            userId: opts.userId,
+            skill: 'careerclaw',
+            tier: opts.tier,
+            features: opts.features,
+          }),
+          input: {
+            match: cached.matchData,
+            profile: cached.profile as Record<string, unknown> & {
+              skills?: string[]
+              targetRoles?: string[]
+            },
+            resumeIntel: cached.resumeIntel,
+            ...(cached.resumeText ? { resumeText: cached.resumeText } : {}),
+            ...(precomputedGap ? { precomputedGap } : {}),
+          },
+        })
+
+        const coverLetterResult = workerResult.result
+        const signals = extractCoverLetterSignals(coverLetterResult)
+        pendingCoverLetterResults[jobId] = coverLetterResult
+
+        logWorkerSignal({
+          rid: opts.rid,
+          skill: 'careerclaw',
+          action: 'cover_letter_pending',
+          isTemplate: signals.isTemplate,
+          durationMs: workerResult.durationMs,
+          generationMeta: signals.generationMeta,
+        })
+
+        const body = (coverLetterResult['body'] as string) ?? ''
+        const clText =
+          `\n\n---\n\n**Cover letter for ${cached.entry.company}:**\n\n${body}` +
+          (signals.isTemplate
+            ? '\n\n*This is a template version — retry for a more personalized version.*'
+            : '')
+        textParts.push(clText)
+
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action: 'run_cover_letter',
+            status: 'success',
+            jobId,
+          }),
+        )
+      } catch (err) {
+        console.error(
+          '[chat] Pending cover letter failed:',
+          err instanceof Error ? err.message : String(err),
+        )
+      }
+    } else if (action === 'track_save') {
+      const cached = getMatchFromState(opts.sessionState, jobId)
+      if (!cached) continue
+
+      try {
+        await opts.sendProgress('tracking', 'Saving to tracker...')
+        const { error } = await opts.supabase.from('careerclaw_job_tracking').upsert(
+          {
+            user_id: opts.userId,
+            job_id: cached.entry.job_id,
+            title: cached.entry.title,
+            company: cached.entry.company,
+            status: 'saved',
+            url: cached.entry.url ?? null,
+          },
+          { onConflict: 'user_id,job_id', ignoreDuplicates: true },
+        )
+        if (!error) {
+          textParts.push(
+            `\n\nDone — ${cached.entry.title} at ${cached.entry.company} is saved to your tracker.`,
+          )
+          console.log(
+            JSON.stringify({
+              event: 'forensic_pending_action',
+              rid: opts.rid,
+              action: 'track_save',
+              status: 'success',
+              jobId,
+            }),
+          )
+        }
+      } catch (err) {
+        console.error(
+          '[chat] Pending track_save failed:',
+          err instanceof Error ? err.message : String(err),
+        )
+      }
+    }
+  }
+
+  const stateUpdate: Partial<SessionState> = {
+    ...(Object.keys(pendingGapResults).length > 0 ? { gapResults: pendingGapResults } : {}),
+    ...(Object.keys(pendingCoverLetterResults).length > 0
+      ? { coverLetterResults: pendingCoverLetterResults }
+      : {}),
+  }
+  return { appendedText: textParts.join(''), stateUpdate }
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -601,21 +795,26 @@ export async function chatHandler(c: Context): Promise<Response> {
                 enforcer.company ?? cached.entry.company,
               )
 
-              // P0 Part B — pending-action auto-save
-              const enforcerPendingNote = await executePendingSave({
-                unfulfilled: intentAudit.unfulfilled,
-                match: cached.entry,
-                userId,
-                rid,
-                supabase,
-                sendProgress,
-              })
-              const enforcerFinalOutput = formattedResponse + enforcerPendingNote
+              // P0 Part B — pending-action queue (e.g. track_save unfulfilled)
+              const enforcerQueue = buildPendingQueue(intentAudit.unfulfilled, enforcer.jobId)
+              const { appendedText: enforcerPendingText, stateUpdate: enforcerPendingState } =
+                await executePendingActions(enforcerQueue, {
+                  sessionState,
+                  featureSet,
+                  userId,
+                  tier: entitlements.effectiveTier,
+                  features: entitlements.features,
+                  rid,
+                  supabase,
+                  sendProgress,
+                })
+              const enforcerFinalOutput = formattedResponse + enforcerPendingText
 
-              // Save session with updated cover letter results
-              const coverLetterStateUpdate: Partial<SessionState> = {
-                coverLetterResults: { [enforcer.jobId]: effectiveResult },
-              }
+              // Save session with updated cover letter results + any pending state
+              const coverLetterStateUpdate: Partial<SessionState> = mergeSessionState(
+                { coverLetterResults: { [enforcer.jobId]: effectiveResult } } as SessionState,
+                enforcerPendingState,
+              )
               const savedId = await saveSession(
                 userId,
                 channel as Channel,
@@ -1012,9 +1211,18 @@ export async function chatHandler(c: Context): Promise<Response> {
 
         // Build state update — cache gap result for cover letter reuse
         const gapAnalysis = (gapResult as { analysis?: Record<string, unknown> }).analysis
-        const gapStateUpdate: Partial<SessionState> = gapAnalysis
-          ? { gapResults: { [jobId]: gapAnalysis } }
-          : {}
+
+        // Step 1 — augment the tool result with the briefing match score so
+        // Claude can label the two metrics distinctly in its format response:
+        // "Overall match" (multi-factor briefing score) vs "Keyword coverage"
+        // (gap-analysis fit_score). Without this, Claude only sees fit_score.
+        const briefingMatchScore = sessionState.briefing?.matches.find(
+          (m) => m.job_id === jobId,
+        )?.score
+        const gapResultForFormat =
+          briefingMatchScore != null
+            ? { ...gapResult, briefing_match_score: briefingMatchScore }
+            : gapResult
 
         // Format via second Claude call
         let formattedResponse: string
@@ -1025,7 +1233,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             llmResult.toolUseId,
             llmResult.toolName,
             effectiveToolInput,
-            gapResult,
+            gapResultForFormat,
             rid,
             'gap_analysis_format',
           )
@@ -1050,16 +1258,28 @@ export async function chatHandler(c: Context): Promise<Response> {
           'gap_analysis_format',
         )
 
-        // P0 Part B — pending-action auto-save
-        const gapPendingNote = await executePendingSave({
-          unfulfilled: intentAudit.unfulfilled,
-          match: cached ? cached.entry : null,
-          userId,
-          rid,
-          supabase,
-          sendProgress,
-        })
-        const gapFinalOutput = formattedResponse + gapPendingNote
+        // P0 Part B — pending-action queue (e.g. cover_letter or track_save unfulfilled)
+        const gapQueue = buildPendingQueue(intentAudit.unfulfilled, jobId)
+        const { appendedText: gapPendingText, stateUpdate: gapPendingState } =
+          await executePendingActions(gapQueue, {
+            sessionState,
+            featureSet,
+            userId,
+            tier: entitlements.effectiveTier,
+            features: entitlements.features,
+            rid,
+            supabase,
+            sendProgress,
+          })
+        const gapFinalOutput = formattedResponse + gapPendingText
+
+        // Merge primary gap result with any state produced by pending actions
+        const mergedGapState: Partial<SessionState> = mergeSessionState(
+          gapAnalysis
+            ? ({ gapResults: { [jobId]: gapAnalysis } } as SessionState)
+            : ({} as SessionState),
+          gapPendingState,
+        )
 
         const updatedMessages: Message[] = [
           ...history,
@@ -1071,7 +1291,7 @@ export async function chatHandler(c: Context): Promise<Response> {
           channel as Channel,
           updatedMessages,
           activeSessionId,
-          gapStateUpdate,
+          mergedGapState,
           sessionState,
         )
 
@@ -1266,31 +1486,37 @@ export async function chatHandler(c: Context): Promise<Response> {
           'cover_letter_format',
         )
 
-        // P0 Part B — pending-action auto-save
-        const clPendingNote = await executePendingSave({
-          unfulfilled: intentAudit.unfulfilled,
-          match: cached ? cached.entry : null,
-          userId,
-          rid,
-          supabase,
-          sendProgress,
-        })
-        const clFinalOutput = formattedResponse + clPendingNote
+        // P0 Part B — pending-action queue (e.g. track_save unfulfilled)
+        const clQueue = buildPendingQueue(intentAudit.unfulfilled, jobId)
+        const { appendedText: clPendingText, stateUpdate: clPendingState } =
+          await executePendingActions(clQueue, {
+            sessionState,
+            featureSet,
+            userId,
+            tier: entitlements.effectiveTier,
+            features: entitlements.features,
+            rid,
+            supabase,
+            sendProgress,
+          })
+        const clFinalOutput = formattedResponse + clPendingText
 
         const updatedMessages: Message[] = [
           ...history,
           { role: 'user', content: message, timestamp: new Date().toISOString() },
           { role: 'assistant', content: clFinalOutput, timestamp: new Date().toISOString() },
         ]
-        const coverLetterStateUpdate: Partial<SessionState> = {
-          coverLetterResults: { [jobId]: coverLetterResult },
-        }
+        // Merge primary cover letter result with any state from pending actions
+        const mergedClState: Partial<SessionState> = mergeSessionState(
+          { coverLetterResults: { [jobId]: coverLetterResult } } as SessionState,
+          clPendingState,
+        )
         const savedId = await saveSession(
           userId,
           channel as Channel,
           updatedMessages,
           activeSessionId,
-          coverLetterStateUpdate,
+          mergedClState,
           sessionState,
         )
 
@@ -1624,14 +1850,35 @@ export async function chatHandler(c: Context): Promise<Response> {
           'track_application_format',
         )
 
+        // P0 Part B — pending-action queue (e.g. cover_letter or gap_analysis unfulfilled)
+        const trackJobId =
+          effectiveTrackInput.action !== 'list' ? (effectiveTrackInput.job_id ?? null) : null
+        const trackQueue = buildPendingQueue(intentAudit.unfulfilled, trackJobId)
+        const { appendedText: trackPendingText, stateUpdate: trackPendingState } =
+          await executePendingActions(trackQueue, {
+            sessionState,
+            featureSet,
+            userId,
+            tier: entitlements.effectiveTier,
+            features: entitlements.features,
+            rid,
+            supabase,
+            sendProgress,
+          })
+        const trackFinalOutput = formattedResponse + trackPendingText
+
         // Save session with a brief summary (audit only — no job details in session)
+        const pendingActionSuffix =
+          trackQueue.length > 0 && trackPendingText
+            ? `; ${trackQueue.map((a) => a.action).join(', ')} completed`
+            : ''
         const sessionSummary =
           trackAction === 'list'
             ? trackResult.success
               ? `Listed ${trackResult.count ?? 0} tracked application${(trackResult.count ?? 0) === 1 ? '' : 's'}.`
               : 'Tracker list failed.'
             : trackResult.success
-              ? `Tracker ${effectiveTrackInput.action === 'save' ? 'save' : 'status update'}: ${trackResult.title} at ${trackResult.company} → ${trackResult.status}.`
+              ? `Tracker ${effectiveTrackInput.action === 'save' ? 'save' : 'status update'}: ${trackResult.title} at ${trackResult.company} → ${trackResult.status}${pendingActionSuffix}.`
               : `Tracker action failed for ${trackResult.title} at ${trackResult.company}.`
 
         const updatedMessages: Message[] = [
@@ -1645,7 +1892,7 @@ export async function chatHandler(c: Context): Promise<Response> {
           channel as Channel,
           updatedMessages,
           activeSessionId,
-          undefined,
+          Object.keys(trackPendingState).length > 0 ? trackPendingState : undefined,
           sessionState,
         )
 
@@ -1658,7 +1905,7 @@ export async function chatHandler(c: Context): Promise<Response> {
           durationMs: Date.now() - startMs,
         })
 
-        await sendDone(savedId, formattedResponse)
+        await sendDone(savedId, trackFinalOutput)
         return
       }
 
