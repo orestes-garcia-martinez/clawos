@@ -233,7 +233,7 @@ app.post(
     await runWorkerAction(
       res,
       { skill: 'careerclaw', startMs, assertion: parseResult.data.assertion },
-      () => Promise.resolve(careerClawGapAnalysisAdapter.execute(input)),
+      (ctx) => Promise.resolve(careerClawGapAnalysisAdapter.execute(input, ctx)),
     )
   },
 )
@@ -262,7 +262,7 @@ app.post(
         assertion: parseResult.data.assertion,
         timeout: true,
       },
-      () => careerClawCoverLetterAdapter.execute(input),
+      (ctx) => careerClawCoverLetterAdapter.execute(input, ctx),
     )
   },
 )
