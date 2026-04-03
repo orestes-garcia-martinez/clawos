@@ -1330,10 +1330,11 @@ export async function chatHandler(c: Context): Promise<Response> {
                   }
                 }
 
-                // Combine sanitized text with tracker confirmation
-                const p1bFinalText = finalText
-                  ? `${finalText}\n\n${trackUpdateMessage}`
-                  : trackUpdateMessage
+                // Use only the tracker confirmation — discard the P0-stripped residual.
+                // finalText at this point is an incoherent fragment left behind after
+                // stripping Claude's false claim; prepending it produces parenthetical
+                // artifacts and extra whitespace above the real answer.
+                const p1bFinalText = trackUpdateMessage
 
                 const savedId = await saveSession(
                   userId,

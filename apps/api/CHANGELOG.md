@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.1] (2026-04-03)
+
+### Bug Fixes
+
+- **api:** drop P0-stripped residual text from P1b tracker confirmation — removes parenthetical artifact and extra whitespace above the tracker update message ([1aaebf9](https://github.com/orestes-garcia-martinez/clawos/commit/1aaebf919f8fecaab1c1c8918af422c69784b250))
+
 ## [0.16.0] (2026-04-03)
 
 ### Features
