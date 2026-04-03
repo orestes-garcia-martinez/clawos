@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.2] (2026-04-03)
+
+### Bug Fixes
+
+- **api:** suppress corrective note in format-response sanitisation paths — `sanitizeHallucinatedClaims` now accepts `appendNote` flag; `sanitizeFormatOutput` passes `false` when a tool was invoked (pending action follows), eliminating the "(To save this job...)" artifact above tracker confirmations ([d3a8a01](https://github.com/orestes-garcia-martinez/clawos/commit/d3a8a01c8aed754ede96c4d5d671fd05c65fca87))
+- **api:** rewrite corrective notes as natural follow-up offers — removed parentheses; notes now read as conversational suggestions ("Want me to save this job to your tracker? Just say the word.") rather than system prompts ([d3a8a01](https://github.com/orestes-garcia-martinez/clawos/commit/d3a8a01c8aed754ede96c4d5d671fd05c65fca87))
+- **api:** detect no-op upsert in pending `track_save` — add `.select()` to the upsert call; empty result means job was already tracked; shows "already in your tracker — your current status is preserved" instead of a misleading "saved" confirmation ([d3a8a01](https://github.com/orestes-garcia-martinez/clawos/commit/d3a8a01c8aed754ede96c4d5d671fd05c65fca87))
+
 ## [0.16.1] (2026-04-03)
 
 ### Bug Fixes

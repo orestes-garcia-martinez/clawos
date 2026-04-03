@@ -126,7 +126,7 @@ describe('sanitizeHallucinatedClaims', () => {
     const { sanitized, stripped } = sanitizeHallucinatedClaims(text, ['tracker_save'])
     expect(stripped).toBe(true)
     expect(sanitized).not.toContain('saved to your tracker')
-    expect(sanitized).toContain('(To save this job to your tracker, just ask me.)')
+    expect(sanitized).toContain('Want me to save this job to your tracker? Just say the word.')
   })
 
   it('returns text unchanged when no false claims match lines', () => {
@@ -165,6 +165,6 @@ describe('sanitizeHallucinatedClaims', () => {
     const text = 'The job is now marked as applied.'
     const { sanitized, stripped } = sanitizeHallucinatedClaims(text, ['tracker_update'])
     expect(stripped).toBe(true)
-    expect(sanitized).toContain("(To update this job's status, just ask me.)")
+    expect(sanitized).toContain('Want to update the status on this one? Just let me know.')
   })
 })
