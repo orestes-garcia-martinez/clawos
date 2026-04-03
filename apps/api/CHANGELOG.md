@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.1] (2026-04-03)
+
+### Bug Fixes
+
+- **api:** carry `also_execute` into `effectiveToolInput` for 7c/7d/7e format calls — stripped field caused Claude to return empty blocks (`blocks: []`) in the format phase, producing "Failed to format gap analysis" for compound requests ([1876ff7](https://github.com/orestes-garcia-martinez/clawos/commit/1876ff7))
+
 ## [0.15.0] (2026-04-03)
 
 ### Features

@@ -1562,7 +1562,15 @@ export async function chatHandler(c: Context): Promise<Response> {
         }
 
         const jobId = enforcedTarget.jobId
-        const effectiveToolInput: RunGapAnalysisInput = { job_id: jobId }
+        const effectiveToolInput: RunGapAnalysisInput = {
+          job_id: jobId,
+          // Carry also_execute forward so the format call's reconstructed tool-use block
+          // is consistent with what Claude originally declared. Without this, Claude sees
+          // a compound user request but a single-action tool call (no also_execute), tries
+          // to call follow-up tools in the format phase, and returns blocks: [] since no
+          // tools are provided to callLLMWithToolResult.
+          ...(toolInput.also_execute?.length ? { also_execute: toolInput.also_execute } : {}),
+        }
 
         // Look up match from session state
         const cached = getMatchFromState(sessionState, jobId)
@@ -1738,7 +1746,11 @@ export async function chatHandler(c: Context): Promise<Response> {
         }
 
         const jobId = enforcedTarget.jobId
-        const effectiveToolInput: RunCoverLetterInput = { job_id: jobId }
+        const effectiveToolInput: RunCoverLetterInput = {
+          job_id: jobId,
+          // Same reason as 7c: carry also_execute so the format call sees consistent history.
+          ...(toolInput.also_execute?.length ? { also_execute: toolInput.also_execute } : {}),
+        }
 
         // Look up match from session state
         const cached = getMatchFromState(sessionState, jobId)
@@ -1981,6 +1993,10 @@ export async function chatHandler(c: Context): Promise<Response> {
             company: cached.entry.company,
             status: narrowedInput.status,
             ...(cached.entry.url ? { url: cached.entry.url } : {}),
+            // Carry also_execute for format call consistency (same reason as 7c/7d).
+            ...(narrowedInput.also_execute?.length
+              ? { also_execute: narrowedInput.also_execute }
+              : {}),
           }
 
           if (trackAction === 'save') {
