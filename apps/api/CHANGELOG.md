@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.3] (2026-04-03)
+
+### Bug Fixes
+
+- **api:** extend duplicate-save detection to 7e direct `track_application` path — the pending-queue fix in 0.16.2 missed the 7e path where Claude calls `track_application` directly; add `.select()` to that upsert too so "already in your tracker" is shown when `ignoreDuplicates:true` silently no-ops ([f0196c0](https://github.com/orestes-garcia-martinez/clawos/commit/f0196c04fd722de1a8ec9fe4db61e169cb828f68))
+
 ## [0.16.2] (2026-04-03)
 
 ### Bug Fixes

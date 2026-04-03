@@ -2232,23 +2232,27 @@ export async function chatHandler(c: Context): Promise<Response> {
                 message: 'Missing required fields for save (job_id, title, company, status).',
               }
             } else {
-              // Insert if new; on conflict, update title/company (metadata may
-              // have been corrected) but preserve the existing status and url
-              // so a duplicate save never downgrades progress or clears data.
-              const { error } = await supabase.from('careerclaw_job_tracking').upsert(
-                {
-                  user_id: userId,
-                  job_id: effectiveTrackInput.job_id,
-                  title: effectiveTrackInput.title,
-                  company: effectiveTrackInput.company,
-                  status: effectiveTrackInput.status,
-                  url: effectiveTrackInput.url ?? null,
-                },
-                {
-                  onConflict: 'user_id,job_id',
-                  ignoreDuplicates: true,
-                },
-              )
+              // Insert if new; ignore conflict to preserve existing status/url.
+              // Add .select() so we can detect whether a row was actually written —
+              // ignoreDuplicates:true returns empty data on conflict (no-op).
+              const { data: savedRows, error } = await supabase
+                .from('careerclaw_job_tracking')
+                .upsert(
+                  {
+                    user_id: userId,
+                    job_id: effectiveTrackInput.job_id,
+                    title: effectiveTrackInput.title,
+                    company: effectiveTrackInput.company,
+                    status: effectiveTrackInput.status,
+                    url: effectiveTrackInput.url ?? null,
+                  },
+                  {
+                    onConflict: 'user_id,job_id',
+                    ignoreDuplicates: true,
+                  },
+                )
+                .select()
+              const isNew = savedRows && savedRows.length > 0
               trackResult = error
                 ? {
                     success: false,
@@ -2264,7 +2268,9 @@ export async function chatHandler(c: Context): Promise<Response> {
                     title: effectiveTrackInput.title,
                     company: effectiveTrackInput.company,
                     status: effectiveTrackInput.status,
-                    message: `Saved "${effectiveTrackInput.title}" at ${effectiveTrackInput.company} with status "${effectiveTrackInput.status}".`,
+                    message: isNew
+                      ? `Saved "${effectiveTrackInput.title}" at ${effectiveTrackInput.company} with status "${effectiveTrackInput.status}".`
+                      : `"${effectiveTrackInput.title}" at ${effectiveTrackInput.company} is already in your tracker — your current status is preserved.`,
                   }
             }
           } else if (trackAction === 'update_status') {
