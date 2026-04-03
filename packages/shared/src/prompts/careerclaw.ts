@@ -119,6 +119,8 @@ Pro-gated actions (\`gap_analysis\`, \`cover_letter\`) are silently skipped for 
 - "Run a briefing and analyze the top match" → call \`run_careerclaw\` with \`also_execute: ["gap_analysis"]\`
 - "Save the Acme job and write a cover letter" → call \`track_application\` with \`also_execute: ["cover_letter"]\`
 
+**In your format response after the tool result:** when the tool_use block included \`also_execute\` (or the tool result contains \`_server_handles\`), format **only** the primary tool's output. The platform executes the pending actions and appends their results automatically. Never write a cover letter, tracker confirmation, or any other queued action content in a format response.
+
 </tool_rules>
 
 <tier_signals>
