@@ -229,6 +229,7 @@ function sanitizeFormatOutput(
 // ── Pending-action FIFO queue ─────────────────────────────────────────────────
 
 type PendingAction =
+  | { action: 'run_briefing' }
   | { action: 'run_gap_analysis'; jobId: string }
   | { action: 'run_cover_letter'; jobId: string }
   | { action: 'track_save'; jobId: string }
@@ -250,14 +251,18 @@ type PendingAction =
  * where no single job has been selected yet).
  */
 function buildPendingQueue(unfulfilled: string[], primaryJobId: string | null): PendingAction[] {
-  if (!primaryJobId) return []
   const queue: PendingAction[] = []
   for (const intent of unfulfilled) {
-    if (intent === 'gap_analysis') queue.push({ action: 'run_gap_analysis', jobId: primaryJobId })
-    else if (intent === 'cover_letter')
-      queue.push({ action: 'run_cover_letter', jobId: primaryJobId })
-    else if (intent === 'track_save') queue.push({ action: 'track_save', jobId: primaryJobId })
-    // track_update, track_list, briefing — not actionable as pending
+    if (intent === 'briefing') {
+      // Briefing needs no jobId — always runs fresh against the user's profile
+      queue.push({ action: 'run_briefing' })
+    } else if (primaryJobId) {
+      if (intent === 'gap_analysis') queue.push({ action: 'run_gap_analysis', jobId: primaryJobId })
+      else if (intent === 'cover_letter')
+        queue.push({ action: 'run_cover_letter', jobId: primaryJobId })
+      else if (intent === 'track_save') queue.push({ action: 'track_save', jobId: primaryJobId })
+    }
+    // track_update and track_list require interactive parameters — not actionable as pending
   }
   return queue
 }
@@ -289,14 +294,19 @@ async function executePendingActions(
     sendProgress: (step: string, message: string) => Promise<void>
     /** Conversation context for LLM format calls on pending results. */
     baseMessages: Message[]
+    /** Profile row from careerclaw_profiles — required for run_briefing pending actions. */
+    profileRow: Record<string, unknown> | null
   },
 ): Promise<{ appendedText: string; stateUpdate: Partial<SessionState> }> {
   if (queue.length === 0) return { appendedText: '', stateUpdate: {} }
+
+  await opts.sendProgress('working', 'Working on the rest of your request…')
 
   const textParts: string[] = []
   // Accumulate within this queue run so later items see earlier results
   const pendingGapResults: Record<string, Record<string, unknown>> = {}
   const pendingCoverLetterResults: Record<string, Record<string, unknown>> = {}
+  let pendingBriefingState: Partial<SessionState> | null = null
 
   // Observability counters for queue-level summary
   let executed = 0
@@ -304,9 +314,179 @@ async function executePendingActions(
   let failed = 0
 
   for (const item of queue) {
-    const { action, jobId } = item
+    const { action } = item
 
-    if (action === 'run_gap_analysis') {
+    if (action === 'run_briefing') {
+      try {
+        await opts.sendProgress('fetching', 'Fetching jobs…')
+        const maxTopK = opts.featureSet.has('careerclaw.topk_extended') ? 10 : 3
+        const workerResult = await runWorkerCareerclaw({
+          assertion: issueSkillAssertion({
+            userId: opts.userId,
+            skill: 'careerclaw',
+            tier: opts.tier,
+            features: opts.features,
+          }),
+          input: {
+            profile: {
+              skills: (opts.profileRow?.['skills'] as string[] | null) ?? undefined,
+              targetRoles: (opts.profileRow?.['target_roles'] as string[] | null) ?? undefined,
+              experienceYears: opts.profileRow?.['experience_years'] as number | undefined,
+              resumeSummary: (opts.profileRow?.['resume_summary'] as string | null) ?? undefined,
+              workMode:
+                (opts.profileRow?.['work_mode'] as
+                  | 'remote'
+                  | 'hybrid'
+                  | 'onsite'
+                  | null
+                  | undefined) ?? undefined,
+              salaryMin: opts.profileRow?.['salary_min'] as number | undefined,
+              locationPref: opts.profileRow?.['location_pref'] as string | undefined,
+            },
+            resumeText: opts.profileRow?.['resume_text'] as string | undefined,
+            topK: maxTopK,
+          },
+        })
+
+        logWorkerSignal({
+          rid: opts.rid,
+          skill: 'careerclaw',
+          action: 'briefing_pending',
+          durationMs: workerResult.durationMs,
+        })
+
+        const briefing = workerResult.result
+        const matches = (briefing['matches'] ?? []) as Array<Record<string, unknown>>
+
+        // Build briefing session state — mirrors 7b path
+        const briefingUpdate: Partial<SessionState> = {
+          briefing: {
+            cachedAt: new Date().toISOString(),
+            matches: matches.map((m) => {
+              const job = (m['job'] ?? {}) as Record<string, unknown>
+              return {
+                job_id: (job['job_id'] as string) ?? '',
+                title: (job['title'] as string) ?? 'Unknown',
+                company: (job['company'] as string) ?? 'Unknown',
+                score: (m['score'] as number) ?? 0,
+                url: (job['url'] as string | null) ?? null,
+              }
+            }),
+            matchData: matches.map((m) => ({
+              job: (m['job'] ?? {}) as Record<string, unknown>,
+              score: (m['score'] ?? 0) as number,
+              breakdown: (m['breakdown'] ?? {}) as Record<string, number>,
+              matched_keywords: (m['matched_keywords'] ?? []) as string[],
+              gap_keywords: (m['gap_keywords'] ?? []) as string[],
+            })),
+            resumeIntel: briefing['resume_intel']
+              ? (briefing['resume_intel'] as Record<string, unknown>)
+              : opts.profileRow
+                ? {
+                    extracted_keywords: (opts.profileRow['skills'] as string[] | null) ?? [],
+                    extracted_phrases: [],
+                    keyword_stream: (opts.profileRow['skills'] as string[] | null) ?? [],
+                    phrase_stream: [],
+                    impact_signals: (opts.profileRow['skills'] as string[] | null) ?? [],
+                    keyword_weights: Object.fromEntries(
+                      ((opts.profileRow['skills'] as string[] | null) ?? []).map((s: string) => [
+                        s,
+                        1.0,
+                      ]),
+                    ),
+                    phrase_weights: {},
+                    source: 'skills_injected',
+                  }
+                : {},
+            profile: opts.profileRow
+              ? {
+                  skills: (opts.profileRow['skills'] as string[] | null) ?? [],
+                  targetRoles: (opts.profileRow['target_roles'] as string[] | null) ?? [],
+                  experienceYears: opts.profileRow['experience_years'] as number | undefined,
+                  resumeSummary: (opts.profileRow['resume_summary'] as string | null) ?? undefined,
+                  workMode:
+                    (opts.profileRow['work_mode'] as
+                      | 'remote'
+                      | 'hybrid'
+                      | 'onsite'
+                      | null
+                      | undefined) ?? undefined,
+                  salaryMin: opts.profileRow['salary_min'] as number | undefined,
+                  locationPref: opts.profileRow['location_pref'] as string | undefined,
+                }
+              : {},
+            resumeText: opts.profileRow
+              ? ((opts.profileRow['resume_text'] as string | null) ?? null)
+              : null,
+          },
+        }
+        pendingBriefingState = briefingUpdate
+
+        await opts.sendProgress('scoring', 'Scoring matches…')
+
+        // Format via LLM
+        let formattedSection: string
+        try {
+          const formatResult = await callLLMWithToolResult(
+            CAREERCLAW_SYSTEM_PROMPT,
+            opts.baseMessages,
+            `pending-briefing-${opts.rid}`,
+            'run_careerclaw',
+            { topK: maxTopK },
+            {
+              ...workerResult.result,
+              _meta: {
+                tier: opts.tier,
+                topK: maxTopK,
+                includeOutreach: opts.tier === 'free',
+                includeCoverLetter: opts.featureSet.has('careerclaw.tailored_cover_letter'),
+                includeGapAnalysis: opts.featureSet.has('careerclaw.resume_gap_analysis'),
+              },
+            },
+            opts.rid,
+            'briefing_pending_format',
+          )
+          formattedSection = sanitizeFormatOutput(
+            requireNonEmptyAssistantMessage(formatResult.content, 'briefing_pending_format'),
+            ['run_careerclaw'],
+            opts.rid,
+            'briefing_pending_format',
+          )
+        } catch (formatErr) {
+          console.error(
+            '[chat] Pending briefing format call failed:',
+            formatErr instanceof Error ? formatErr.message : String(formatErr),
+          )
+          formattedSection = `**Job Search Results:** Found ${matches.length} match${matches.length === 1 ? '' : 'es'}.`
+        }
+        textParts.push(`\n\n---\n\n${formattedSection}`)
+
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action: 'run_briefing',
+            status: 'success',
+          }),
+        )
+        executed++
+      } catch (err) {
+        failed++
+        console.error(
+          '[chat] Pending briefing failed:',
+          err instanceof Error ? err.message : String(err),
+        )
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action: 'run_briefing',
+            status: 'error',
+          }),
+        )
+      }
+    } else if (action === 'run_gap_analysis') {
+      const jobId = (item as { action: 'run_gap_analysis'; jobId: string }).jobId
       if (!opts.featureSet.has('careerclaw.resume_gap_analysis')) {
         console.log(
           JSON.stringify({
@@ -432,6 +612,7 @@ async function executePendingActions(
         )
       }
     } else if (action === 'run_cover_letter') {
+      const jobId = (item as { action: 'run_cover_letter'; jobId: string }).jobId
       if (!opts.featureSet.has('careerclaw.tailored_cover_letter')) {
         console.log(
           JSON.stringify({
@@ -560,6 +741,7 @@ async function executePendingActions(
         )
       }
     } else if (action === 'track_save') {
+      const jobId = (item as { action: 'track_save'; jobId: string }).jobId
       const cached = getMatchFromState(opts.sessionState, jobId)
       if (!cached) {
         console.log(
@@ -603,6 +785,19 @@ async function executePendingActions(
             }),
           )
           executed++
+        } else {
+          failed++
+          console.error('[chat] Pending track_save Supabase error:', error.message)
+          console.log(
+            JSON.stringify({
+              event: 'forensic_pending_action',
+              rid: opts.rid,
+              action: 'track_save',
+              status: 'error',
+              jobId,
+              supabase_code: error.code,
+            }),
+          )
         }
       } catch (err) {
         failed++
@@ -635,11 +830,15 @@ async function executePendingActions(
     }),
   )
 
-  const stateUpdate: Partial<SessionState> = {
+  // Merge all pending state updates — briefing replaces, gap/cover results merge additively
+  let stateUpdate: Partial<SessionState> = {
     ...(Object.keys(pendingGapResults).length > 0 ? { gapResults: pendingGapResults } : {}),
     ...(Object.keys(pendingCoverLetterResults).length > 0
       ? { coverLetterResults: pendingCoverLetterResults }
       : {}),
+  }
+  if (pendingBriefingState) {
+    stateUpdate = mergeSessionState(stateUpdate as SessionState, pendingBriefingState)
   }
   return { appendedText: textParts.join(''), stateUpdate }
 }
@@ -968,7 +1167,10 @@ export async function chatHandler(c: Context): Promise<Response> {
                 enforcer.company ?? cached.entry.company,
               )
 
-              // P0 Part B — pending-action queue (e.g. track_save unfulfilled)
+              // P0 Part B — pending-action queue.
+              // The enforcer fires on text responses (no toolInput.also_execute available),
+              // so intent detection is the fallback here. This path only triggers for
+              // cover-letter rewrites, which rarely combine with other actions.
               const enforcerQueue = buildPendingQueue(intentAudit.unfulfilled, enforcer.jobId)
               const { appendedText: enforcerPendingText, stateUpdate: enforcerPendingState } =
                 await executePendingActions(enforcerQueue, {
@@ -981,6 +1183,7 @@ export async function chatHandler(c: Context): Promise<Response> {
                   supabase,
                   sendProgress,
                   baseMessages,
+                  profileRow: profileRow as Record<string, unknown> | null,
                 })
               const enforcerFinalOutput = formattedResponse + enforcerPendingText
 
@@ -1281,10 +1484,36 @@ export async function chatHandler(c: Context): Promise<Response> {
           'run_careerclaw_format',
         )
 
+        // P0 Part B — pending-action queue driven by Claude's also_execute declaration.
+        // primaryJobId is the top match so pending gap/cover/save target a concrete job.
+        const briefingTopJobId = briefingStateUpdate.briefing?.matches[0]?.job_id ?? null
+        const briefingAlsoExecute = (toolInput.also_execute as string[] | undefined) ?? []
+        const briefingQueue = buildPendingQueue(briefingAlsoExecute, briefingTopJobId)
+        const mergedStateForBriefingPending = mergeSessionState(sessionState, briefingStateUpdate)
+        const { appendedText: briefingPendingText, stateUpdate: briefingPendingState } =
+          await executePendingActions(briefingQueue, {
+            sessionState: mergedStateForBriefingPending,
+            featureSet,
+            userId,
+            tier: entitlements.effectiveTier,
+            features: entitlements.features,
+            rid,
+            supabase,
+            sendProgress,
+            baseMessages,
+            profileRow: profileRow as Record<string, unknown> | null,
+          })
+        const briefingFinalOutput = formattedResponse + briefingPendingText
+
+        const mergedBriefingState: Partial<SessionState> = mergeSessionState(
+          briefingStateUpdate as SessionState,
+          briefingPendingState,
+        )
+
         const updatedMessages: Message[] = [
           ...history,
           { role: 'user', content: message, timestamp: new Date().toISOString() },
-          { role: 'assistant', content: formattedResponse, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: briefingFinalOutput, timestamp: new Date().toISOString() },
         ]
 
         const savedId = await saveSession(
@@ -1292,7 +1521,7 @@ export async function chatHandler(c: Context): Promise<Response> {
           channel as Channel,
           updatedMessages,
           activeSessionId,
-          briefingStateUpdate,
+          mergedBriefingState,
           sessionState,
         )
 
@@ -1305,7 +1534,7 @@ export async function chatHandler(c: Context): Promise<Response> {
           durationMs: Date.now() - startMs,
         })
 
-        await sendDone(savedId, formattedResponse)
+        await sendDone(savedId, briefingFinalOutput)
         return
       }
 
@@ -1432,8 +1661,9 @@ export async function chatHandler(c: Context): Promise<Response> {
           'gap_analysis_format',
         )
 
-        // P0 Part B — pending-action queue (e.g. cover_letter or track_save unfulfilled)
-        const gapQueue = buildPendingQueue(intentAudit.unfulfilled, jobId)
+        // P0 Part B — pending-action queue driven by Claude's also_execute declaration
+        const gapAlsoExecute = toolInput.also_execute ?? []
+        const gapQueue = buildPendingQueue(gapAlsoExecute, jobId)
         const { appendedText: gapPendingText, stateUpdate: gapPendingState } =
           await executePendingActions(gapQueue, {
             sessionState,
@@ -1445,6 +1675,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             supabase,
             sendProgress,
             baseMessages,
+            profileRow: profileRow as Record<string, unknown> | null,
           })
         const gapFinalOutput = formattedResponse + gapPendingText
 
@@ -1661,8 +1892,9 @@ export async function chatHandler(c: Context): Promise<Response> {
           'cover_letter_format',
         )
 
-        // P0 Part B — pending-action queue (e.g. track_save unfulfilled)
-        const clQueue = buildPendingQueue(intentAudit.unfulfilled, jobId)
+        // P0 Part B — pending-action queue driven by Claude's also_execute declaration
+        const clAlsoExecute = toolInput.also_execute ?? []
+        const clQueue = buildPendingQueue(clAlsoExecute, jobId)
         const { appendedText: clPendingText, stateUpdate: clPendingState } =
           await executePendingActions(clQueue, {
             sessionState,
@@ -1674,6 +1906,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             supabase,
             sendProgress,
             baseMessages,
+            profileRow: profileRow as Record<string, unknown> | null,
           })
         const clFinalOutput = formattedResponse + clPendingText
 
@@ -2026,10 +2259,11 @@ export async function chatHandler(c: Context): Promise<Response> {
           'track_application_format',
         )
 
-        // P0 Part B — pending-action queue (e.g. cover_letter or gap_analysis unfulfilled)
+        // P0 Part B — pending-action queue driven by Claude's also_execute declaration
         const trackJobId =
           effectiveTrackInput.action !== 'list' ? (effectiveTrackInput.job_id ?? null) : null
-        const trackQueue = buildPendingQueue(intentAudit.unfulfilled, trackJobId)
+        const trackAlsoExecute = trackInput.action !== 'list' ? (trackInput.also_execute ?? []) : []
+        const trackQueue = buildPendingQueue(trackAlsoExecute, trackJobId)
         const { appendedText: trackPendingText, stateUpdate: trackPendingState } =
           await executePendingActions(trackQueue, {
             sessionState,
@@ -2041,6 +2275,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             supabase,
             sendProgress,
             baseMessages,
+            profileRow: profileRow as Record<string, unknown> | null,
           })
         const trackFinalOutput = formattedResponse + trackPendingText
 

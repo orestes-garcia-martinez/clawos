@@ -279,13 +279,17 @@ beforeEach(() => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function setupGapAnalysisPrimary(userId = PRO_USER, sessionState: object = STATE_WITH_GAP) {
+function setupGapAnalysisPrimary(
+  userId = PRO_USER,
+  sessionState: object = STATE_WITH_GAP,
+  alsoExecute?: string[],
+) {
   buildMock({ userId, tier: 'pro', sessionState })
   mockCallLLM.mockResolvedValue({
     type: 'tool_use',
     toolName: 'run_gap_analysis',
     toolUseId: 'tool_gap_001',
-    toolInput: { job_id: 'job-acme-001' },
+    toolInput: { job_id: 'job-acme-001', ...(alsoExecute ? { also_execute: alsoExecute } : {}) },
     provider: 'anthropic',
   })
   mockCallLLMWithToolResult.mockResolvedValue({
@@ -296,13 +300,13 @@ function setupGapAnalysisPrimary(userId = PRO_USER, sessionState: object = STATE
   mockRunWorkerGapAnalysis.mockResolvedValue({ result: GAP_RESULT, durationMs: 120 })
 }
 
-function setupCoverLetterPrimary(userId = PRO_USER) {
+function setupCoverLetterPrimary(userId = PRO_USER, alsoExecute?: string[]) {
   buildMock({ userId, tier: 'pro' })
   mockCallLLM.mockResolvedValue({
     type: 'tool_use',
     toolName: 'run_cover_letter',
     toolUseId: 'tool_cl_001',
-    toolInput: { job_id: 'job-acme-001' },
+    toolInput: { job_id: 'job-acme-001', ...(alsoExecute ? { also_execute: alsoExecute } : {}) },
     provider: 'anthropic',
   })
   mockCallLLMWithToolResult.mockResolvedValue({
@@ -313,7 +317,11 @@ function setupCoverLetterPrimary(userId = PRO_USER) {
   mockRunWorkerCoverLetter.mockResolvedValue({ result: COVER_LETTER_RESULT, durationMs: 2400 })
 }
 
-function setupTrackApplicationPrimary(userId = PRO_USER, sessionState: object = STATE_WITH_GAP) {
+function setupTrackApplicationPrimary(
+  userId = PRO_USER,
+  sessionState: object = STATE_WITH_GAP,
+  alsoExecute?: string[],
+) {
   buildMock({ userId, tier: 'pro', sessionState })
   mockCallLLM.mockResolvedValue({
     type: 'tool_use',
@@ -326,6 +334,7 @@ function setupTrackApplicationPrimary(userId = PRO_USER, sessionState: object = 
       company: 'Acme',
       status: 'saved',
       url: 'https://acme.com/jobs/1',
+      ...(alsoExecute ? { also_execute: alsoExecute } : {}),
     },
     provider: 'anthropic',
   })
@@ -340,7 +349,7 @@ function setupTrackApplicationPrimary(userId = PRO_USER, sessionState: object = 
 
 describe('POST /chat — pending-action queue: single pending', () => {
   it('gap_analysis primary → track_save pending: Supabase upsert called once', async () => {
-    setupGapAnalysisPrimary()
+    setupGapAnalysisPrimary(PRO_USER, undefined, ['track_save'])
 
     const res = await makeRequest(PRO_USER, 'Analyze Acme and save the job to my tracker')
     const events = parseSSEEvents(await res.text())
@@ -361,7 +370,7 @@ describe('POST /chat — pending-action queue: single pending', () => {
   })
 
   it('cover_letter primary → track_save pending: Supabase upsert called once', async () => {
-    setupCoverLetterPrimary()
+    setupCoverLetterPrimary(PRO_USER, ['track_save'])
 
     const res = await makeRequest(
       PRO_USER,
@@ -377,7 +386,7 @@ describe('POST /chat — pending-action queue: single pending', () => {
   })
 
   it('track_application primary → cover_letter pending: cover letter worker called', async () => {
-    setupTrackApplicationPrimary()
+    setupTrackApplicationPrimary(PRO_USER, STATE_WITH_GAP, ['cover_letter'])
     mockRunWorkerCoverLetter.mockResolvedValue({ result: COVER_LETTER_RESULT, durationMs: 2400 })
     // Primary track format + pending cover letter format
     mockCallLLMWithToolResult
@@ -405,7 +414,7 @@ describe('POST /chat — pending-action queue: single pending', () => {
   })
 
   it('track_application primary → gap_analysis pending: gap analysis worker called', async () => {
-    setupTrackApplicationPrimary()
+    setupTrackApplicationPrimary(PRO_USER, STATE_WITH_GAP, ['gap_analysis'])
     mockRunWorkerGapAnalysis.mockResolvedValue({ result: GAP_RESULT, durationMs: 120 })
     // Primary track format + pending gap analysis format
     mockCallLLMWithToolResult
@@ -434,7 +443,7 @@ describe('POST /chat — pending-action queue: single pending', () => {
 
 describe('POST /chat — pending-action queue: multi-action chains', () => {
   it('gap_analysis → cover_letter pending: cover letter appended to response', async () => {
-    setupGapAnalysisPrimary()
+    setupGapAnalysisPrimary(PRO_USER, undefined, ['cover_letter'])
     mockRunWorkerCoverLetter.mockResolvedValue({ result: COVER_LETTER_RESULT, durationMs: 2400 })
     // Primary gap analysis format + pending cover letter format
     mockCallLLMWithToolResult
@@ -460,7 +469,7 @@ describe('POST /chat — pending-action queue: multi-action chains', () => {
   })
 
   it('gap_analysis → cover_letter + track_save: all three executed in order', async () => {
-    setupGapAnalysisPrimary()
+    setupGapAnalysisPrimary(PRO_USER, undefined, ['cover_letter', 'track_save'])
     mockRunWorkerCoverLetter.mockResolvedValue({ result: COVER_LETTER_RESULT, durationMs: 2400 })
     // Primary gap analysis format + pending cover letter format
     // (track_save appends its confirmation directly — no LLM call)
@@ -496,7 +505,7 @@ describe('POST /chat — pending-action queue: multi-action chains', () => {
   it('track_application → gap_analysis + cover_letter: both run, cover letter gets in-queue gap', async () => {
     // Session state has NO pre-existing gap for job-acme-001 — if threading works,
     // cover letter will still receive the gap computed earlier in the queue.
-    setupTrackApplicationPrimary(PRO_USER, STATE_WITHOUT_GAP)
+    setupTrackApplicationPrimary(PRO_USER, STATE_WITHOUT_GAP, ['gap_analysis', 'cover_letter'])
     mockRunWorkerGapAnalysis.mockResolvedValue({ result: GAP_RESULT, durationMs: 120 })
     mockRunWorkerCoverLetter.mockResolvedValue({ result: COVER_LETTER_RESULT, durationMs: 2400 })
     // Primary track format + pending gap format + pending cover letter format
@@ -540,7 +549,7 @@ describe('POST /chat — pending-action queue: multi-action chains', () => {
 describe('POST /chat — pending-action queue: edge cases', () => {
   it('cover_letter pending on free tier: worker not called, no upgrade message mid-response', async () => {
     // Use track_application as primary — free tier can save to tracker.
-    // cover_letter is the pending intent but must be silently skipped (Pro-gated).
+    // cover_letter is declared in also_execute but must be silently skipped (Pro-gated).
     buildMock({ userId: FREE_USER, tier: 'free' })
     mockCallLLM.mockResolvedValue({
       type: 'tool_use',
@@ -552,6 +561,7 @@ describe('POST /chat — pending-action queue: edge cases', () => {
         title: 'Senior Engineer',
         company: 'Acme',
         status: 'saved',
+        also_execute: ['cover_letter'],
       },
       provider: 'anthropic',
     })
@@ -587,6 +597,7 @@ describe('POST /chat — pending-action queue: edge cases', () => {
         title: 'Senior Engineer',
         company: 'Acme',
         status: 'saved',
+        also_execute: ['gap_analysis'],
       },
       provider: 'anthropic',
     })
@@ -607,7 +618,7 @@ describe('POST /chat — pending-action queue: edge cases', () => {
   })
 
   it('pending track_save fails: primary response still succeeds with done event', async () => {
-    setupGapAnalysisPrimary()
+    setupGapAnalysisPrimary(PRO_USER, undefined, ['track_save'])
     trackingUpsertShouldFail = true
 
     const res = await makeRequest(PRO_USER, 'Analyze Acme and save the job to my tracker')
@@ -620,7 +631,7 @@ describe('POST /chat — pending-action queue: edge cases', () => {
   })
 
   it('pending cover_letter worker throws: primary response still succeeds', async () => {
-    setupTrackApplicationPrimary()
+    setupTrackApplicationPrimary(PRO_USER, STATE_WITH_GAP, ['cover_letter'])
     mockRunWorkerCoverLetter.mockRejectedValue(new Error('Worker timeout'))
 
     const res = await makeRequest(PRO_USER, 'Save Acme and write a cover letter')

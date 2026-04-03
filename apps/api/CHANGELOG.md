@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.15.0] (2026-04-03)
+
+### Features
+
+- **api:** replace regex-based pending-action queue with LLM-declared `also_execute` field on all 4 tool schemas; add `run_briefing` as a valid pending action (no jobId); add progress SSE event during multi-task runs; thread merged session state for briefing-initiated pending queue ([1c60696](https://github.com/orestes-garcia-martinez/clawos/commit/1c60696dd010fcfd861dc49dfb30378564775e1e))
+
+### Bug Fixes
+
+- **api:** fix silent Supabase error in `track_save` pending action — failed upsert now increments failure counter and logs structured forensic event with Supabase error code ([1c60696](https://github.com/orestes-garcia-martinez/clawos/commit/1c60696dd010fcfd861dc49dfb30378564775e1e))
+
 ## [0.14.0] (2026-04-03)
 
 ### Features

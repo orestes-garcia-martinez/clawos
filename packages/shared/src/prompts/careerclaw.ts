@@ -100,6 +100,25 @@ Without an active briefing:
 - Generate a short slug for job_id (e.g. "stripe-staff-swe-2026") and fill in title, company, status from the conversation.
 - Proceed directly — no server-side resolution applies.
 
+## also_execute — compound request coordination
+
+When the user asks for multiple sequential actions in one message, use the \`also_execute\` field to declare the follow-up actions the platform should run automatically after the primary tool completes. This is the correct way to handle compound requests — do not make separate tool calls for each action.
+
+Declare actions in execution order using these intent labels:
+- \`"briefing"\` — run a fresh job search (no job_id needed; always uses the user's current profile)
+- \`"gap_analysis"\` — run a resume gap analysis (Pro only; targets the same job as the primary call)
+- \`"cover_letter"\` — generate a tailored cover letter (Pro only; targets the same job)
+- \`"track_save"\` — save this job to the Applications tracker
+
+Pro-gated actions (\`gap_analysis\`, \`cover_letter\`) are silently skipped for free-tier users — no need to conditionally omit them yourself.
+
+**Examples:**
+- "Write a cover letter and save it to my tracker" → call \`run_cover_letter\` with \`also_execute: ["track_save"]\`
+- "Run a gap analysis and write a cover letter" → call \`run_gap_analysis\` with \`also_execute: ["cover_letter"]\`
+- "Analyze this role, write a cover letter, and save it" → call \`run_gap_analysis\` with \`also_execute: ["cover_letter", "track_save"]\`
+- "Run a briefing and analyze the top match" → call \`run_careerclaw\` with \`also_execute: ["gap_analysis"]\`
+- "Save the Acme job and write a cover letter" → call \`track_application\` with \`also_execute: ["cover_letter"]\`
+
 </tool_rules>
 
 <tier_signals>
@@ -206,7 +225,7 @@ Follow the advisory_flow above. When saving a job from search results to the tra
 ## run_gap_analysis result
 
 Present clearly:
-1. **Fit Score:** Weighted fit score as a percentage.
+1. **Match Score:** Use \`briefing_match_score\` from the tool result if present — this is the same overall score shown in the briefing, keeping the number consistent for the user. Format as a percentage (e.g. "29% match"). If \`briefing_match_score\` is absent, fall back to \`fit_score\`. Show one score only — do not show both.
 2. **Your Strengths:** Top keywords and phrases from the resume that matched. Frame positively.
 3. **Gaps to Address:** Missing keywords and phrases. For each, provide actionable advice — learning resources, certifications, or resume improvements.
 4. **Strategic Recommendation:** Apply now, upskill first, or rewrite specific resume sections.
@@ -331,7 +350,7 @@ Context: Pro-tier user, briefing already run. User says "Analyze the Stripe matc
 [You invoke run_gap_analysis with job_id: "stripe-staff-swe-789". Tool returns fit score, matched keywords, gap keywords]
 
 You respond:
-"**Gap Analysis — Staff Software Engineer at Stripe (91% fit)**
+"**Gap Analysis — Staff Software Engineer at Stripe (91% match)**
 
 **Your Strengths:** TypeScript (strong signal), Node.js, REST API design, distributed systems, CI/CD — all prominent in the job description.
 
@@ -416,6 +435,7 @@ export interface RunCareerClawInput {
   includeCoverLetter?: boolean
   /** Server-computed: true when the user has the resume_gap_analysis feature (Pro). */
   includeGapAnalysis?: boolean
+  also_execute?: Array<'gap_analysis' | 'cover_letter' | 'track_save'>
 }
 
 export const RUN_CAREERCLAW_TOOL = {
@@ -430,6 +450,12 @@ export const RUN_CAREERCLAW_TOOL = {
         description:
           'Number of top matches to return. Free tier max: 3. Pro tier max: 10. Default to the tier maximum.',
       },
+      also_execute: {
+        type: 'array',
+        description:
+          'Additional actions to run after the briefing completes, applied to the top match. Use when the user asked for multiple things in one message. See <tool_rules> also_execute section for guidance.',
+        items: { type: 'string', enum: ['gap_analysis', 'cover_letter', 'track_save'] },
+      },
     },
     required: ['topK'],
   },
@@ -438,6 +464,7 @@ export const RUN_CAREERCLAW_TOOL = {
 // run_gap_analysis — post-briefing deep dive for a specific match (Pro)
 export interface RunGapAnalysisInput {
   job_id: string
+  also_execute?: Array<'briefing' | 'cover_letter' | 'track_save'>
 }
 
 export const RUN_GAP_ANALYSIS_TOOL = {
@@ -452,6 +479,12 @@ export const RUN_GAP_ANALYSIS_TOOL = {
         description:
           'The exact job_id from the current briefing results. Server resolves or returns clarification if not found.',
       },
+      also_execute: {
+        type: 'array',
+        description:
+          'Additional actions to run after gap analysis completes. Use when the user asked for multiple things in one message. See <tool_rules> also_execute section for guidance.',
+        items: { type: 'string', enum: ['briefing', 'cover_letter', 'track_save'] },
+      },
     },
     required: ['job_id'],
   },
@@ -460,6 +493,7 @@ export const RUN_GAP_ANALYSIS_TOOL = {
 // run_cover_letter — post-briefing cover letter for a specific match (Pro)
 export interface RunCoverLetterInput {
   job_id: string
+  also_execute?: Array<'briefing' | 'gap_analysis' | 'track_save'>
 }
 
 export const RUN_COVER_LETTER_TOOL = {
@@ -473,6 +507,12 @@ export const RUN_COVER_LETTER_TOOL = {
         type: 'string',
         description:
           'The exact job_id from the current briefing results. Server resolves or returns clarification if not found.',
+      },
+      also_execute: {
+        type: 'array',
+        description:
+          'Additional actions to run after cover letter generation completes. Use when the user asked for multiple things in one message. See <tool_rules> also_execute section for guidance.',
+        items: { type: 'string', enum: ['briefing', 'gap_analysis', 'track_save'] },
       },
     },
     required: ['job_id'],
@@ -488,6 +528,7 @@ export type TrackApplicationInput =
       company: string
       status: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
       url?: string
+      also_execute?: Array<'briefing' | 'gap_analysis' | 'cover_letter'>
     }
   | {
       action: 'update_status'
@@ -496,6 +537,7 @@ export type TrackApplicationInput =
       company: string
       status: 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'
       url?: string
+      also_execute?: Array<'briefing' | 'gap_analysis' | 'cover_letter'>
     }
   | {
       action: 'list'
@@ -538,6 +580,12 @@ export const TRACK_APPLICATION_TOOL = {
         type: 'string',
         description:
           'Optional. Job listing URL. Use the url from the briefing match when available.',
+      },
+      also_execute: {
+        type: 'array',
+        description:
+          'Additional actions to run after this save or update completes. Only relevant for save and update_status actions. See <tool_rules> also_execute section for guidance.',
+        items: { type: 'string', enum: ['briefing', 'gap_analysis', 'cover_letter'] },
       },
     },
     required: ['action'],

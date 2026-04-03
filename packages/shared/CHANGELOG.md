@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.0] (2026-04-03)
+
+### Features
+
+- **shared:** add `also_execute` field to all 4 CareerClaw tool schemas and TypeScript interfaces; update system prompt with compound-request coordination rules and 5 worked examples; use `briefing_match_score` as single headline score in gap analysis ([1c60696](https://github.com/orestes-garcia-martinez/clawos/commit/1c60696dd010fcfd861dc49dfb30378564775e1e))
+
 ## [0.6.2] (2026-03-31)
 
 ### Bug Fixes
