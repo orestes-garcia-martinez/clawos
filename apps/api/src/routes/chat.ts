@@ -383,8 +383,7 @@ async function executePendingActions(
               ? (briefing['resume_intel'] as Record<string, unknown>)
               : opts.profileRow
                 ? {
-                    extracted_keywords:
-                      (opts.profileRow['skills'] as string[] | null) ?? [],
+                    extracted_keywords: (opts.profileRow['skills'] as string[] | null) ?? [],
                     extracted_phrases: [],
                     keyword_stream: (opts.profileRow['skills'] as string[] | null) ?? [],
                     phrase_stream: [],
@@ -404,8 +403,7 @@ async function executePendingActions(
                   skills: (opts.profileRow['skills'] as string[] | null) ?? [],
                   targetRoles: (opts.profileRow['target_roles'] as string[] | null) ?? [],
                   experienceYears: opts.profileRow['experience_years'] as number | undefined,
-                  resumeSummary:
-                    (opts.profileRow['resume_summary'] as string | null) ?? undefined,
+                  resumeSummary: (opts.profileRow['resume_summary'] as string | null) ?? undefined,
                   workMode:
                     (opts.profileRow['work_mode'] as
                       | 'remote'
@@ -2264,8 +2262,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         // P0 Part B — pending-action queue driven by Claude's also_execute declaration
         const trackJobId =
           effectiveTrackInput.action !== 'list' ? (effectiveTrackInput.job_id ?? null) : null
-        const trackAlsoExecute =
-          trackInput.action !== 'list' ? (trackInput.also_execute ?? []) : []
+        const trackAlsoExecute = trackInput.action !== 'list' ? (trackInput.also_execute ?? []) : []
         const trackQueue = buildPendingQueue(trackAlsoExecute, trackJobId)
         const { appendedText: trackPendingText, stateUpdate: trackPendingState } =
           await executePendingActions(trackQueue, {
