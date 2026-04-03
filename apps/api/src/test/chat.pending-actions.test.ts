@@ -379,6 +379,18 @@ describe('POST /chat — pending-action queue: single pending', () => {
   it('track_application primary → cover_letter pending: cover letter worker called', async () => {
     setupTrackApplicationPrimary()
     mockRunWorkerCoverLetter.mockResolvedValue({ result: COVER_LETTER_RESULT, durationMs: 2400 })
+    // Primary track format + pending cover letter format
+    mockCallLLMWithToolResult
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Done — saved Senior Engineer at Acme.',
+        provider: 'anthropic',
+      })
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Cover letter for Acme — here is your tailored cover letter.',
+        provider: 'anthropic',
+      })
 
     const res = await makeRequest(PRO_USER, 'Save Acme and write a cover letter')
     const events = parseSSEEvents(await res.text())
@@ -395,6 +407,18 @@ describe('POST /chat — pending-action queue: single pending', () => {
   it('track_application primary → gap_analysis pending: gap analysis worker called', async () => {
     setupTrackApplicationPrimary()
     mockRunWorkerGapAnalysis.mockResolvedValue({ result: GAP_RESULT, durationMs: 120 })
+    // Primary track format + pending gap analysis format
+    mockCallLLMWithToolResult
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Done — saved Senior Engineer at Acme.',
+        provider: 'anthropic',
+      })
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Gap analysis for Acme — keyword coverage: 65%.',
+        provider: 'anthropic',
+      })
 
     const res = await makeRequest(PRO_USER, 'Save Acme and analyze the gap')
     const events = parseSSEEvents(await res.text())
@@ -412,6 +436,18 @@ describe('POST /chat — pending-action queue: multi-action chains', () => {
   it('gap_analysis → cover_letter pending: cover letter appended to response', async () => {
     setupGapAnalysisPrimary()
     mockRunWorkerCoverLetter.mockResolvedValue({ result: COVER_LETTER_RESULT, durationMs: 2400 })
+    // Primary gap analysis format + pending cover letter format
+    mockCallLLMWithToolResult
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Here is the gap analysis for Acme.',
+        provider: 'anthropic',
+      })
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Cover letter for Acme — here is your tailored cover letter.',
+        provider: 'anthropic',
+      })
 
     const res = await makeRequest(PRO_USER, 'Analyze Acme and write a cover letter')
     const events = parseSSEEvents(await res.text())
@@ -426,6 +462,19 @@ describe('POST /chat — pending-action queue: multi-action chains', () => {
   it('gap_analysis → cover_letter + track_save: all three executed in order', async () => {
     setupGapAnalysisPrimary()
     mockRunWorkerCoverLetter.mockResolvedValue({ result: COVER_LETTER_RESULT, durationMs: 2400 })
+    // Primary gap analysis format + pending cover letter format
+    // (track_save appends its confirmation directly — no LLM call)
+    mockCallLLMWithToolResult
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Here is the gap analysis for Acme.',
+        provider: 'anthropic',
+      })
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Cover letter for Acme — here is your tailored cover letter.',
+        provider: 'anthropic',
+      })
 
     const res = await makeRequest(
       PRO_USER,
@@ -450,6 +499,23 @@ describe('POST /chat — pending-action queue: multi-action chains', () => {
     setupTrackApplicationPrimary(PRO_USER, STATE_WITHOUT_GAP)
     mockRunWorkerGapAnalysis.mockResolvedValue({ result: GAP_RESULT, durationMs: 120 })
     mockRunWorkerCoverLetter.mockResolvedValue({ result: COVER_LETTER_RESULT, durationMs: 2400 })
+    // Primary track format + pending gap format + pending cover letter format
+    mockCallLLMWithToolResult
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Done — saved Senior Engineer at Acme.',
+        provider: 'anthropic',
+      })
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Gap analysis for Acme — keyword coverage: 65%.',
+        provider: 'anthropic',
+      })
+      .mockResolvedValueOnce({
+        type: 'text',
+        content: 'Cover letter for Acme — here is your tailored cover letter.',
+        provider: 'anthropic',
+      })
 
     const res = await makeRequest(PRO_USER, 'Save Acme, analyze the gap, and write a cover letter')
     const events = parseSSEEvents(await res.text())

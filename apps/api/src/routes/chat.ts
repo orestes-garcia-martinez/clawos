@@ -287,6 +287,8 @@ async function executePendingActions(
     rid: string
     supabase: ReturnType<typeof createServerClient>
     sendProgress: (step: string, message: string) => Promise<void>
+    /** Conversation context for LLM format calls on pending results. */
+    baseMessages: Message[]
   },
 ): Promise<{ appendedText: string; stateUpdate: Partial<SessionState> }> {
   if (queue.length === 0) return { appendedText: '', stateUpdate: {} }
@@ -296,13 +298,44 @@ async function executePendingActions(
   const pendingGapResults: Record<string, Record<string, unknown>> = {}
   const pendingCoverLetterResults: Record<string, Record<string, unknown>> = {}
 
+  // Observability counters for queue-level summary
+  let executed = 0
+  let skipped = 0
+  let failed = 0
+
   for (const item of queue) {
     const { action, jobId } = item
 
     if (action === 'run_gap_analysis') {
-      if (!opts.featureSet.has('careerclaw.resume_gap_analysis')) continue
+      if (!opts.featureSet.has('careerclaw.resume_gap_analysis')) {
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action,
+            status: 'skipped',
+            reason: 'pro_gate',
+            jobId,
+          }),
+        )
+        skipped++
+        continue
+      }
       const cached = getMatchFromState(opts.sessionState, jobId)
-      if (!cached) continue
+      if (!cached) {
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action,
+            status: 'skipped',
+            reason: 'no_match',
+            jobId,
+          }),
+        )
+        skipped++
+        continue
+      }
 
       try {
         await opts.sendProgress('analyzing', 'Running gap analysis...')
@@ -326,20 +359,51 @@ async function executePendingActions(
         const gapAnalysis = (gapResult as { analysis?: Record<string, unknown> }).analysis
         if (gapAnalysis) pendingGapResults[jobId] = gapAnalysis
 
-        const fitScore = gapAnalysis?.['fit_score'] as number | undefined
-        const matched = (gapAnalysis?.['matched_keywords'] as string[] | undefined) ?? []
-        const gaps = (gapAnalysis?.['gap_keywords'] as string[] | undefined) ?? []
-        const briefingScore = opts.sessionState.briefing?.matches.find(
+        // Inject briefing_match_score so Claude can label the two metrics distinctly
+        const briefingMatchScore = opts.sessionState.briefing?.matches.find(
           (m) => m.job_id === jobId,
         )?.score
+        const gapResultForFormat =
+          briefingMatchScore != null
+            ? { ...gapResult, briefing_match_score: briefingMatchScore }
+            : gapResult
 
-        const lines = [`\n\n---\n\n**Gap analysis for ${cached.entry.company}:**`]
-        if (briefingScore != null)
-          lines.push(`- Overall match: ${Math.round(briefingScore * 100)}%`)
-        if (fitScore != null) lines.push(`- Keyword coverage: ${Math.round(fitScore * 100)}%`)
-        if (matched.length > 0) lines.push(`- Matched: ${matched.slice(0, 8).join(', ')}`)
-        if (gaps.length > 0) lines.push(`- Gaps: ${gaps.slice(0, 5).join(', ')}`)
-        textParts.push(lines.join('\n'))
+        // Format via LLM; fall back to a minimal markdown summary if the call fails
+        let formattedSection: string
+        try {
+          const formatResult = await callLLMWithToolResult(
+            CAREERCLAW_SYSTEM_PROMPT,
+            opts.baseMessages,
+            `pending-gap-${jobId}`,
+            'run_gap_analysis',
+            { job_id: jobId },
+            gapResultForFormat,
+            opts.rid,
+            'gap_analysis_pending_format',
+          )
+          formattedSection = sanitizeFormatOutput(
+            requireNonEmptyAssistantMessage(formatResult.content, 'gap_analysis_pending_format'),
+            ['run_gap_analysis'],
+            opts.rid,
+            'gap_analysis_pending_format',
+          )
+        } catch (formatErr) {
+          console.error(
+            '[chat] Pending gap format call failed:',
+            formatErr instanceof Error ? formatErr.message : String(formatErr),
+          )
+          const fitScore = gapAnalysis?.['fit_score'] as number | undefined
+          const matched = (gapAnalysis?.['matched_keywords'] as string[] | undefined) ?? []
+          const gaps = (gapAnalysis?.['gap_keywords'] as string[] | undefined) ?? []
+          const lines = [`**Gap analysis for ${cached.entry.company}:**`]
+          if (briefingMatchScore != null)
+            lines.push(`- Overall match: ${Math.round(briefingMatchScore * 100)}%`)
+          if (fitScore != null) lines.push(`- Keyword coverage: ${Math.round(fitScore * 100)}%`)
+          if (matched.length > 0) lines.push(`- Matched: ${matched.slice(0, 8).join(', ')}`)
+          if (gaps.length > 0) lines.push(`- Gaps: ${gaps.slice(0, 5).join(', ')}`)
+          formattedSection = lines.join('\n')
+        }
+        textParts.push(`\n\n---\n\n${formattedSection}`)
 
         console.log(
           JSON.stringify({
@@ -350,16 +414,53 @@ async function executePendingActions(
             jobId,
           }),
         )
+        executed++
       } catch (err) {
+        failed++
         console.error(
           '[chat] Pending gap analysis failed:',
           err instanceof Error ? err.message : String(err),
         )
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action: 'run_gap_analysis',
+            status: 'error',
+            jobId,
+          }),
+        )
       }
     } else if (action === 'run_cover_letter') {
-      if (!opts.featureSet.has('careerclaw.tailored_cover_letter')) continue
+      if (!opts.featureSet.has('careerclaw.tailored_cover_letter')) {
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action,
+            status: 'skipped',
+            reason: 'pro_gate',
+            jobId,
+          }),
+        )
+        skipped++
+        continue
+      }
       const cached = getMatchFromState(opts.sessionState, jobId)
-      if (!cached) continue
+      if (!cached) {
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action,
+            status: 'skipped',
+            reason: 'no_match',
+            jobId,
+          }),
+        )
+        skipped++
+        continue
+      }
 
       try {
         await opts.sendProgress('writing', 'Generating cover letter...')
@@ -399,13 +500,38 @@ async function executePendingActions(
           generationMeta: signals.generationMeta,
         })
 
-        const body = (coverLetterResult['body'] as string) ?? ''
-        const clText =
-          `\n\n---\n\n**Cover letter for ${cached.entry.company}:**\n\n${body}` +
-          (signals.isTemplate
-            ? '\n\n*This is a template version — retry for a more personalized version.*'
-            : '')
-        textParts.push(clText)
+        // Format via LLM; fall back to raw body if the call fails
+        let formattedSection: string
+        try {
+          const formatResult = await callLLMWithToolResult(
+            CAREERCLAW_SYSTEM_PROMPT,
+            opts.baseMessages,
+            `pending-cl-${jobId}`,
+            'run_cover_letter',
+            { job_id: jobId },
+            coverLetterResult,
+            opts.rid,
+            'cover_letter_pending_format',
+          )
+          formattedSection = sanitizeFormatOutput(
+            requireNonEmptyAssistantMessage(formatResult.content, 'cover_letter_pending_format'),
+            ['run_cover_letter'],
+            opts.rid,
+            'cover_letter_pending_format',
+          )
+        } catch (formatErr) {
+          console.error(
+            '[chat] Pending cover letter format call failed:',
+            formatErr instanceof Error ? formatErr.message : String(formatErr),
+          )
+          const body = (coverLetterResult['body'] as string) ?? ''
+          formattedSection =
+            `**Cover letter for ${cached.entry.company}:**\n\n${body}` +
+            (signals.isTemplate
+              ? '\n\n*This is a template version — retry for a more personalized version.*'
+              : '')
+        }
+        textParts.push(`\n\n---\n\n${formattedSection}`)
 
         console.log(
           JSON.stringify({
@@ -416,15 +542,39 @@ async function executePendingActions(
             jobId,
           }),
         )
+        executed++
       } catch (err) {
+        failed++
         console.error(
           '[chat] Pending cover letter failed:',
           err instanceof Error ? err.message : String(err),
         )
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action: 'run_cover_letter',
+            status: 'error',
+            jobId,
+          }),
+        )
       }
     } else if (action === 'track_save') {
       const cached = getMatchFromState(opts.sessionState, jobId)
-      if (!cached) continue
+      if (!cached) {
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action,
+            status: 'skipped',
+            reason: 'no_match',
+            jobId,
+          }),
+        )
+        skipped++
+        continue
+      }
 
       try {
         await opts.sendProgress('tracking', 'Saving to tracker...')
@@ -452,15 +602,38 @@ async function executePendingActions(
               jobId,
             }),
           )
+          executed++
         }
       } catch (err) {
+        failed++
         console.error(
           '[chat] Pending track_save failed:',
           err instanceof Error ? err.message : String(err),
         )
+        console.log(
+          JSON.stringify({
+            event: 'forensic_pending_action',
+            rid: opts.rid,
+            action: 'track_save',
+            status: 'error',
+            jobId,
+          }),
+        )
       }
     }
   }
+
+  // Queue-level summary — one log entry per request covering all pending items
+  console.log(
+    JSON.stringify({
+      event: 'forensic_pending_queue',
+      rid: opts.rid,
+      queue_length: queue.length,
+      executed,
+      skipped,
+      failed,
+    }),
+  )
 
   const stateUpdate: Partial<SessionState> = {
     ...(Object.keys(pendingGapResults).length > 0 ? { gapResults: pendingGapResults } : {}),
@@ -807,6 +980,7 @@ export async function chatHandler(c: Context): Promise<Response> {
                   rid,
                   supabase,
                   sendProgress,
+                  baseMessages,
                 })
               const enforcerFinalOutput = formattedResponse + enforcerPendingText
 
@@ -1270,6 +1444,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             rid,
             supabase,
             sendProgress,
+            baseMessages,
           })
         const gapFinalOutput = formattedResponse + gapPendingText
 
@@ -1498,6 +1673,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             rid,
             supabase,
             sendProgress,
+            baseMessages,
           })
         const clFinalOutput = formattedResponse + clPendingText
 
@@ -1864,6 +2040,7 @@ export async function chatHandler(c: Context): Promise<Response> {
             rid,
             supabase,
             sendProgress,
+            baseMessages,
           })
         const trackFinalOutput = formattedResponse + trackPendingText
 
