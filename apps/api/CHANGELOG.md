@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0] (2026-04-03)
+
+### Features
+
+- **api:** add structured `forensic_pending_action` skipped/error logs and `forensic_pending_queue` summary event for full queue observability; thread observability counters (executed/skipped/failed) per run ([7ea07ce](https://github.com/orestes-garcia-martinez/clawos/commit/7ea07ceb90107c5d95c43e7a6445bb1b079bff68))
+- **api:** replace manual markdown string-building for pending gap analysis and cover letter with `callLLMWithToolResult` format calls; apply `sanitizeFormatOutput` and fall back to minimal summary on format failure; inject `briefing_match_score` in pending gap format call; add `baseMessages` to `executePendingActions` opts ([7ea07ce](https://github.com/orestes-garcia-martinez/clawos/commit/7ea07ceb90107c5d95c43e7a6445bb1b079bff68))
+
 ## [0.13.0] (2026-04-03)
 
 ### Features
