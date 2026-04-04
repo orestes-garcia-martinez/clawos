@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0] (2026-04-04)
+
+### Features
+
+- **web:** replace 3-tab auth (sign-in / sign-up / magic-link) with a single-field magic-link-only page; `signInWithOtp` with `shouldCreateUser: true` handles new and returning users identically, eliminating all password flows ([5ab49ea](https://github.com/orestes-garcia-martinez/clawos/commit/5ab49ea9b28e5b2406f8422ac43339d40ba71957))
+- **web:** redesign sidebar with floating `SkillSubNav` popover; hover/click on a skill row opens per-skill workspace navigation to the right; remove full-screen backdrop that was blocking row `mouseenter` events; filter `SkillSwitcher` to `status: available` skills only; relocate '+ Add Skills' to the top of `PlatformNav` ([5ab49ea](https://github.com/orestes-garcia-martinez/clawos/commit/5ab49ea9b28e5b2406f8422ac43339d40ba71957))
+
+### Tests
+
+- **web:** add unit tests for `PlatformNav` (7), `SkillSubNav` (16), and `SkillSwitcher` (11); configure vitest with jsdom environment and `@testing-library/react` ([0088dc5](https://github.com/orestes-garcia-martinez/clawos/commit/0088dc5d8fff1371babddb97d2807fcd1d03f483))
+
 ## [0.3.0] (2026-04-03)
 
 ### Features
