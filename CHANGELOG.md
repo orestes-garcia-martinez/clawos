@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.9.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.8.0...v0.9.0) (2026-04-04)
+
+
+### Features
+
+* **api,shared:** replace regex intent detection with LLM-declared also_execute ([#143](https://github.com/orestes-garcia-martinez/clawos/issues/143)) ([c0ea080](https://github.com/orestes-garcia-martinez/clawos/commit/c0ea080cba3ea82d46a327c5ed099cfd1907fed9))
+* **api:** add pending-action queue and gap score fix (P2) ([#141](https://github.com/orestes-garcia-martinez/clawos/issues/141)) ([0a6874e](https://github.com/orestes-garcia-martinez/clawos/commit/0a6874ef494d5fa3c641f3b1d799b95d4337c534))
+* **api:** add queue observability and LLM format calls for pending sections ([#142](https://github.com/orestes-garcia-martinez/clawos/issues/142)) ([49d03cf](https://github.com/orestes-garcia-martinez/clawos/commit/49d03cf39c3d2034b9ad44b117c1f80c5fc4bfae))
+* **api:** openAI tool failover, credit-error failover, P1b track enforcer ([fe91778](https://github.com/orestes-garcia-martinez/clawos/commit/fe917782da870da673d45dab921b97a5a4bb94c6))
+* **api:** openAI tool failover, credit-error failover, P1b tracker update enforcer ([#146](https://github.com/orestes-garcia-martinez/clawos/issues/146)) ([fe91778](https://github.com/orestes-garcia-martinez/clawos/commit/fe917782da870da673d45dab921b97a5a4bb94c6))
+* **worker:** wire execution context through gap analysis and cover letter adapters ([#140](https://github.com/orestes-garcia-martinez/clawos/issues/140)) ([65f8c5e](https://github.com/orestes-garcia-martinez/clawos/commit/65f8c5e49498d813e377608d7c97589b7687688c))
+
+
+### Bug Fixes
+
+* **api,shared:** fix duplicate cover letter and empty title in tracker save ([#145](https://github.com/orestes-garcia-martinez/clawos/issues/145)) ([e9e4135](https://github.com/orestes-garcia-martinez/clawos/commit/e9e413518d0c3b3531e9563f1d1b3da2c79342e9))
+* **api,worker:** fix cover letter retry 403 and unblock LLM env loading ([#138](https://github.com/orestes-garcia-martinez/clawos/issues/138)) ([5e76509](https://github.com/orestes-garcia-martinez/clawos/commit/5e765096782410e5069d9ec2c7d350cd684bb85f))
+* **api:** carry also_execute into effectiveToolInput for 7c/7d/7e format calls ([#144](https://github.com/orestes-garcia-martinez/clawos/issues/144)) ([7e59485](https://github.com/orestes-garcia-martinez/clawos/commit/7e59485c6a040688f7d16c0ce340d572bc5d8a74))
+* **api:** drop P0-stripped residual from P1b tracker confirmation ([#147](https://github.com/orestes-garcia-martinez/clawos/issues/147)) ([d3a8a01](https://github.com/orestes-garcia-martinez/clawos/commit/d3a8a01c8aed754ede96c4d5d671fd05c65fca87))
+* **api:** extend duplicate-save detection to 7e direct track_application path ([#149](https://github.com/orestes-garcia-martinez/clawos/issues/149)) ([5801699](https://github.com/orestes-garcia-martinez/clawos/commit/58016995832460c73146d2c51d092ddc6bfb69e4))
+* **api:** suppress corrective note in format paths and detect duplicate track saves ([#148](https://github.com/orestes-garcia-martinez/clawos/issues/148)) ([a728371](https://github.com/orestes-garcia-martinez/clawos/commit/a72837132c3c927a040082d679a49a75a892e292))
+* use only trackUpdateMessage as the final response when P1b succeeds. ([d3a8a01](https://github.com/orestes-garcia-martinez/clawos/commit/d3a8a01c8aed754ede96c4d5d671fd05c65fca87))
+
 ## [0.8.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.7.4...v0.8.0) (2026-04-02)
 
 
