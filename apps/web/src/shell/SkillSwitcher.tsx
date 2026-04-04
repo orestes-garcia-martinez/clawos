@@ -1,26 +1,33 @@
 /**
- * SkillSwitcher.tsx — compact installed-skill selector in the platform sidebar.
+ * SkillSwitcher.tsx — compact installed-skill selector with popover sub-nav.
  *
- * Renders only skills the user has installed (from SkillsContext).
- * Non-installed skills live in the AddSkillsDrawer, triggered by the
- * '+ Add Skills' button at the bottom.
+ * REDESIGN (v2):
+ *   - Only installed skills with status 'available' appear in the sidenav.
+ *     Coming-soon skills (ScrapeClaw, InvestClaw) live exclusively on the
+ *     /skills catalog page — they do NOT appear here.
+ *   - Hover/click on a skill row opens a floating SkillSubNav popover
+ *     to the right, showing that skill's workspace navigation items
+ *     (Chat, Jobs, Applications, etc.) plus a "Remove skill" action.
+ *   - "+ Add Skills" has been relocated to the Platform section (PlatformNav).
  *
- * Per-skill overflow menu:
- *   - A vertical ellipsis (···) button appears on hover over any skill row.
- *   - Clicking it opens a small popover with a "Remove skill" action.
- *   - "Remove skill" opens a confirmation modal before calling onRemoveSkill.
+ * Interaction model:
+ *   - Desktop: hover triggers the popover with a 200ms leave delay.
+ *   - Mobile/touch: click toggles the popover.
+ *   - Clicking a popover nav item navigates and closes the popover.
+ *   - Active skill is highlighted with bg-surface-3.
+ *   - Active sub-page is highlighted inside the popover with accent colour.
  *
- * Confirmation modal copy:
- *   "Remove [Skill Name]? This will hide it from your sidebar.
- *    Your data will remain safe."
+ * Confirmation modal:
+ *   "Remove skill" opens a confirmation modal before calling onRemoveSkill.
+ *   Modal renders at this level so it layers above the sidebar.
  */
 
 import type { JSX } from 'react'
-import { useState } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import type { SkillKey } from '../skills'
 import { SKILL_MAP } from '../skills'
 import { useSkills } from '../context/SkillsContext.tsx'
-import { IconEllipsis, IconPlus } from './icons.tsx'
+import { SkillSubNav } from './SkillSubNav.tsx'
 
 // ── Confirmation modal ─────────────────────────────────────────────────────
 
@@ -37,10 +44,7 @@ function RemoveConfirmModal({
 }: RemoveConfirmModalProps): JSX.Element {
   return (
     <>
-      {/* Full-screen backdrop */}
       <div className="fixed inset-0 z-50 bg-black/50" aria-hidden="true" onClick={onCancel} />
-
-      {/* Modal panel — centred in viewport */}
       <div
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
         role="dialog"
@@ -62,7 +66,6 @@ function RemoveConfirmModal({
               This will hide it from your sidebar. Your data will remain safe.
             </p>
           </div>
-
           <div className="flex gap-2.5 pt-1">
             <button
               onClick={onCancel}
@@ -89,29 +92,68 @@ interface SkillSwitcherProps {
   activeSkill: SkillKey | null
   onSelectSkill: (key: SkillKey) => void
   onRemoveSkill: (key: SkillKey) => void
-  onAddSkills: () => void
+  /** Called when a nav item is clicked (e.g. to close mobile sidebar) */
+  onNavigate?: () => void
 }
 
 export function SkillSwitcher({
   activeSkill,
   onSelectSkill,
   onRemoveSkill,
-  onAddSkills,
+  onNavigate,
 }: SkillSwitcherProps): JSX.Element {
   const { installedSlugs } = useSkills()
 
-  const [hoveredSlug, setHoveredSlug] = useState<SkillKey | null>(null)
-  const [menuSlug, setMenuSlug] = useState<SkillKey | null>(null)
-  // Slug pending confirmation — set when user clicks "Remove skill" in the menu
+  // Popover state
+  const [popoverSkill, setPopoverSkill] = useState<SkillKey | null>(null)
+  const [popoverAnchor, setPopoverAnchor] = useState<DOMRect | null>(null)
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Confirmation modal state
   const [confirmSlug, setConfirmSlug] = useState<SkillKey | null>(null)
 
-  function closeMenu() {
-    setMenuSlug(null)
-  }
+  const showPopover = useCallback((slug: SkillKey, rowEl: HTMLElement) => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current)
+      hideTimeoutRef.current = null
+    }
+    setPopoverSkill(slug)
+    setPopoverAnchor(rowEl.getBoundingClientRect())
+  }, [])
 
-  function handleRemoveClick(slug: SkillKey) {
-    closeMenu()
-    setConfirmSlug(slug)
+  const hidePopover = useCallback(() => {
+    hideTimeoutRef.current = setTimeout(() => {
+      setPopoverSkill(null)
+      setPopoverAnchor(null)
+    }, 200)
+  }, [])
+
+  const cancelHide = useCallback(() => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current)
+      hideTimeoutRef.current = null
+    }
+  }, [])
+
+  const closePopoverImmediate = useCallback(() => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current)
+      hideTimeoutRef.current = null
+    }
+    setPopoverSkill(null)
+    setPopoverAnchor(null)
+  }, [])
+
+  // Clear any pending timer on unmount to prevent setState on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current)
+    }
+  }, [])
+
+  function handleRemoveFromPopover(slug: string) {
+    closePopoverImmediate()
+    setConfirmSlug(slug as SkillKey)
   }
 
   function handleConfirmRemove() {
@@ -127,9 +169,16 @@ export function SkillSwitcher({
 
   const confirmSkill = confirmSlug ? SKILL_MAP[confirmSlug] : null
 
+  // Only show installed skills with status 'available'.
+  // Coming-soon skills (ScrapeClaw, InvestClaw) live on /skills page only.
+  const visibleSlugs = installedSlugs.filter((slug) => {
+    const skill = SKILL_MAP[slug]
+    return skill && skill.status === 'available'
+  })
+
   return (
     <>
-      {/* Confirmation modal — rendered at this level so it layers above the sidebar */}
+      {/* Confirmation modal */}
       {confirmSlug && confirmSkill && (
         <RemoveConfirmModal
           skillName={confirmSkill.name}
@@ -144,32 +193,30 @@ export function SkillSwitcher({
         </p>
 
         <div className="space-y-0.5" role="listbox" aria-label="Select skill">
-          {installedSlugs.map((slug) => {
+          {visibleSlugs.map((slug) => {
             const skill = SKILL_MAP[slug]
             if (!skill) return null
 
             const isActive = slug === activeSkill
-            const isHovered = hoveredSlug === slug
-            const isMenuOpen = menuSlug === slug
 
             return (
               <div
                 key={slug}
                 className="relative"
-                onMouseEnter={() => setHoveredSlug(slug)}
-                onMouseLeave={() => setHoveredSlug(null)}
+                onMouseEnter={(e) => showPopover(slug, e.currentTarget)}
+                onMouseLeave={hidePopover}
               >
-                {/* Skill select button */}
                 <button
                   role="option"
                   aria-selected={isActive}
-                  onClick={() => {
-                    closeMenu()
+                  onClick={(e) => {
                     onSelectSkill(slug)
+                    const row = e.currentTarget.parentElement
+                    if (row) showPopover(slug, row)
                   }}
                   className={[
                     'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left',
-                    'transition-all duration-150 pr-8 cursor-pointer',
+                    'transition-all duration-150 cursor-pointer',
                     isActive
                       ? 'bg-surface-3 text-text'
                       : 'text-text-muted hover:bg-surface-2 hover:text-text',
@@ -179,64 +226,44 @@ export function SkillSwitcher({
                     className="w-1.5 h-1.5 rounded-full shrink-0 bg-success"
                     aria-hidden="true"
                   />
-                  <span className="font-medium truncate">{skill.name}</span>
-                </button>
-
-                {/* Ellipsis button — visible on hover or when menu is open */}
-                {(isHovered || isMenuOpen) && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setMenuSlug(isMenuOpen ? null : slug)
-                    }}
+                  <span className="font-medium truncate flex-1">{skill.name}</span>
+                  {/* Chevron indicating sub-nav */}
+                  <svg
                     className={[
-                      'absolute right-1.5 top-1/2 -translate-y-1/2',
-                      'p-1 rounded-md transition-all duration-100 cursor-pointer',
-                      isMenuOpen
-                        ? 'bg-surface-3 text-text'
-                        : 'text-text-muted hover:text-text hover:bg-surface-2',
+                      'w-3.5 h-3.5 shrink-0 transition-colors',
+                      isActive ? 'text-text-muted' : 'text-text-dim',
                     ].join(' ')}
-                    aria-label={`${skill.name} options`}
-                    aria-expanded={isMenuOpen}
-                    aria-haspopup="menu"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    aria-hidden="true"
                   >
-                    <IconEllipsis className="w-3.5 h-3.5" />
-                  </button>
-                )}
-
-                {/* Overflow popover menu */}
-                {isMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" aria-hidden="true" onClick={closeMenu} />
-                    <div
-                      className="absolute right-0 top-full mt-1 z-50 w-40 rounded-xl border border-border bg-surface shadow-lg overflow-hidden"
-                      role="menu"
-                    >
-                      <button
-                        role="menuitem"
-                        onClick={() => handleRemoveClick(slug)}
-                        className="w-full px-3 py-2 text-sm text-left text-danger hover:bg-surface-2 transition-colors cursor-pointer"
-                      >
-                        Remove skill
-                      </button>
-                    </div>
-                  </>
-                )}
+                    <path
+                      d="M6 4l4 4-4 4"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
               </div>
             )
           })}
         </div>
-
-        {/* Add Skills trigger */}
-        <button
-          onClick={onAddSkills}
-          className="w-full flex items-center gap-2 px-2.5 py-2 mt-1 rounded-xl text-xs text-text-muted hover:text-text hover:bg-surface-2 transition-all duration-150 cursor-pointer"
-          aria-label="Add another skill"
-        >
-          <IconPlus className="w-3.5 h-3.5 shrink-0" />
-          <span>Add Skills</span>
-        </button>
       </div>
+
+      {/* Floating sub-nav popover */}
+      {popoverSkill && SKILL_MAP[popoverSkill] && (
+        <SkillSubNav
+          skill={SKILL_MAP[popoverSkill]}
+          anchorRect={popoverAnchor}
+          onClose={closePopoverImmediate}
+          onCancelHide={cancelHide}
+          onRequestHide={hidePopover}
+          onRemoveSkill={handleRemoveFromPopover}
+          onNavigate={onNavigate}
+        />
+      )}
     </>
   )
 }

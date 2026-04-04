@@ -1,34 +1,28 @@
 /**
  * AppShell.tsx — ClawOS platform shell.
  *
+ * REDESIGN (v2) changes:
+ *   - SkillNav is no longer rendered as a standalone section below the
+ *     skill list. Sub-navigation now lives inside the SkillSwitcher's
+ *     floating popover (SkillSubNav).
+ *   - "+ Add Skills" trigger removed from SkillSwitcher props; it has
+ *     been relocated to PlatformNav.
+ *   - SkillSwitcher receives an onNavigate prop to close the mobile sidebar.
+ *   - PlatformNav receives an onAddSkills prop for the relocated action.
+ *
  * Owns:
  *   - Brand/status area
  *   - Skill switcher (installed skills only, via SkillsContext)
- *   - Active skill nav section
- *   - Platform nav section
+ *   - Platform nav section (with + Add Skills)
  *   - Pro upgrade card
  *   - User footer
  *   - Mobile sidebar drawer + backdrop
  *   - Topbar with hamburger (mobile)
  *
- * "Add Skills" no longer opens a sidebar drawer — it navigates to /skills,
- * a standalone full-page catalog. AddSkillsDrawer has been removed.
- *
  * Guards:
  *   - Skills loading → spinner
  *   - Skill route for non-installed skill → /home
  *   - Platform routes (/settings, /sessions, /notifications, /) pass through
- *
- * Behaviours:
- *   - last_used_at written to user_skills on every skill route change
- *   - 'clawos-last-skill' written to localStorage on every skill route change
- *     so RootRedirect can restore the user's last workspace on re-entry
- *   - Remove skill: navigate FIRST, then removeSkill() — prevents ghost render
- *
- * Outlet context:
- *   { onOpenAddSkills: () => void }
- *   Passed to child routes (e.g. HomePage) so they can trigger navigation
- *   to /skills without knowing about the router directly.
  *
  * Hook discipline: all hook calls are unconditional and precede every early
  * return. Derived values (activeSkill, skill) are computed after guards.
@@ -40,7 +34,6 @@ import { Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { ClawLogo, IconMenu, IconX } from './icons.tsx'
 import { SkillSwitcher } from './SkillSwitcher.tsx'
 import { PlatformNav } from './PlatformNav.tsx'
-import { SkillNav } from './SkillNav.tsx'
 import { UserFooter } from './UserFooter.tsx'
 
 import { useAuth } from '../context/AuthContext'
@@ -176,22 +169,23 @@ export function AppShell(): JSX.Element {
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col justify-between">
+        <div className="flex-1 flex flex-col justify-between overflow-visible">
           <div>
-            {/* Installed skill switcher — navigates to /skills to add more */}
+            {/* Skill switcher with popover sub-navigation */}
             <SkillSwitcher
               activeSkill={activeSkill}
               onSelectSkill={handleSelectSkill}
               onRemoveSkill={handleRemoveSkill}
-              onAddSkills={() => navigate('/skills')}
+              onNavigate={() => setSidebarOpen(false)}
             />
 
-            {/* Active skill nav — only when on a skill route */}
-            {skill && <SkillNav skill={skill} onNavigate={() => setSidebarOpen(false)} />}
+            {/* NOTE: SkillNav section removed in v2 redesign.
+                Sub-navigation now lives inside the SkillSwitcher's
+                floating popover (SkillSubNav.tsx). */}
           </div>
           <div>
-            {/* Platform nav */}
-            <PlatformNav />
+            {/* Platform nav — now includes "+ Add Skills" */}
+            <PlatformNav onAddSkills={() => navigate('/skills')} />
 
             {/* Pro upgrade card — free users only */}
             {tier === 'free' && (
@@ -265,7 +259,6 @@ export function AppShell(): JSX.Element {
 
         {/* Workspace */}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden" id="main-content">
-          {/* Pass onOpenAddSkills to child routes via outlet context */}
           <Outlet context={{ onOpenAddSkills: () => navigate('/skills') }} />
         </main>
       </div>

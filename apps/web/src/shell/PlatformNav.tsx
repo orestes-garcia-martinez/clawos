@@ -3,12 +3,18 @@
  *
  * Items here are stable across skill switches (Sessions, Notifications,
  * Account). The active item is determined by the current path.
+ *
+ * REDESIGN (v2):
+ *   "+ Add Skills" has been relocated from the Skills section to here,
+ *   appearing as a utility action at the top of the Platform section.
+ *   This keeps the skill list focused on installed skills only, while
+ *   framing "Add Skills" as a platform-level action.
  */
 
 import type { JSX } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
-import { IconLayers, IconBell, IconSettings } from './icons.tsx'
+import { IconLayers, IconBell, IconSettings, IconPlus } from './icons.tsx'
 import { PLATFORM_NAV } from '../skills'
 
 interface IconProps {
@@ -21,9 +27,21 @@ const NAV_ICONS: Record<string, (props: IconProps) => JSX.Element> = {
   account: IconSettings,
 }
 
-export function PlatformNav(): JSX.Element {
+interface PlatformNavProps {
+  onAddSkills?: () => void
+}
+
+export function PlatformNav({ onAddSkills }: PlatformNavProps): JSX.Element {
   const navigate = useNavigate()
   const { pathname } = useLocation()
+
+  function handleAddSkills() {
+    if (onAddSkills) {
+      onAddSkills()
+    } else {
+      navigate('/skills')
+    }
+  }
 
   return (
     <div className="px-3 py-2">
@@ -31,6 +49,16 @@ export function PlatformNav(): JSX.Element {
         Platform
       </p>
       <nav aria-label="Platform navigation">
+        {/* Add Skills — sits above platform links as a top-level action */}
+        <button
+          onClick={handleAddSkills}
+          className="w-full flex items-center gap-3 px-3 py-2 mb-0.5 rounded-xl text-[13px] text-left text-text-muted hover:text-text hover:bg-surface-2 transition-all duration-150 cursor-pointer"
+          aria-label="Add another skill"
+        >
+          <IconPlus className="w-3.5 h-3.5 shrink-0" />
+          <span>Add skills</span>
+        </button>
+
         {PLATFORM_NAV.map(({ id, label, path }) => {
           const active = pathname.startsWith(path)
           const IconComp = NAV_ICONS[id]
