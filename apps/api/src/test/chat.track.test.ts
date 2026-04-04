@@ -186,7 +186,7 @@ function buildTrackingSupabaseMock(userId: string): void {
             },
           }),
         }),
-        upsert: (_row: unknown) => Promise.resolve({ error: null }),
+        upsert: (row: unknown) => ({ select: () => Promise.resolve({ data: [row], error: null }) }),
         then: (cb: (v: unknown) => void) => {
           cb(result)
           return Promise.resolve()
@@ -229,9 +229,14 @@ function buildTrackingSupabaseMock(userId: string): void {
       return {
         upsert: (row: Record<string, unknown>, _opts?: unknown) => {
           lastUpsertArgs = row
-          return Promise.resolve({
-            error: upsertShouldFail ? { message: 'DB write failed' } : null,
-          })
+          return {
+            select: () =>
+              Promise.resolve(
+                upsertShouldFail
+                  ? { data: null, error: { message: 'DB write failed' } }
+                  : { data: [row], error: null },
+              ),
+          }
         },
         update: (fields: { status: string }) => {
           lastUpdateArgs = fields
@@ -533,7 +538,9 @@ describe('POST /chat -- track_application: update_status action (zero rows match
     mockFrom.mockImplementation((table: string) => {
       if (table === 'careerclaw_job_tracking') {
         return {
-          upsert: () => Promise.resolve({ error: null }),
+          upsert: (row: unknown) => ({
+            select: () => Promise.resolve({ data: [row], error: null }),
+          }),
           update: (fields: { status: string }) => {
             lastUpdateArgs = fields
             return {
