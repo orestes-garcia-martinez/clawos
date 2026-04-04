@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.0] (2026-04-03)
+
+### Features
+
+- **web:** add favicon bundle (.ico, .svg, apple-touch-icon, PWA icons) and prebuild script that fetches live careerclaw-js version from npm to replace hardcoded version string ([ee0616f](https://github.com/orestes-garcia-martinez/clawos/commit/ee0616ffe6b7da6deee6fce0f0cfe22a06950877))
+
 ## [0.2.2] (2026-03-31)
 
 ### Bug Fixes
