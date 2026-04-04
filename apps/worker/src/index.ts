@@ -229,11 +229,15 @@ app.post(
     }
 
     const input = careerClawGapAnalysisAdapter.validateInput(parseResult.data.input)
-    // Gap analysis is synchronous — no timeout wrapper needed.
     await runWorkerAction(
       res,
-      { skill: 'careerclaw', startMs, assertion: parseResult.data.assertion },
-      (ctx) => Promise.resolve(careerClawGapAnalysisAdapter.execute(input, ctx)),
+      {
+        skill: 'careerclaw',
+        startMs,
+        assertion: parseResult.data.assertion,
+        timeout: true,
+      },
+      (ctx) => careerClawGapAnalysisAdapter.execute(input, ctx),
     )
   },
 )

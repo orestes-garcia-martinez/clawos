@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VerifiedSkillExecutionContext } from '@clawos/shared'
 
 const mockRunCareerClawWithContext = vi.fn()
+const mockGenerateGapAnalysisForMatch = vi.fn()
+const mockGenerateCoverLetterForMatch = vi.fn()
 const mockCreateClawOsExecutionContext = vi.fn((params) => ({
   source: 'clawos',
   verified: true,
@@ -14,10 +16,18 @@ vi.mock('careerclaw-js', () => ({
   },
   createClawOsExecutionContext: mockCreateClawOsExecutionContext,
   runCareerClawWithContext: mockRunCareerClawWithContext,
+  generateGapAnalysisForMatch: mockGenerateGapAnalysisForMatch,
+  generateCoverLetterForMatch: mockGenerateCoverLetterForMatch,
 }))
 
-const { buildCareerClawExecutionContext, buildCareerClawProfile, careerClawAdapter, clampTopK } =
-  await import('./adapter.js')
+const {
+  buildCareerClawExecutionContext,
+  buildCareerClawProfile,
+  careerClawAdapter,
+  careerClawGapAnalysisAdapter,
+  careerClawCoverLetterAdapter,
+  clampTopK,
+} = await import('./adapter.js')
 
 const FREE_CTX: VerifiedSkillExecutionContext = {
   source: 'clawos',
@@ -35,13 +45,36 @@ const PRO_CTX: VerifiedSkillExecutionContext = {
   ...FREE_CTX,
   userId: '00000000-0000-0000-0000-000000000002',
   tier: 'pro',
-  features: ['careerclaw.topk_extended'],
+  features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
   requestId: 'req-pro',
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockRunCareerClawWithContext.mockResolvedValue({ matches: [], drafts: [] })
+  mockGenerateGapAnalysisForMatch.mockResolvedValue({
+    job_id: 'job-1',
+    title: 'Engineer',
+    company: 'Acme',
+    analysis: {
+      fit_score: 0.7,
+      fit_score_unweighted: 0.5,
+      signals: { keywords: ['TypeScript'], phrases: [] },
+      gaps: { keywords: ['Go'], phrases: [] },
+      summary: {
+        top_signals: { keywords: ['TypeScript'], phrases: [] },
+        top_gaps: { keywords: ['Go'], phrases: [] },
+      },
+    },
+  })
+  mockGenerateCoverLetterForMatch.mockResolvedValue({
+    job_id: 'job-1',
+    body: 'Dear Acme hiring team...',
+    tone: 'professional',
+    is_template: false,
+    match_score: 0.7,
+    keyword_coverage: { top_signals: ['TypeScript'], top_gaps: ['Go'] },
+  })
 })
 
 describe('clampTopK', () => {
@@ -82,11 +115,11 @@ describe('CareerClaw mapping helpers', () => {
       source: 'clawos',
       verified: true,
       tier: 'pro',
-      features: ['careerclaw.topk_extended'],
+      features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
     })
     expect(mockCreateClawOsExecutionContext).toHaveBeenCalledWith({
       tier: 'pro',
-      features: ['careerclaw.topk_extended'],
+      features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
     })
   })
 })
@@ -149,7 +182,145 @@ describe('careerClawAdapter.execute', () => {
 
     expect(mockRunCareerClawWithContext).toHaveBeenCalledWith(
       expect.objectContaining({ topK: 10, dryRun: true }),
-      expect.objectContaining({ tier: 'pro', features: ['careerclaw.topk_extended'] }),
+      expect.objectContaining({
+        tier: 'pro',
+        features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
+      }),
+    )
+  })
+})
+
+describe('careerClawGapAnalysisAdapter.execute', () => {
+  it('awaits the engine gap-analysis call and passes execution context through', async () => {
+    const input = {
+      match: {
+        job: {
+          job_id: 'job-1',
+          title: 'Engineer',
+          company: 'Acme',
+          location: 'Remote',
+          description: 'Build systems',
+          url: 'https://example.com/job-1',
+          source: 'remoteok',
+          salary_min: null,
+          salary_max: null,
+          work_mode: 'remote',
+          experience_years: 5,
+          posted_at: null,
+          fetched_at: '2026-04-04T00:00:00.000Z',
+        },
+        score: 0.9,
+        breakdown: { keyword: 0.9, experience: 1, salary: 1, work_mode: 1 },
+        matched_keywords: ['TypeScript'],
+        gap_keywords: ['Go'],
+      },
+      resumeIntel: {
+        extracted_keywords: ['TypeScript'],
+        extracted_phrases: [],
+        keyword_stream: ['TypeScript'],
+        phrase_stream: [],
+        impact_signals: ['TypeScript'],
+        keyword_weights: { TypeScript: 1 },
+        phrase_weights: {},
+        source: 'resume_text',
+      },
+    }
+
+    const result = await careerClawGapAnalysisAdapter.execute(input, PRO_CTX)
+
+    expect(mockGenerateGapAnalysisForMatch).toHaveBeenCalledWith(input.match, input.resumeIntel, {
+      executionContext: {
+        source: 'clawos',
+        verified: true,
+        tier: 'pro',
+        features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
+      },
+    })
+    expect(result).toEqual(
+      expect.objectContaining({
+        job_id: 'job-1',
+        company: 'Acme',
+      }),
+    )
+  })
+})
+
+describe('careerClawCoverLetterAdapter.execute', () => {
+  it('passes the precomputed gap through to the engine cover-letter call', async () => {
+    const precomputedGap = {
+      fit_score: 0.7,
+      fit_score_unweighted: 0.5,
+      signals: { keywords: ['TypeScript'], phrases: [] },
+      gaps: { keywords: ['Go'], phrases: [] },
+      summary: {
+        top_signals: { keywords: ['TypeScript'], phrases: [] },
+        top_gaps: { keywords: ['Go'], phrases: [] },
+      },
+    }
+
+    await careerClawCoverLetterAdapter.execute(
+      {
+        match: {
+          job: {
+            job_id: 'job-1',
+            title: 'Engineer',
+            company: 'Acme',
+            location: 'Remote',
+            description: 'Build systems',
+            url: 'https://example.com/job-1',
+            source: 'remoteok',
+            salary_min: null,
+            salary_max: null,
+            work_mode: 'remote',
+            experience_years: 5,
+            posted_at: null,
+            fetched_at: '2026-04-04T00:00:00.000Z',
+          },
+          score: 0.9,
+          breakdown: { keyword: 0.9, experience: 1, salary: 1, work_mode: 1 },
+          matched_keywords: ['TypeScript'],
+          gap_keywords: ['Go'],
+        },
+        profile: {
+          skills: ['TypeScript'],
+          targetRoles: ['Engineer'],
+        },
+        resumeIntel: {
+          extracted_keywords: ['TypeScript'],
+          extracted_phrases: [],
+          keyword_stream: ['TypeScript'],
+          phrase_stream: [],
+          impact_signals: ['TypeScript'],
+          keyword_weights: { TypeScript: 1 },
+          phrase_weights: {},
+          source: 'resume_text',
+        },
+        precomputedGap,
+      },
+      PRO_CTX,
+    )
+
+    expect(mockGenerateCoverLetterForMatch).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        skills: ['TypeScript'],
+        target_roles: ['Engineer'],
+        experience_years: null,
+        work_mode: null,
+        resume_summary: null,
+        location: null,
+        salary_min: null,
+      },
+      expect.anything(),
+      {
+        precomputedGap,
+        executionContext: {
+          source: 'clawos',
+          verified: true,
+          tier: 'pro',
+          features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
+        },
+      },
     )
   })
 })

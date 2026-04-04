@@ -79,6 +79,30 @@ const ResumeIntelSchema = z.object({
   source: z.string(),
 })
 
+/** Serialized GapAnalysisResult from careerclaw-js — validated structurally. */
+const GapAnalysisResultSchema = z.object({
+  fit_score: z.number(),
+  fit_score_unweighted: z.number(),
+  signals: z.object({
+    keywords: z.array(z.string()),
+    phrases: z.array(z.string()),
+  }),
+  gaps: z.object({
+    keywords: z.array(z.string()),
+    phrases: z.array(z.string()),
+  }),
+  summary: z.object({
+    top_signals: z.object({
+      keywords: z.array(z.string()),
+      phrases: z.array(z.string()),
+    }),
+    top_gaps: z.object({
+      keywords: z.array(z.string()),
+      phrases: z.array(z.string()),
+    }),
+  }),
+})
+
 export const CareerClawGapAnalysisInputSchema = z.object({
   match: ScoredJobSchema,
   resumeIntel: ResumeIntelSchema,
@@ -94,7 +118,7 @@ export const CareerClawCoverLetterInputSchema = z.object({
   profile: CareerClawProfileSchema,
   resumeIntel: ResumeIntelSchema,
   resumeText: z.string().max(50_000).optional(),
-  precomputedGap: z.record(z.unknown()).optional(),
+  precomputedGap: GapAnalysisResultSchema.optional(),
 })
 
 export const CareerClawCoverLetterRequestSchema = z.object({

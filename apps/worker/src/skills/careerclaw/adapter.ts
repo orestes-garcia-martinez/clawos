@@ -85,15 +85,15 @@ export const careerClawGapAnalysisAdapter = {
   validateInput(input: unknown): CareerClawGapAnalysisWorkerInput {
     return CareerClawGapAnalysisInputSchema.parse(input)
   },
-  execute(
+  async execute(
     input: CareerClawGapAnalysisWorkerInput,
     ctx: VerifiedSkillExecutionContext,
-  ): Record<string, unknown> {
+  ): Promise<Record<string, unknown>> {
     // Intentional: match/resumeIntel arrive as Record<string,unknown> from the wire;
     // Zod validated the shape above so casting to careerclaw-js types is safe here.
     const match = input.match as unknown as ScoredJob
     const resumeIntel = input.resumeIntel as unknown as ResumeIntelligence
-    const report: GapAnalysisReport = generateGapAnalysisForMatch(match, resumeIntel, {
+    const report: GapAnalysisReport = await generateGapAnalysisForMatch(match, resumeIntel, {
       executionContext: buildCareerClawExecutionContext(ctx),
     })
     // Intentional: GapAnalysisReport erased to Record so the route handler stays

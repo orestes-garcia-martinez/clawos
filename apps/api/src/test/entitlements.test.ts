@@ -57,6 +57,7 @@ describe('skill entitlement resolution', () => {
     const result = await resolveCareerClawEntitlements(USER_ID)
     expect(result.skillTier).toBe('pro')
     expect(result.effectiveTier).toBe('pro')
+    expect(result.features).toContain('careerclaw.llm_gap_analysis')
     expect(result.features).toContain('careerclaw.topk_extended')
   })
 

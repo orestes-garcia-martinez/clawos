@@ -21,6 +21,7 @@ const SKILL_FEATURES: Record<SkillSlug, { free: string[]; pro: string[] }> = {
     free: [],
     pro: [
       'careerclaw.llm_outreach_draft',
+      'careerclaw.llm_gap_analysis',
       'careerclaw.tailored_cover_letter',
       'careerclaw.resume_gap_analysis',
       'careerclaw.topk_extended',

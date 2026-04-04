@@ -48,6 +48,17 @@ const SESSION_ID = '00000000-0000-0000-0000-000000000099'
 const JOB_ID_1 = 'abc123def456'
 const JOB_ID_2 = 'xyz789ghi012'
 
+const GAP_RESULT = {
+  fit_score: 0.92,
+  fit_score_unweighted: 0.88,
+  signals: { keywords: ['TypeScript', 'React'], phrases: [] },
+  gaps: { keywords: ['Go'], phrases: [] },
+  summary: {
+    top_signals: { keywords: ['TypeScript', 'React'], phrases: [] },
+    top_gaps: { keywords: ['Go'], phrases: [] },
+  },
+}
+
 function makeMessage(content: string, role: 'user' | 'assistant' = 'user'): Message {
   return { role, content, timestamp: new Date().toISOString() }
 }
@@ -82,12 +93,6 @@ const BRIEFING_STATE: SessionState = {
     resumeText: 'Experienced fullstack engineer with 8 years of TypeScript and React.',
   },
   gapResults: {},
-}
-
-const GAP_RESULT = {
-  fit_score: 0.72,
-  signals: ['TypeScript', 'React'],
-  gaps: ['Go', 'Kubernetes'],
 }
 
 // ── pruneMessages ────────────────────────────────────────────────────────────
@@ -554,7 +559,7 @@ describe('buildActiveBriefingGroundingMessage — gap_analysis_cached and cover_
   it('emits gap_analysis_cached=yes for a job_id with a stored gap result', () => {
     const state: SessionState = {
       briefing: BRIEFING_STATE.briefing,
-      gapResults: { [JOB_ID_1]: { overall_score: 0.92 } },
+      gapResults: { [JOB_ID_1]: GAP_RESULT },
     }
     const message = buildActiveBriefingGroundingMessage(state)!
     const lines = message.split('\n')
@@ -582,7 +587,7 @@ describe('buildActiveBriefingGroundingMessage — gap_analysis_cached and cover_
   it('emits correct independent flags when both results are stored for different jobs', () => {
     const state: SessionState = {
       briefing: BRIEFING_STATE.briefing,
-      gapResults: { [JOB_ID_1]: { overall_score: 0.92 } },
+      gapResults: { [JOB_ID_1]: GAP_RESULT },
       coverLetterResults: { [JOB_ID_2]: { content: 'Dear Hiring Team...' } },
     }
     const message = buildActiveBriefingGroundingMessage(state)!
@@ -598,7 +603,7 @@ describe('buildActiveBriefingGroundingMessage — gap_analysis_cached and cover_
   it('reflects gap result persisted via mergeSessionState', () => {
     const after = mergeSessionState(
       { briefing: BRIEFING_STATE.briefing },
-      { gapResults: { [JOB_ID_1]: { overall_score: 0.92 } } },
+      { gapResults: { [JOB_ID_1]: GAP_RESULT } },
     )
     const message = buildActiveBriefingGroundingMessage(after)!
     expect(message).toContain('gap_analysis_cached=yes')

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] (2026-04-04)
+
+### Features
+
+- **careerclaw:** make gap analysis adapter async and enable timeout on the route ([c0361b1](https://github.com/orestes-garcia-martinez/clawos/commit/c0361b11742454861284fb976aa1fe794d82a09b))
+
 ## [0.4.1] (2026-04-02)
 
 ### Bug Fixes
