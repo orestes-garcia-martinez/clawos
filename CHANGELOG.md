@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.12.0...v0.13.0) (2026-04-04)
+
+
+### Features
+
+* **worker:** make gap analysis async and register llm_gap_analysis entitlement ([#155](https://github.com/orestes-garcia-martinez/clawos/issues/155)) ([00d8972](https://github.com/orestes-garcia-martinez/clawos/commit/00d89727f22162885c8eae5953e40920df5c6049))
+
 ## [0.12.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.11.0...v0.12.0) (2026-04-04)
 
 
