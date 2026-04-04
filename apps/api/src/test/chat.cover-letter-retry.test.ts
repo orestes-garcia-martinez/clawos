@@ -56,6 +56,17 @@ const LLM_RESULT = {
   },
 }
 
+const CACHED_GAP_RESULT = {
+  fit_score: 0.91,
+  fit_score_unweighted: 0.86,
+  signals: { keywords: ['TypeScript', 'React'], phrases: [] },
+  gaps: { keywords: ['Go'], phrases: [] },
+  summary: {
+    top_signals: { keywords: ['TypeScript', 'React'], phrases: [] },
+    top_gaps: { keywords: ['Go'], phrases: [] },
+  },
+}
+
 function setupProUser(sessionState?: object) {
   buildSupabaseMock({
     userId: PRO_USER,
@@ -191,6 +202,39 @@ describe('POST /chat — P1b cover letter template retry', () => {
     expect(res.status).toBe(200)
     // Worker called only once — no retry needed
     expect(mockRunWorkerCoverLetter).toHaveBeenCalledTimes(1)
+    expect(events.some((e) => e['type'] === 'done')).toBe(true)
+  })
+
+  it('reuses the cached gap analysis result shape, not the wrapped report shape', async () => {
+    const sessionStateWithCachedGap = {
+      ...MOCK_SESSION_STATE,
+      gapResults: {
+        'job-acme-001': CACHED_GAP_RESULT,
+      },
+    }
+    setupProUser(sessionStateWithCachedGap)
+
+    mockRunWorkerCoverLetter.mockResolvedValue({
+      result: LLM_RESULT,
+      durationMs: 3000,
+    })
+
+    const res = await makeRequest()
+    const events = parseSSEEvents(await res.text())
+
+    expect(res.status).toBe(200)
+    expect(mockRunWorkerCoverLetter).toHaveBeenCalledTimes(1)
+    expect(mockRunWorkerCoverLetter).toHaveBeenCalledWith({
+      assertion: 'test-assertion',
+      input: expect.objectContaining({
+        precomputedGap: CACHED_GAP_RESULT,
+      }),
+    })
+
+    const workerInput = mockRunWorkerCoverLetter.mock.calls[0]?.[0] as {
+      input?: { precomputedGap?: Record<string, unknown> }
+    }
+    expect(workerInput.input?.precomputedGap).not.toHaveProperty('analysis')
     expect(events.some((e) => e['type'] === 'done')).toBe(true)
   })
 })

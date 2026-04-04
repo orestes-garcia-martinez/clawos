@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.17.0] (2026-04-04)
+
+### Features
+
+- **careerclaw:** register `careerclaw.llm_gap_analysis` as a pro entitlement ([c0361b1](https://github.com/orestes-garcia-martinez/clawos/commit/c0361b11742454861284fb976aa1fe794d82a09b))
+
 ## [0.16.3] (2026-04-03)
 
 ### Bug Fixes

@@ -159,7 +159,14 @@ export const MOCK_SESSION_STATE = {
   },
   gapResults: {
     'job-acme-001': {
-      overall_score: 0.92,
+      fit_score: 0.92,
+      fit_score_unweighted: 0.88,
+      signals: { keywords: ['TypeScript', 'React'], phrases: [] },
+      gaps: { keywords: ['Go'], phrases: [] },
+      summary: {
+        top_signals: { keywords: ['TypeScript', 'React'], phrases: [] },
+        top_gaps: { keywords: ['Go'], phrases: [] },
+      },
     },
   },
   coverLetterResults: {
