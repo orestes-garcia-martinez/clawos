@@ -38,6 +38,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Generated files
+apps/web/src/generated/
+
 # TypeScript incremental
 *.tsbuildinfo
 packages/shared/tsconfig.tsbuildinfo
