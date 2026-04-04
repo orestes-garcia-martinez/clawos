@@ -140,60 +140,60 @@ export function SkillSubNav({
       onMouseEnter={onCancelHide}
       onMouseLeave={onRequestHide}
     >
-        {/* Header */}
-        <div className="px-3 py-2 border-b border-border-subtle">
-          <p className="text-[10px] font-mono font-semibold text-text-muted uppercase tracking-wider">
-            {skill.name}
-          </p>
-        </div>
+      {/* Header */}
+      <div className="px-3 py-2 border-b border-border-subtle">
+        <p className="text-[10px] font-mono font-semibold text-text-muted uppercase tracking-wider">
+          {skill.name}
+        </p>
+      </div>
 
-        {/* Nav items */}
-        <div className="p-1.5 space-y-0.5">
-          {skill.nav.map(({ id, label }) => {
-            const path = `/${skill.key}/${id}`
-            const active = pathname === path || (pathname === `/${skill.key}` && id === 'chat')
-            const IconComp = NAV_ICONS[id]
+      {/* Nav items */}
+      <div className="p-1.5 space-y-0.5">
+        {skill.nav.map(({ id, label }) => {
+          const path = `/${skill.key}/${id}`
+          const active = pathname === path || (pathname === `/${skill.key}` && id === 'chat')
+          const IconComp = NAV_ICONS[id]
 
-            return (
-              <button
-                key={id}
-                role="menuitem"
-                onClick={() => handleNavClick(id)}
-                className={[
-                  'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left',
-                  'transition-all duration-100 cursor-pointer',
-                  active
-                    ? 'bg-accent-dim text-accent'
-                    : 'text-text-muted hover:bg-surface-2 hover:text-text',
-                ].join(' ')}
-                aria-current={active ? 'page' : undefined}
-              >
-                {IconComp && <IconComp className="w-4 h-4 shrink-0" />}
-                <span className="font-medium">{label}</span>
-                {active && (
-                  <span
-                    className="ml-auto w-[3px] h-4 rounded-full bg-accent shrink-0"
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Divider + Remove action */}
-        <div className="border-t border-border-subtle">
-          <div className="p-1.5">
+          return (
             <button
+              key={id}
               role="menuitem"
-              onClick={handleRemoveClick}
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left text-danger hover:bg-surface-2 transition-colors cursor-pointer"
+              onClick={() => handleNavClick(id)}
+              className={[
+                'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left',
+                'transition-all duration-100 cursor-pointer',
+                active
+                  ? 'bg-accent-dim text-accent'
+                  : 'text-text-muted hover:bg-surface-2 hover:text-text',
+              ].join(' ')}
+              aria-current={active ? 'page' : undefined}
             >
-              <IconTrash className="w-4 h-4 shrink-0" />
-              <span>Remove skill</span>
+              {IconComp && <IconComp className="w-4 h-4 shrink-0" />}
+              <span className="font-medium">{label}</span>
+              {active && (
+                <span
+                  className="ml-auto w-[3px] h-4 rounded-full bg-accent shrink-0"
+                  aria-hidden="true"
+                />
+              )}
             </button>
-          </div>
+          )
+        })}
+      </div>
+
+      {/* Divider + Remove action */}
+      <div className="border-t border-border-subtle">
+        <div className="p-1.5">
+          <button
+            role="menuitem"
+            onClick={handleRemoveClick}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] text-left text-danger hover:bg-surface-2 transition-colors cursor-pointer"
+          >
+            <IconTrash className="w-4 h-4 shrink-0" />
+            <span>Remove skill</span>
+          </button>
         </div>
+      </div>
     </div>
   )
 }

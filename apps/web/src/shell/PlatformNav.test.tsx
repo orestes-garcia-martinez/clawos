@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -60,7 +60,9 @@ describe('PlatformNav', () => {
     it('Sessions is above Notifications in the DOM', () => {
       renderNav()
       const nav = screen.getByRole('navigation', { name: 'Platform navigation' })
-      const buttons = within(nav).getAllByRole('button').map((b) => b.textContent)
+      const buttons = within(nav)
+        .getAllByRole('button')
+        .map((b) => b.textContent)
       const sessionsIdx = buttons.findIndex((t) => /sessions/i.test(t ?? ''))
       const notificationsIdx = buttons.findIndex((t) => /notifications/i.test(t ?? ''))
       expect(sessionsIdx).toBeLessThan(notificationsIdx)

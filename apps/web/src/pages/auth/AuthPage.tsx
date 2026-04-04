@@ -91,8 +91,7 @@ export function AuthPage(): JSX.Element {
             <div className="space-y-1.5">
               <p className="font-semibold text-text">Check your inbox</p>
               <p className="text-sm text-text-muted leading-relaxed">
-                We sent a sign-in link to{' '}
-                <span className="text-text font-medium">{email}</span>.
+                We sent a sign-in link to <span className="text-text font-medium">{email}</span>.
                 <br />
                 The link expires in 10 minutes.
               </p>
