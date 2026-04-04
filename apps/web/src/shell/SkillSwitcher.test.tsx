@@ -9,9 +9,6 @@ vi.mock('../context/SkillsContext.tsx', () => ({
   useSkills: vi.fn(),
 }))
 
-// Mock the generated skill-versions JSON imported inside skills/index.ts.
-vi.mock('../generated/skill-versions.json', () => ({ default: { careerclaw: '1.0.0' } }))
-
 import { useSkills } from '../context/SkillsContext.tsx'
 const mockUseSkills = vi.mocked(useSkills)
 
