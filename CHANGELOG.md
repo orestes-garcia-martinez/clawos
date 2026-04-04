@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.11.0...v0.12.0) (2026-04-04)
+
+
+### Features
+
+* **web:** sidebar v2 popover nav and magic-link-only auth ([#153](https://github.com/orestes-garcia-martinez/clawos/issues/153)) ([dfa6a17](https://github.com/orestes-garcia-martinez/clawos/commit/dfa6a17a566749d05b0193aa1eff862ad2e29457))
+
 ## [0.11.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.10.0...v0.11.0) (2026-04-04)
 
 
