@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.9.0...v0.10.0) (2026-04-04)
+
+
+### Features
+
+* **web:** add favicon set and dynamic skill version via prebuild ([#150](https://github.com/orestes-garcia-martinez/clawos/issues/150)) ([887ce38](https://github.com/orestes-garcia-martinez/clawos/commit/887ce38b26be43ebf25beda44a14166a090e24a4))
+
 ## [0.9.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.8.0...v0.9.0) (2026-04-04)
 
 
