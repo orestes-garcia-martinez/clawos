@@ -29,6 +29,7 @@ import { resolveOrCreateTelegramUser } from './identity.js'
 import { claimLinkToken } from './link.js'
 import { extractPdfFromTelegram, PdfExtractionError } from './pdf.js'
 import { callAgentApi, AgentApiError } from './agent-client.js'
+import { createRequire } from 'node:module'
 
 // ── Telegram Bot API types ────────────────────────────────────────────────────
 
@@ -313,11 +314,20 @@ export async function handleUpdate(update: TelegramUpdate): Promise<void> {
 
 // ── Express app ───────────────────────────────────────────────────────────────
 
+// ── Package version ───────────────────────────────────────────────────────────
+const require = createRequire(import.meta.url)
+const pkg = require('../package.json') as { version: string }
+
 export const app = express()
 app.use(express.json())
 
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', service: 'clawos-telegram', version: '0.1.0' })
+  res.json({
+    status: 'ok',
+    service: 'clawos-telegram',
+    version: pkg.version,
+    timestamp: new Date().toISOString(),
+  })
 })
 
 app.post('/webhook', (req: Request, res: Response) => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.17.1] (2026-04-04)
+
+### Bug Fixes
+
+- **api:** read version from package.json in /health; add timestamp field ([9e0633c](https://github.com/orestes-garcia-martinez/clawos/commit/9e0633cce61701deebd1a1c825318189ed51fe8e))
+
 ## [0.17.0] (2026-04-04)
 
 ### Features

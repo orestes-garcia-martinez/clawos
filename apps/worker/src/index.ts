@@ -22,6 +22,11 @@ import {
   careerClawGapAnalysisAdapter,
   careerClawCoverLetterAdapter,
 } from './skills/careerclaw/adapter.js'
+import { createRequire } from 'node:module'
+
+// ── Package version ───────────────────────────────────────────────────────────
+const require = createRequire(import.meta.url)
+const pkg = require('../package.json') as { version: string }
 
 const WORKER_SECRET = process.env.WORKER_SECRET
 if (!WORKER_SECRET) {
@@ -156,7 +161,12 @@ const app = express()
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', service: 'clawos-worker', version: '0.2.0' })
+  res.json({
+    status: 'ok',
+    service: 'clawos-worker',
+    version: pkg.version,
+    timestamp: new Date().toISOString(),
+  })
 })
 
 function requireWorkerSecret(req: Request, res: Response, next: NextFunction): void {
