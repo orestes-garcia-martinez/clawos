@@ -49,3 +49,7 @@ packages/billing/tsconfig.tsbuildinfo
 
 # Release prettier
 **/CHANGELOG.md
+
+# Agents
+.agents/*
+AGENTS.md
