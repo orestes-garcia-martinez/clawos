@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.13.0...v0.13.1) (2026-04-05)
+
+
+### Bug Fixes
+
+* **api,telegram,worker:** read version from package.json in /health ([#158](https://github.com/orestes-garcia-martinez/clawos/issues/158)) ([f995ae1](https://github.com/orestes-garcia-martinez/clawos/commit/f995ae1ce3a42248435d219a318da4d78bbe8233))
+
 ## [0.13.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.12.0...v0.13.0) (2026-04-04)
 
 
