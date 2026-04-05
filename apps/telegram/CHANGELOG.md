@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1] (2026-04-04)
+
+### Bug Fixes
+
+- **telegram:** read version from package.json in /health; add timestamp field ([9e0633c](https://github.com/orestes-garcia-martinez/clawos/commit/9e0633cce61701deebd1a1c825318189ed51fe8e))
+
 ## [0.2.0](https://github.com/orestes-garcia-martinez/clawos/compare/telegram-v0.1.0...telegram-v0.2.0) (2026-03-26)
 
 

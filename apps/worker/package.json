@@ -1,6 +1,6 @@
 {
   "name": "@clawos/worker",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "ClawOS Lightsail skill worker — Express wrapper for direct CareerClaw runtime execution",
   "type": "module",

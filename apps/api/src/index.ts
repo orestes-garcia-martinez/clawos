@@ -23,10 +23,15 @@ import { chatHandler } from './routes/chat.js'
 import { resumeExtractHandler } from './routes/resume.js'
 import { linkTokenHandler } from './routes/link-token.js'
 import { webhookHandler, checkoutHandler, portalHandler, syncHandler } from './routes/billing.js'
+import { createRequire } from 'node:module'
 
 // ── App ───────────────────────────────────────────────────────────────────────
 
 const app = new Hono()
+
+// ── Package version ───────────────────────────────────────────────────────────
+const require = createRequire(import.meta.url)
+const pkg = require('../package.json') as { version: string }
 
 // ── CORS — strict: only the ClawOS web domain ─────────────────────────────────
 app.use(
@@ -51,7 +56,7 @@ app.get('/health', (c) => {
   return c.json({
     status: 'ok',
     service: 'clawos-api',
-    version: '0.1.0',
+    version: pkg.version,
     timestamp: new Date().toISOString(),
   })
 })
