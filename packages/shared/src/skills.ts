@@ -47,7 +47,7 @@ export interface CareerClawWorkerProfile {
    * `UserProfile.location_radius_km` in the careerclaw-js engine.
    * Only applied when `workMode` is `'onsite'` or `'hybrid'`.
    */
-  locationRadiusMi?: number
+  locationRadiusMi?: number | null
   skills?: string[]
   targetRoles?: string[]
   experienceYears?: number | null
