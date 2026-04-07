@@ -99,6 +99,7 @@ interface ProfileData {
   work_mode: string
   salary_min: string
   location_pref: string
+  location_radius_mi: string
 }
 
 function ProfileSection({ userId }: { userId: string }): JSX.Element {
@@ -107,6 +108,7 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
     work_mode: '',
     salary_min: '',
     location_pref: '',
+    location_radius_mi: '',
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -117,7 +119,7 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
       supabase.from('users').select('name').eq('id', userId).single(),
       supabase
         .from('careerclaw_profiles')
-        .select('work_mode, salary_min, location_pref')
+        .select('work_mode, salary_min, location_pref, location_radius_mi')
         .eq('user_id', userId)
         .maybeSingle(),
     ]).then(([{ data: user }, { data: profile }]) => {
@@ -126,6 +128,10 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
         work_mode: profile?.work_mode ?? '',
         salary_min: profile?.salary_min != null ? String(profile.salary_min) : '',
         location_pref: profile?.location_pref ?? '',
+        location_radius_mi:
+          (profile as { location_radius_mi?: number | null } | null)?.location_radius_mi != null
+            ? String((profile as { location_radius_mi?: number | null }).location_radius_mi)
+            : '',
       })
     })
   }, [userId])
@@ -139,6 +145,8 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
     setSaved(false)
 
     const salaryNum = form.salary_min ? parseInt(form.salary_min, 10) : null
+    const radiusNum = form.location_radius_mi ? parseInt(form.location_radius_mi, 10) : null
+    const isLocationBased = form.work_mode === 'onsite' || form.work_mode === 'hybrid'
 
     const [userRes, profileRes] = await Promise.all([
       supabase
@@ -151,6 +159,8 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
           work_mode: (form.work_mode as 'remote' | 'hybrid' | 'onsite') || null,
           salary_min: salaryNum,
           location_pref: form.location_pref || null,
+          // Only persist radius for location-based modes; clear it for remote.
+          location_radius_mi: isLocationBased ? radiusNum : null,
         },
         { onConflict: 'user_id' },
       ),
@@ -220,6 +230,27 @@ function ProfileSection({ userId }: { userId: string }): JSX.Element {
             Tampa, FL".
           </p>
         </div>
+
+        {(form.work_mode === 'onsite' || form.work_mode === 'hybrid') && (
+          <div>
+            <FieldLabel htmlFor="location_radius_mi">Search radius</FieldLabel>
+            <select
+              id="location_radius_mi"
+              value={form.location_radius_mi}
+              onChange={(e) => setField('location_radius_mi')(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl text-sm bg-bg border border-border text-text focus:outline-none focus:border-accent-border transition-colors appearance-none"
+            >
+              <option value="">Default (25 mi)</option>
+              <option value="10">10 miles</option>
+              <option value="25">25 miles</option>
+              <option value="50">50 miles</option>
+              <option value="100">100 miles</option>
+            </select>
+            <p className="text-[11px] text-text-muted mt-1">
+              How far from your location to search for jobs.
+            </p>
+          </div>
+        )}
 
         {error && (
           <p className="text-xs text-danger" role="alert">

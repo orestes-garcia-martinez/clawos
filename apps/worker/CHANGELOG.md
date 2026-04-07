@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0] (2026-04-06)
+
+### Features
+
+- **worker:** convert `locationRadiusMi` → km in `buildCareerClawProfile` (`Math.round(mi * 1.60934)`); passes `location_radius_km` to careerclaw-js engine which applies the operator hard cap
+
 ## [0.5.1] (2026-04-04)
 
 ### Bug Fixes

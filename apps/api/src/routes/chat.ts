@@ -368,6 +368,7 @@ async function executePendingActions(
                   | undefined) ?? undefined,
               salaryMin: opts.profileRow?.['salary_min'] as number | undefined,
               locationPref: opts.profileRow?.['location_pref'] as string | undefined,
+              locationRadiusMi: opts.profileRow?.['location_radius_mi'] as number | undefined,
             },
             resumeText: opts.profileRow?.['resume_text'] as string | undefined,
             topK: maxTopK,
@@ -438,6 +439,7 @@ async function executePendingActions(
                       | undefined) ?? undefined,
                   salaryMin: opts.profileRow['salary_min'] as number | undefined,
                   locationPref: opts.profileRow['location_pref'] as string | undefined,
+                  locationRadiusMi: opts.profileRow['location_radius_mi'] as number | undefined,
                 }
               : {},
             resumeText: opts.profileRow
@@ -954,7 +956,7 @@ export async function chatHandler(c: Context): Promise<Response> {
       const { data: profileRow } = await supabase
         .from('careerclaw_profiles')
         .select(
-          'resume_text, work_mode, salary_min, location_pref, skills, target_roles, experience_years, resume_summary',
+          'resume_text, work_mode, salary_min, location_pref, location_radius_mi, skills, target_roles, experience_years, resume_summary',
         )
         .eq('user_id', userId)
         .maybeSingle()
@@ -1467,6 +1469,7 @@ export async function chatHandler(c: Context): Promise<Response> {
                   (profileRow?.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
                 salaryMin: profileRow?.salary_min ?? undefined,
                 locationPref: profileRow?.location_pref ?? undefined,
+                locationRadiusMi: profileRow?.location_radius_mi ?? undefined,
               },
               resumeText: profileRow?.resume_text ?? undefined,
               topK,
@@ -1581,6 +1584,7 @@ export async function chatHandler(c: Context): Promise<Response> {
                     (profileRow.work_mode as 'remote' | 'hybrid' | 'onsite' | null) ?? undefined,
                   salaryMin: profileRow.salary_min ?? undefined,
                   locationPref: profileRow.location_pref ?? undefined,
+                  locationRadiusMi: profileRow.location_radius_mi ?? undefined,
                 }
               : {},
             resumeText: profileRow ? ((profileRow.resume_text as string | null) ?? null) : null,

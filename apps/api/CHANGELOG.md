@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.0] (2026-04-06)
+
+### Features
+
+- **api:** include `location_radius_mi` in careerclaw_profiles SELECT and `locationRadiusMi` in all four worker profile payload construction sites
+
 ## [0.17.1] (2026-04-04)
 
 ### Bug Fixes

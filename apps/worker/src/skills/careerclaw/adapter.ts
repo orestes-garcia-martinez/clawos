@@ -34,6 +34,8 @@ export function clampTopK(ctx: VerifiedSkillExecutionContext, topK: number): num
 }
 
 export function buildCareerClawProfile(input: CareerClawWorkerProfile): UserProfile {
+  // location_radius_km is added in careerclaw-js 1.10.0 (PR#71).
+  // Cast via unknown until that release is consumed.
   return {
     skills: input.skills ?? [],
     target_roles: input.targetRoles ?? [],
@@ -41,8 +43,12 @@ export function buildCareerClawProfile(input: CareerClawWorkerProfile): UserProf
     work_mode: input.workMode ?? null,
     resume_summary: input.resumeSummary ?? null,
     location: input.locationPref ?? null,
+    location_radius_km:
+      input.locationRadiusMi != null
+        ? Math.round(input.locationRadiusMi * 1.60934)
+        : null,
     salary_min: input.salaryMin ?? null,
-  }
+  } as unknown as UserProfile
 }
 
 export function buildCareerClawExecutionContext(
