@@ -91,6 +91,7 @@ export type Database = {
           experience_years: number | null
           id: string
           location_pref: string | null
+          location_radius_mi: number | null
           resume_summary: string | null
           resume_text: string | null
           resume_uploaded_at: string | null
@@ -106,6 +107,7 @@ export type Database = {
           experience_years?: number | null
           id?: string
           location_pref?: string | null
+          location_radius_mi?: number | null
           resume_summary?: string | null
           resume_text?: string | null
           resume_uploaded_at?: string | null
@@ -121,6 +123,7 @@ export type Database = {
           experience_years?: number | null
           id?: string
           location_pref?: string | null
+          location_radius_mi?: number | null
           resume_summary?: string | null
           resume_text?: string | null
           resume_uploaded_at?: string | null

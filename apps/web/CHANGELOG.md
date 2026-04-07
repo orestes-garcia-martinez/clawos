@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] (2026-04-06)
+
+### Features
+
+- **web:** add search radius select (10/25/50/100 mi, default 25 mi) to CareerClaw settings; shown only for onsite/hybrid work modes; cleared to null on save when switching to remote
+
 ## [0.4.0] (2026-04-04)
 
 ### Features

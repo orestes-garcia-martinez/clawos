@@ -106,8 +106,37 @@ describe('CareerClaw mapping helpers', () => {
       work_mode: 'remote',
       resume_summary: 'Frontend engineer with React and TypeScript experience.',
       location: 'Florida',
+      location_radius_km: null,
       salary_min: 150000,
     })
+  })
+
+  it('converts locationRadiusMi to km rounded to the nearest integer', () => {
+    const profile = buildCareerClawProfile({
+      workMode: 'onsite',
+      locationPref: 'Miami, FL',
+      locationRadiusMi: 25,
+    })
+    // 25 mi × 1.60934 = 40.2335 → rounds to 40
+    expect(profile.location_radius_km).toBe(40)
+  })
+
+  it('converts 50 miles correctly', () => {
+    const profile = buildCareerClawProfile({
+      workMode: 'onsite',
+      locationPref: 'Austin, TX',
+      locationRadiusMi: 50,
+    })
+    // 50 mi × 1.60934 = 80.467 → rounds to 80
+    expect(profile.location_radius_km).toBe(80)
+  })
+
+  it('sets location_radius_km to null when locationRadiusMi is not provided', () => {
+    const profile = buildCareerClawProfile({
+      workMode: 'onsite',
+      locationPref: 'Chicago, IL',
+    })
+    expect(profile.location_radius_km).toBeNull()
   })
 
   it('builds a trusted CareerClaw context from the verified worker context', () => {
@@ -152,6 +181,7 @@ describe('careerClawAdapter.execute', () => {
           work_mode: 'remote',
           resume_summary: 'Frontend engineer with React and TypeScript experience.',
           location: 'Florida',
+          location_radius_km: null,
           salary_min: 150000,
         },
         resumeText: 'Detailed resume text',
@@ -309,6 +339,7 @@ describe('careerClawCoverLetterAdapter.execute', () => {
         work_mode: null,
         resume_summary: null,
         location: null,
+        location_radius_km: null,
         salary_min: null,
       },
       expect.anything(),

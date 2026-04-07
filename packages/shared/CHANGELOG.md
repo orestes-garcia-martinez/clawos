@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.0] (2026-04-06)
+
+### Features
+
+- **shared:** add `locationRadiusMi` to `CareerClawWorkerProfile` — search radius in miles (US-facing); worker adapter converts to km before passing to careerclaw-js `UserProfile.location_radius_km`
+
 ## [0.7.1] (2026-04-03)
 
 ### Bug Fixes

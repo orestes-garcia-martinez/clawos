@@ -41,6 +41,13 @@ export interface CareerClawWorkerProfile {
   salaryMin?: number
   salaryMax?: number
   locationPref?: string
+  /**
+   * Search radius in **miles** as entered by the user (US-facing UI).
+   * The worker adapter converts to km before populating
+   * `UserProfile.location_radius_km` in the careerclaw-js engine.
+   * Only applied when `workMode` is `'onsite'` or `'hybrid'`.
+   */
+  locationRadiusMi?: number | null
   skills?: string[]
   targetRoles?: string[]
   experienceYears?: number | null
