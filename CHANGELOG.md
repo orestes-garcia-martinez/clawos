@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.14.0...v0.15.0) (2026-04-07)
+
+
+### Features
+
+* **api:** add structured llm error logging and per-call timing ([#162](https://github.com/orestes-garcia-martinez/clawos/issues/162)) ([3cc0dd4](https://github.com/orestes-garcia-martinez/clawos/commit/3cc0dd4ef620fc09bc9c23feb4e5fb1aca8bb875))
+
 ## [0.14.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.13.1...v0.14.0) (2026-04-07)
 
 
