@@ -30,18 +30,31 @@ function renderText(text: string): JSX.Element {
           )
         }
         if (part.startsWith('http://') || part.startsWith('https://')) {
-          // Strip trailing punctuation that prose may append after a URL
-          const url = part.replace(/[.,;:!?)]+$/, '')
+          // Strip trailing punctuation that prose may append after a URL.
+          // .,;:!? are never legitimate URL endings.
+          // ) is only stripped when unmatched — preserves wiki-style paths like /wiki/Foo_(bar).
+          // The stripped suffix is rendered as plain text so no characters are lost.
+          let href = part.replace(/[.,;:!?]+$/, '')
+          let suffix = part.slice(href.length)
+          while (
+            href.endsWith(')') &&
+            (href.match(/\)/g) ?? []).length > (href.match(/\(/g) ?? []).length
+          ) {
+            suffix = ')' + suffix
+            href = href.slice(0, -1)
+          }
           return (
-            <a
-              key={i}
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent underline underline-offset-2 break-all hover:opacity-75"
-            >
-              {url}
-            </a>
+            <span key={i}>
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline underline-offset-2 break-all hover:opacity-75"
+              >
+                {href}
+              </a>
+              {suffix}
+            </span>
           )
         }
         if (part === '\n') return <br key={i} />
