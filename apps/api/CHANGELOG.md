@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0] (2026-04-07)
+
+### Features
+
+- **api:** add `forensic_llm_error` structured event with `error_type`, `error_message`, `duration_ms`, and `payload_chars` on every Anthropic and OpenAI call failure ([7287fb4](https://github.com/orestes-garcia-martinez/clawos/commit/7287fb4551b0657687c6e6718d0481426c047259))
+- **api:** add `duration_ms` to `forensic_llm_response` for successful call latency tracking ([7287fb4](https://github.com/orestes-garcia-martinez/clawos/commit/7287fb4551b0657687c6e6718d0481426c047259))
+
 ## [0.18.0] (2026-04-06)
 
 ### Features
