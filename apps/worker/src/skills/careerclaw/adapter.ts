@@ -48,7 +48,7 @@ export function buildCareerClawProfile(input: CareerClawWorkerProfile): UserProf
         ? Math.round(input.locationRadiusMi * 1.60934)
         : null,
     salary_min: input.salaryMin ?? null,
-  } as unknown as UserProfile
+  } as UserProfile
 }
 
 export function buildCareerClawExecutionContext(

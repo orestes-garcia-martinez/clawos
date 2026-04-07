@@ -118,8 +118,7 @@ describe('CareerClaw mapping helpers', () => {
       locationRadiusMi: 25,
     })
     // 25 mi × 1.60934 = 40.2335 → rounds to 40
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((profile as any).location_radius_km).toBe(40)
+    expect(profile.location_radius_km).toBe(40)
   })
 
   it('converts 50 miles correctly', () => {
@@ -129,8 +128,7 @@ describe('CareerClaw mapping helpers', () => {
       locationRadiusMi: 50,
     })
     // 50 mi × 1.60934 = 80.467 → rounds to 80
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((profile as any).location_radius_km).toBe(80)
+    expect(profile.location_radius_km).toBe(80)
   })
 
   it('sets location_radius_km to null when locationRadiusMi is not provided', () => {
@@ -138,8 +136,7 @@ describe('CareerClaw mapping helpers', () => {
       workMode: 'onsite',
       locationPref: 'Chicago, IL',
     })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((profile as any).location_radius_km).toBeNull()
+    expect(profile.location_radius_km).toBeNull()
   })
 
   it('builds a trusted CareerClaw context from the verified worker context', () => {
