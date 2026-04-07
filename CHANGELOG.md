@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.13.1...v0.14.0) (2026-04-07)
+
+
+### Features
+
+* **shared:** add location radius search (miles UI, km engine) ([#160](https://github.com/orestes-garcia-martinez/clawos/issues/160)) ([ae9bce8](https://github.com/orestes-garcia-martinez/clawos/commit/ae9bce8939b1b31b410b33de6b5376640af2c634))
+
 ## [0.13.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.13.0...v0.13.1) (2026-04-05)
 
 
