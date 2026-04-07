@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1] (2026-04-07)
+
+### Bug Fixes
+
+- **deps:** bump careerclaw-js to 1.10.1 — fixes phantom project-management concept injection from resume narrative text, removes `"product"` from stopwords, and adds the Design/UX taxonomy domain so design profiles produce non-zero semantic concept scores ([9e5ed76](https://github.com/orestes-garcia-martinez/clawos/commit/9e5ed7642886d3f1b7decf0952cf4937ef6a3482))
+
 ## [0.6.0] (2026-04-06)
 
 ### Features
