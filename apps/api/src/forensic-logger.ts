@@ -55,6 +55,8 @@ export function logLLMResponse(params: {
   stopReason: string | null | undefined
   provider: string
   model?: string
+  /** Wall-clock duration of the API call in milliseconds. */
+  duration_ms?: number
 }): void {
   const blockSummaries: ContentBlockSummary[] = params.blocks.map((b, idx) => {
     const summary: ContentBlockSummary = { idx, type: b.type }
@@ -76,6 +78,52 @@ export function logLLMResponse(params: {
       stop_reason: params.stopReason ?? null,
       provider: params.provider,
       ...(params.model ? { model: params.model } : {}),
+      ...(params.duration_ms !== undefined ? { duration_ms: params.duration_ms } : {}),
+    }),
+  )
+}
+
+// ── LLM Error Logging ────────────────────────────────────────────────────────
+
+/**
+ * Log a structured error event for any failed LLM API call.
+ *
+ * Emitted on every Anthropic or OpenAI failure — before failover fires and
+ * before the error propagates to the caller. Always carries a `rid` so it
+ * can be correlated with the surrounding forensic_llm_response events.
+ *
+ * `payload_chars` is the serialized byte-length of the messages array sent
+ * to the model. A large value (>50 k chars) correlates with timeout risk on
+ * both Anthropic and OpenAI and is the primary diagnostic for the "OpenAI
+ * tool-result timeout" failure class.
+ */
+export function logLLMError(params: {
+  rid: string
+  /** Label identifying which call failed. */
+  call: string
+  provider: 'anthropic' | 'openai'
+  /**
+   * Coarse error classification:
+   *   timeout | connection | credit_balance | rate_limit | http_5xx | http_4xx | unknown
+   */
+  error_type: string
+  /** Truncated error message — safe to log (no PII). */
+  error_message: string
+  /** Wall-clock duration before the failure in milliseconds. */
+  duration_ms: number
+  /** Total serialized character length of messages sent to the model. */
+  payload_chars?: number
+}): void {
+  console.log(
+    JSON.stringify({
+      event: 'forensic_llm_error',
+      rid: params.rid,
+      call: params.call,
+      provider: params.provider,
+      error_type: params.error_type,
+      error_message: params.error_message,
+      duration_ms: params.duration_ms,
+      ...(params.payload_chars !== undefined ? { payload_chars: params.payload_chars } : {}),
     }),
   )
 }

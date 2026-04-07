@@ -34,7 +34,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { ENV } from './env.js'
 import type { Message } from '@clawos/shared'
-import { logLLMResponse } from './forensic-logger.js'
+import { logLLMResponse, logLLMError } from './forensic-logger.js'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -211,6 +211,10 @@ export async function callLLMWithToolResult(
     },
   ]
 
+  const payloadChars = JSON.stringify(anthropicMessages).length
+  const callLabel_ = callLabel ?? `${toolName}_format`
+  const callStart = Date.now()
+
   try {
     const response = await getAnthropic().messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -223,7 +227,7 @@ export async function callLLMWithToolResult(
     if (rid) {
       logLLMResponse({
         rid,
-        call: callLabel ?? `${toolName}_format`,
+        call: callLabel_,
         blocks: response.content.map((b) => ({
           type: b.type,
           ...(b.type === 'text' ? { text: b.text } : {}),
@@ -232,6 +236,7 @@ export async function callLLMWithToolResult(
         stopReason: response.stop_reason,
         provider: 'anthropic',
         model: response.model,
+        duration_ms: Date.now() - callStart,
       })
     }
 
@@ -241,6 +246,17 @@ export async function callLLMWithToolResult(
       provider: 'anthropic',
     }
   } catch (err) {
+    if (rid) {
+      logLLMError({
+        rid,
+        call: callLabel_,
+        provider: 'anthropic',
+        error_type: classifyError(err),
+        error_message: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        duration_ms: Date.now() - callStart,
+        payload_chars: payloadChars,
+      })
+    }
     if (shouldFailover(err)) {
       console.warn('[llm] Anthropic tool-result call failed — OpenAI failover (plain summary)')
       return (await callOpenAI(
@@ -296,7 +312,24 @@ async function callAnthropic(
     }
   }
 
-  const response = await getAnthropic().messages.create(params)
+  const callStart = Date.now()
+  let response: Anthropic.Message
+  try {
+    response = await getAnthropic().messages.create(params)
+  } catch (err) {
+    if (rid) {
+      logLLMError({
+        rid,
+        call: callLabel ?? 'anthropic_call',
+        provider: 'anthropic',
+        error_type: classifyError(err),
+        error_message: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        duration_ms: Date.now() - callStart,
+        payload_chars: computePayloadChars(messages),
+      })
+    }
+    throw err
+  }
 
   // Forensic logging — block inventory for every Anthropic call
   if (rid) {
@@ -311,6 +344,7 @@ async function callAnthropic(
       stopReason: response.stop_reason,
       provider: 'anthropic',
       model: response.model,
+      duration_ms: Date.now() - callStart,
     })
   }
 
@@ -391,7 +425,24 @@ async function callOpenAI(
     }
   }
 
-  const response = await openai.chat.completions.create(params)
+  const callStart = Date.now()
+  let response: OpenAI.ChatCompletion
+  try {
+    response = await openai.chat.completions.create(params)
+  } catch (err) {
+    if (rid) {
+      logLLMError({
+        rid,
+        call: callLabel ? `${callLabel}_openai_failover` : 'openai_failover',
+        provider: 'openai',
+        error_type: classifyError(err),
+        error_message: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        duration_ms: Date.now() - callStart,
+        payload_chars: computePayloadChars(messages),
+      })
+    }
+    throw err
+  }
 
   const choice = response.choices[0]
   const logLabel = callLabel ? `${callLabel}_openai_failover` : 'openai_failover'
@@ -410,6 +461,7 @@ async function callOpenAI(
         stopReason: choice.finish_reason ?? null,
         provider: 'openai',
         model: response.model,
+        duration_ms: Date.now() - callStart,
       })
     }
 
@@ -433,6 +485,7 @@ async function callOpenAI(
       stopReason: choice?.finish_reason ?? null,
       provider: 'openai',
       model: response.model,
+      duration_ms: Date.now() - callStart,
     })
   }
 
@@ -482,4 +535,38 @@ function errorCode(err: unknown): string {
   if (err instanceof Anthropic.APIError) return `HTTP ${err.status}`
   if (err instanceof Error) return err.message.slice(0, 80)
   return String(err)
+}
+
+/**
+ * Classify an LLM API error into a coarse label for forensic_llm_error events.
+ * Handles both Anthropic SDK error classes and OpenAI timeout/connection patterns.
+ */
+function classifyError(err: unknown): string {
+  if (err instanceof Anthropic.APIConnectionTimeoutError) return 'timeout'
+  if (err instanceof Anthropic.APIConnectionError) return 'connection'
+  if (err instanceof Anthropic.APIError) {
+    if (err.status === 400 && err.message.toLowerCase().includes('credit balance'))
+      return 'credit_balance'
+    if (err.status === 429) return 'rate_limit'
+    if (err.status >= 500) return 'http_5xx'
+    return `http_${err.status}`
+  }
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase()
+    if (err.name === 'AbortError' || msg.includes('timed out') || msg.includes('timeout'))
+      return 'timeout'
+    if (msg.includes('fetch failed') || msg.includes('econnrefused') || msg.includes('enotfound'))
+      return 'connection'
+  }
+  return 'unknown'
+}
+
+/**
+ * Total serialized character length of a messages array.
+ * Used as a proxy for payload size — large values correlate with timeout risk.
+ */
+function computePayloadChars(messages: Array<{ content: unknown }>): number {
+  return messages.reduce((sum, m) => {
+    return sum + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length)
+  }, 0)
 }
