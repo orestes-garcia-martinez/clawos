@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.15.0...v0.15.1) (2026-04-07)
+
+
+### Bug Fixes
+
+* **deps:** bump careerclaw-js to 1.10.1 ([#164](https://github.com/orestes-garcia-martinez/clawos/issues/164)) ([74748fe](https://github.com/orestes-garcia-martinez/clawos/commit/74748fe8ef0edd12065fdddc6a56cb8580ca4e60))
+
 ## [0.15.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.14.0...v0.15.0) (2026-04-07)
 
 
