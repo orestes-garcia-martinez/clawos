@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] (2026-04-07)
+
+### Bug Fixes
+
+- **web:** linkify plain `https://` URLs in message bubbles; previously rendered as unclickable `<span>` elements while Telegram auto-linked the same URLs ([c130f74](https://github.com/orestes-garcia-martinez/clawos/commit/c130f748fc244f7a8b24a5f5a4bb66fa52ad5a3c))
+
 ## [0.5.0] (2026-04-06)
 
 ### Features
