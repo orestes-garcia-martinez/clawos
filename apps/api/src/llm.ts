@@ -567,6 +567,8 @@ function classifyError(err: unknown): string {
  */
 function computePayloadChars(messages: Array<{ content: unknown }>): number {
   return messages.reduce((sum, m) => {
-    return sum + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length)
+    return (
+      sum + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length)
+    )
   }, 0)
 }
