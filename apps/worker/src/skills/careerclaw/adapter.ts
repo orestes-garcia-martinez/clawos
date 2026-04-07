@@ -44,9 +44,7 @@ export function buildCareerClawProfile(input: CareerClawWorkerProfile): UserProf
     resume_summary: input.resumeSummary ?? null,
     location: input.locationPref ?? null,
     location_radius_km:
-      input.locationRadiusMi != null
-        ? Math.round(input.locationRadiusMi * 1.60934)
-        : null,
+      input.locationRadiusMi != null ? Math.round(input.locationRadiusMi * 1.60934) : null,
     salary_min: input.salaryMin ?? null,
   } as UserProfile
 }
