@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0] (2026-04-07)
+
+### Features
+
+- **worker:** call `warmEmbeddingProvider()` at startup — pre-loads the ONNX embedding model into memory before the first request arrives; safe no-op when `CAREERCLAW_EMBEDDING_PROVIDER=none`
+- **deps:** bump careerclaw-js `^1.10.1` → `^1.11.0` — consumes optional local embedding provider (semantic scoring via `Xenova/all-MiniLM-L6-v2`)
+
 ## [0.6.1] (2026-04-07)
 
 ### Bug Fixes

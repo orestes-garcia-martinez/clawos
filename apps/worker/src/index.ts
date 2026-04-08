@@ -16,6 +16,7 @@ import {
   buildAuditEntry,
 } from '@clawos/security'
 import type { SkillSlug } from '@clawos/shared'
+import { warmEmbeddingProvider } from 'careerclaw-js'
 import { verifyAndConsumeSkillAssertion } from './assertion-verifier.js'
 import { skillRegistry } from './registry.js'
 import {
@@ -33,6 +34,13 @@ if (!WORKER_SECRET) {
   console.error('[worker] Fatal: WORKER_SECRET env var is required. Refusing to start.')
   process.exit(1)
 }
+
+// Pre-warm the embedding provider so the model is in memory before the
+// first briefing request arrives. Safe no-op when CAREERCLAW_EMBEDDING_PROVIDER=none.
+warmEmbeddingProvider().catch(() => {
+  // warmEmbeddingProvider logs its own warning and falls back gracefully.
+  // The catch here prevents an unhandled rejection from crashing the worker.
+})
 
 const WORKER_SECRET_BUF = Buffer.from(WORKER_SECRET)
 const SKILL_EXECUTION_TIMEOUT_MS = Number(process.env.SKILL_EXECUTION_TIMEOUT_MS ?? 30_000)
