@@ -35,13 +35,6 @@ if (!WORKER_SECRET) {
   process.exit(1)
 }
 
-// Pre-warm the embedding provider so the model is in memory before the
-// first briefing request arrives. Safe no-op when CAREERCLAW_EMBEDDING_PROVIDER=none.
-warmEmbeddingProvider().catch(() => {
-  // warmEmbeddingProvider logs its own warning and falls back gracefully.
-  // The catch here prevents an unhandled rejection from crashing the worker.
-})
-
 const WORKER_SECRET_BUF = Buffer.from(WORKER_SECRET)
 const SKILL_EXECUTION_TIMEOUT_MS = Number(process.env.SKILL_EXECUTION_TIMEOUT_MS ?? 30_000)
 
@@ -290,8 +283,17 @@ app.post(
 )
 
 const port = Number(process.env.PORT ?? 3002)
-app.listen(port, () => {
-  console.log(`[worker] ClawOS skill worker running on http://localhost:${port}`)
-})
+// Warm the embedding model before opening the port — the first request must
+// never hit a cold-load path. warmEmbeddingProvider() logs and falls back
+// gracefully on failure; server starts regardless.
+warmEmbeddingProvider()
+  .catch(() => {
+    // warmEmbeddingProvider already logged the warning; start the server anyway.
+  })
+  .finally(() => {
+    app.listen(port, () => {
+      console.log(`[worker] ClawOS skill worker running on http://localhost:${port}`)
+    })
+  })
 
 export { app }
