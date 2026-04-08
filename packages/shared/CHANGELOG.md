@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.1] (2026-04-08)
+
+### Bug Fixes
+
+- **shared:** prevent free-tier briefing re-run on match-count increase — add explicit `<tool_rules>` guard and `free-tier-match-increase` example to CareerClaw system prompt ([6a17fba](https://github.com/orestes-garcia-martinez/clawos/commit/6a17fba5d950f4e33b63e0afe280c2d51b27cada))
+
 ## [0.8.0] (2026-04-06)
 
 ### Features
