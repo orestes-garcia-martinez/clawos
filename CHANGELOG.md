@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.15.1...v0.16.0) (2026-04-08)
+
+
+### Features
+
+* **worker:** warm embedding provider at startup ([#166](https://github.com/orestes-garcia-martinez/clawos/issues/166)) ([8287591](https://github.com/orestes-garcia-martinez/clawos/commit/8287591d11460bc000a8fe9a8aa98fd7140a6aaa))
+
 ## [0.15.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.15.0...v0.15.1) (2026-04-07)
 
 
