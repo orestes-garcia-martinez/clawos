@@ -16,6 +16,7 @@ import {
   buildAuditEntry,
 } from '@clawos/security'
 import type { SkillSlug } from '@clawos/shared'
+import { warmEmbeddingProvider } from 'careerclaw-js'
 import { verifyAndConsumeSkillAssertion } from './assertion-verifier.js'
 import { skillRegistry } from './registry.js'
 import {
@@ -282,8 +283,17 @@ app.post(
 )
 
 const port = Number(process.env.PORT ?? 3002)
-app.listen(port, () => {
-  console.log(`[worker] ClawOS skill worker running on http://localhost:${port}`)
-})
+// Warm the embedding model before opening the port — the first request must
+// never hit a cold-load path. warmEmbeddingProvider() logs and falls back
+// gracefully on failure; server starts regardless.
+warmEmbeddingProvider()
+  .catch(() => {
+    // warmEmbeddingProvider already logged the warning; start the server anyway.
+  })
+  .finally(() => {
+    app.listen(port, () => {
+      console.log(`[worker] ClawOS skill worker running on http://localhost:${port}`)
+    })
+  })
 
 export { app }
