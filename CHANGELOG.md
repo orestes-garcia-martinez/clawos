@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.16.0...v0.16.1) (2026-04-08)
+
+
+### Bug Fixes
+
+* **shared:** prevent free-tier briefing re-run on match-count increase ([#169](https://github.com/orestes-garcia-martinez/clawos/issues/169)) ([6714092](https://github.com/orestes-garcia-martinez/clawos/commit/67140926740cf66ec8282e2ac46ed33797c13e2f))
+
 ## [0.16.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.15.1...v0.16.0) (2026-04-08)
 
 
