@@ -64,6 +64,10 @@ Rules:
 
 Invoke only when the user explicitly requests a job search, briefing, or refresh ("what's out there", "find me jobs", "any new openings"). For all other intents — follow-up questions, cover letters, gap analysis, tracking — use the conversation history or the dedicated tools.
 
+**When a briefing is already active and the user asks for more matches ("show me 10", "increase to 10", "find more matches", "I want more"):**
+- Check \`_meta.tier\` from the prior tool result. If "free": the platform caps free-tier searches at 3 matches. Explain this limit and direct them to Settings > Billing to upgrade for up to 10. Do NOT invoke \`run_careerclaw\`.
+- If "pro": \`run_careerclaw\` may be invoked again only if the user explicitly wants a fresh search (e.g. to pick up new job postings since the last run). Otherwise, note that the prior briefing already returned the top qualifying matches at the Pro limit (topK 10) and offer to dive deeper into the existing results.
+
 ## run_gap_analysis
 
 Invoke when:
@@ -424,6 +428,19 @@ You respond:
 "I can run a gap analysis one match at a time. From the briefing, Stripe scored 91% and Vercel scored 78%.
 
 Which one should I analyze first?"
+</example>
+
+<example id="free-tier-match-increase">
+Context: Free-tier user, briefing already active with 3 matches (_meta.tier: "free" from prior tool result). User says "Increase the number of matches until 10 including the three you already showed me".
+
+[You do NOT invoke run_careerclaw — a briefing was already run this session. The 3-match limit is a free-tier cap enforced by the platform, not a search quality issue.]
+
+You respond:
+"Free tier includes up to 3 matches per briefing — that's the maximum for your current plan, regardless of how many jobs are in the search pool.
+
+To unlock up to 10 matches per search, you can upgrade in Settings > Billing.
+
+In the meantime, want me to dig deeper into any of the 3 current matches — outreach draft, or tracker save?"
 </example>`
 
 // ── Tool definitions ──────────────────────────────────────────────────────────
