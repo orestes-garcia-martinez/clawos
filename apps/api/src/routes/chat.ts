@@ -923,10 +923,22 @@ export async function chatHandler(c: Context): Promise<Response> {
       })
     }
 
+    // Accumulate streaming tokens and apply stripGroundingBlock before forwarding
+    // so grounding-context content never reaches the client even partially.
+    // Only the net-new clean delta is emitted per token; once the grounding block
+    // starts appearing at the tail, the strip removes it and the delta is empty.
+    let _chunkAccumulated = ''
+    let _chunkForwarded = ''
     const sendChunk = async (text: string) => {
-      await stream.writeSSE({
-        data: JSON.stringify({ type: 'chunk', text }),
-      })
+      _chunkAccumulated += text
+      // Apply only the grounding-block regex (not .trim()) — trim is for the final
+      // buffered result, not individual deltas where trailing spaces are meaningful.
+      const stripped = _chunkAccumulated.replace(/\[Active briefing ground truth[\s\S]*$/, '')
+      const delta = stripped.slice(_chunkForwarded.length)
+      if (delta) {
+        _chunkForwarded += delta
+        await stream.writeSSE({ data: JSON.stringify({ type: 'chunk', text: delta }) })
+      }
     }
 
     try {
