@@ -1495,6 +1495,14 @@ export async function chatHandler(c: Context): Promise<Response> {
           })
         } catch (err) {
           const isTimeout = err instanceof WorkerError && err.isTimeout
+          const errorCode = isTimeout ? 'WORKER_TIMEOUT' : 'WORKER_ERROR'
+          console.error('[chat] careerclaw briefing worker error', {
+            rid,
+            userId,
+            errorCode,
+            message: err instanceof Error ? err.message : String(err),
+            durationMs: Date.now() - startMs,
+          })
           logAudit({
             userId,
             skill: 'careerclaw',
@@ -1502,9 +1510,11 @@ export async function chatHandler(c: Context): Promise<Response> {
             status: 'error',
             statusCode: isTimeout ? 504 : 500,
             durationMs: Date.now() - startMs,
+            rid,
+            errorCode,
           })
           await sendError(
-            isTimeout ? 'WORKER_TIMEOUT' : 'WORKER_ERROR',
+            errorCode,
             isTimeout
               ? 'The job search timed out. Please try again in a moment.'
               : 'The job search encountered an error. Please try again.',
@@ -2558,7 +2568,14 @@ function logAudit(params: {
   status: 'success' | 'error' | 'rate_limited'
   statusCode: number
   durationMs: number
+  rid?: string
+  errorCode?: string
 }) {
-  const entry = buildAuditEntry(params)
+  const { rid, errorCode, ...auditParams } = params
+  const entry = {
+    ...buildAuditEntry(auditParams),
+    ...(rid ? { rid } : {}),
+    ...(errorCode ? { errorCode } : {}),
+  }
   console.log(JSON.stringify(entry))
 }

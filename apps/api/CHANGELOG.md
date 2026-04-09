@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.20.1] (2026-04-09)
+
+### Bug Fixes
+
+- **api:** raise worker timeout to 60s and improve error diagnostics ([8fd90ed](https://github.com/orestes-garcia-martinez/clawos/commit/8fd90ed9c52a73c07ac05d287b69508ce1576be9))
+
 ## [0.20.0] (2026-04-08)
 
 ### Features
