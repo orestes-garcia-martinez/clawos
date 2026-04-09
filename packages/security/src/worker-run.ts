@@ -13,6 +13,7 @@ export const CareerClawProfileSchema = z.object({
   salaryMax: z.number().int().positive().max(10_000_000).optional(),
   locationPref: z.string().max(200).optional(),
   locationRadiusMi: z.number().int().min(1).max(100).nullable().optional(),
+  targetIndustry: z.string().max(200).nullable().optional(),
 })
 
 export const CareerClawWorkerInputSchema = z

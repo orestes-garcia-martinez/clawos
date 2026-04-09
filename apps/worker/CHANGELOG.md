@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0] (2026-04-09)
+
+### Features
+
+- **worker:** map `targetIndustry` from `CareerClawWorkerProfile` to `UserProfile.target_industry` in `buildCareerClawProfile` — allows the worker to pass the user's industry/sector (e.g. "B2B SaaS") to the careerclaw-js briefing engine for domain-aware SerpAPI queries
+- **deps:** bump careerclaw-js `^1.11.1` → `^1.12.0` — consumes `SearchOverrides`, `target_industry` SerpAPI query injection, `minKeywordScore` tightening (0.01→0.03), and hybrid `scoreWorkMode` differentiation
+
 ## [0.7.0] (2026-04-07)
 
 ### Features

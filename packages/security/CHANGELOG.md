@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0] (2026-04-09)
+
+### Features
+
+- **security:** add `targetIndustry` to `CareerClawProfileSchema` — optional, nullable, max 200 chars; passes through Zod validation alongside existing profile fields so the worker adapter receives the industry string for SerpAPI query narrowing
+
 ## [0.3.0] (2026-04-04)
 
 ### Features

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.0] (2026-04-09)
+
+### Features
+
+- **shared:** add `targetIndustry` to `CareerClawWorkerProfile` — optional industry/sector string (e.g. "B2B SaaS", "fintech") passed from the settings UI to the worker; wired into the SerpAPI query builder to narrow results to the user's domain and prevent off-industry companies from outranking semantically-relevant matches
+
 ## [0.8.1] (2026-04-08)
 
 ### Bug Fixes
