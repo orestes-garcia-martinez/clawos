@@ -49,7 +49,7 @@ import type {
   RunCoverLetterInput,
   TrackApplicationInput,
 } from '@clawos/shared'
-import { callLLM, callLLMWithToolResult } from '../llm.js'
+import { callLLM, callLLMWithToolResult, callLLMWithToolResultStream } from '../llm.js'
 import { resolveCareerClawEntitlements } from '../entitlements.js'
 import { issueSkillAssertion } from '../skill-assertions.js'
 import {
@@ -923,6 +923,12 @@ export async function chatHandler(c: Context): Promise<Response> {
       })
     }
 
+    const sendChunk = async (text: string) => {
+      await stream.writeSSE({
+        data: JSON.stringify({ type: 'chunk', text }),
+      })
+    }
+
     try {
       // ── 3. Load session ──────────────────────────────────────────────────
       await sendProgress('session', 'Loading context...')
@@ -1598,7 +1604,7 @@ export async function chatHandler(c: Context): Promise<Response> {
 
         let formattedResponse: string
         try {
-          const formatResult = await callLLMWithToolResult(
+          const formatResult = await callLLMWithToolResultStream(
             CAREERCLAW_SYSTEM_PROMPT,
             baseMessages,
             llmResult.toolUseId,
@@ -1614,6 +1620,7 @@ export async function chatHandler(c: Context): Promise<Response> {
                 includeGapAnalysis: featureSet.has('careerclaw.resume_gap_analysis'),
               },
             },
+            sendChunk,
             rid,
             'run_careerclaw_format',
           )

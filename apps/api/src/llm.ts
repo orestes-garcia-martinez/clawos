@@ -277,6 +277,198 @@ export async function callLLMWithToolResult(
   }
 }
 
+/**
+ * Streaming variant of callLLMWithToolResult.
+ *
+ * Calls onChunk for each text token as it arrives from the Anthropic streaming
+ * API, allowing the caller to forward tokens to the client in real time.
+ * Buffers the full response internally and returns LLMTextResult on completion
+ * so callers can still run post-processing (sanitisation, audit) on the full text.
+ *
+ * Does not support OpenAI failover — a stream cannot be transparently rerouted
+ * mid-response. Callers should catch errors and handle the partial-stream case
+ * (e.g. send an error event to the client).
+ */
+export async function callLLMWithToolResultStream(
+  systemPrompt: string,
+  messages: Message[],
+  toolUseId: string,
+  toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toolInput: Record<string, any>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toolResult: Record<string, any>,
+  onChunk: (text: string) => Promise<void>,
+  rid?: string,
+  callLabel?: string,
+): Promise<LLMTextResult> {
+  const anthropicMessages: Anthropic.MessageParam[] = [
+    ...messages.map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    })),
+    {
+      role: 'assistant',
+      content: [
+        {
+          type: 'tool_use' as const,
+          id: toolUseId,
+          name: toolName,
+          input: toolInput,
+        },
+      ],
+    },
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result' as const,
+          tool_use_id: toolUseId,
+          content: JSON.stringify(toolResult),
+        },
+      ],
+    },
+  ]
+
+  const callLabel_ = callLabel ?? `${toolName}_format_stream`
+  const callStart = Date.now()
+  let buffered = ''
+  let chunksEmitted = 0
+
+  try {
+    const anthropicStream = getAnthropic().messages.stream({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: anthropicMessages,
+    })
+
+    for await (const event of anthropicStream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        buffered += event.delta.text
+        chunksEmitted++
+        await onChunk(event.delta.text)
+      }
+    }
+
+    const finalMessage = await anthropicStream.finalMessage()
+
+    if (rid) {
+      logLLMResponse({
+        rid,
+        call: callLabel_,
+        blocks: [{ type: 'text', text: buffered }],
+        stopReason: finalMessage.stop_reason,
+        provider: 'anthropic',
+        model: finalMessage.model,
+        duration_ms: Date.now() - callStart,
+      })
+    }
+
+    if (!buffered.trim()) {
+      throw new Error(`[llm] Empty streaming response (${callLabel_})`)
+    }
+
+    return { type: 'text', content: buffered, provider: 'anthropic' }
+  } catch (err) {
+    if (rid) {
+      logLLMError({
+        rid,
+        call: callLabel_,
+        provider: 'anthropic',
+        error_type: classifyError(err),
+        error_message: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        duration_ms: Date.now() - callStart,
+        payload_chars: JSON.stringify(anthropicMessages).length,
+      })
+    }
+
+    // Only failover if no chunks have been sent to the client yet.
+    // Once tokens are in-flight the stream cannot be restarted from a different provider.
+    if (chunksEmitted === 0 && shouldFailover(err)) {
+      console.warn(
+        '[llm] Anthropic streaming failed before first token — attempting OpenAI streaming failover',
+        errorCode(err),
+      )
+      return await callOpenAIWithToolResultStream(
+        systemPrompt,
+        messages,
+        toolResult,
+        onChunk,
+        rid,
+        callLabel,
+      )
+    }
+
+    throw err
+  }
+}
+
+// ── OpenAI streaming failover ─────────────────────────────────────────────────
+
+/**
+ * OpenAI streaming variant used when Anthropic streaming fails before any
+ * tokens have been emitted (chunksEmitted === 0).
+ * Sends the same simplified tool-result message format as the non-streaming
+ * OpenAI failover, but streams tokens via onChunk as they arrive.
+ */
+async function callOpenAIWithToolResultStream(
+  systemPrompt: string,
+  messages: Message[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toolResult: Record<string, any>,
+  onChunk: (text: string) => Promise<void>,
+  rid?: string,
+  callLabel?: string,
+): Promise<LLMTextResult> {
+  const openai = getOpenAI()
+  if (!openai) {
+    throw new Error('OpenAI streaming failover requested but CLAWOS_OPENAI_KEY is not set')
+  }
+
+  const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
+    ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    {
+      role: 'user',
+      content: `The job search returned these results: ${JSON.stringify(toolResult)}. Please summarise them for the user.`,
+    },
+  ]
+
+  const callLabel_ = callLabel ? `${callLabel}_openai_stream_failover` : 'openai_stream_failover'
+  const callStart = Date.now()
+  let buffered = ''
+
+  const stream = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    max_tokens: 2048,
+    messages: openaiMessages,
+    stream: true,
+  })
+
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content ?? ''
+    if (text) {
+      buffered += text
+      await onChunk(text)
+    }
+  }
+
+  if (rid) {
+    logLLMResponse({
+      rid,
+      call: callLabel_,
+      blocks: [{ type: 'text', text: buffered }],
+      stopReason: 'end_turn',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      duration_ms: Date.now() - callStart,
+    })
+  }
+
+  return { type: 'text', content: buffered, provider: 'openai' }
+}
+
 // ── Anthropic call ────────────────────────────────────────────────────────────
 
 async function callAnthropic(

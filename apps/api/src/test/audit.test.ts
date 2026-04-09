@@ -7,7 +7,7 @@ import {
   app,
   buildSupabaseMock,
   mockCallLLM,
-  mockCallLLMWithToolResult,
+  mockCallLLMWithToolResultStream,
   mockRunWorkerCareerclaw,
   resetRateLimit,
   VALID_BODY,
@@ -36,11 +36,20 @@ describe('Audit log -- metadata only', () => {
       provider: 'anthropic',
     })
     mockRunWorkerCareerclaw.mockResolvedValue({ result: MOCK_BRIEFING, durationMs: 1800 })
-    mockCallLLMWithToolResult.mockResolvedValue({
-      type: 'text',
-      content: 'Results here',
-      provider: 'anthropic',
-    })
+    mockCallLLMWithToolResultStream.mockImplementation(
+      async (
+        _sys: unknown,
+        _msgs: unknown,
+        _id: unknown,
+        _name: unknown,
+        _input: unknown,
+        _result: unknown,
+        onChunk: (text: string) => Promise<void>,
+      ) => {
+        await onChunk('Results here')
+        return { type: 'text', content: 'Results here', provider: 'anthropic' }
+      },
+    )
   })
 
   afterEach(() => {

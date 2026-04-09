@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.20.0] (2026-04-08)
+
+### Features
+
+- **api,web:** stream briefing format tokens to client via SSE ([f6b38f3](https://github.com/orestes-garcia-martinez/clawos/commit/f6b38f338137ccafa6efd8039d959a1555f70169))
+
 ## [0.19.0] (2026-04-07)
 
 ### Features

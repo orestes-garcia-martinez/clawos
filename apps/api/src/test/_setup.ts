@@ -21,9 +21,11 @@ vi.mock('@clawos/shared', async (importOriginal) => {
 
 export const mockCallLLM = vi.fn()
 export const mockCallLLMWithToolResult = vi.fn()
+export const mockCallLLMWithToolResultStream = vi.fn()
 vi.mock('../llm.js', () => ({
   callLLM: mockCallLLM,
   callLLMWithToolResult: mockCallLLMWithToolResult,
+  callLLMWithToolResultStream: mockCallLLMWithToolResultStream,
 }))
 
 export const mockRunWorkerCareerclaw = vi.fn()

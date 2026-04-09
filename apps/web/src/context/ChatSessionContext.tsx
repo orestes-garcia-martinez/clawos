@@ -29,6 +29,7 @@ import type {
   ErrorMessage,
   ApiProgressEvent,
 } from '../hooks/useSSEChat.ts'
+import type { ChunkEvent } from '../lib/api.ts'
 import type { SkillKey } from '../skills'
 
 // ── Thread state per skill ─────────────────────────────────────────────────
@@ -82,6 +83,7 @@ export function ChatSessionProvider({
   const activeSkillRef = useRef<SkillKey | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const progressIdRef = useRef<string | null>(null)
+  const streamingMsgIdRef = useRef<string | null>(null)
   // Set to true when reset() is called; cleared after the first send() so the API
   // knows to start a fresh session rather than loading the previous one.
   const pendingNewSessionRef = useRef(false)
@@ -205,9 +207,38 @@ export function ChatSessionProvider({
             })
           },
 
+          onChunk: (event: ChunkEvent) => {
+            updateThread(skillKey, (prev) => {
+              if (streamingMsgIdRef.current) {
+                return {
+                  ...prev,
+                  messages: prev.messages.map((m) =>
+                    m.id === streamingMsgIdRef.current && m.role === 'assistant'
+                      ? ({ ...m, content: m.content + event.text } as AssistantMessage)
+                      : m,
+                  ),
+                }
+              }
+              const streamMsg: AssistantMessage = {
+                id: nextId(),
+                role: 'assistant',
+                content: event.text,
+                timestamp: new Date().toISOString(),
+                streaming: true,
+              }
+              streamingMsgIdRef.current = streamMsg.id
+              return {
+                ...prev,
+                messages: [...prev.messages.filter((m) => m.role !== 'progress'), streamMsg],
+              }
+            })
+          },
+
           onDone: (event) => {
             setIsStreaming(false)
             progressIdRef.current = null
+            const prevStreamingId = streamingMsgIdRef.current
+            streamingMsgIdRef.current = null
             const assistantMsg: AssistantMessage = {
               id: nextId(),
               role: 'assistant',
@@ -216,13 +247,18 @@ export function ChatSessionProvider({
             }
             updateThread(skillKey, (prev) => ({
               sessionId: event.sessionId,
-              messages: [...prev.messages.filter((m) => m.role !== 'progress'), assistantMsg],
+              messages: [
+                ...prev.messages.filter((m) => m.role !== 'progress' && m.id !== prevStreamingId),
+                assistantMsg,
+              ],
             }))
           },
 
           onError: (event) => {
             setIsStreaming(false)
             progressIdRef.current = null
+            const prevStreamingId = streamingMsgIdRef.current
+            streamingMsgIdRef.current = null
             const errMsg: ErrorMessage = {
               id: nextId(),
               role: 'error',
@@ -231,13 +267,18 @@ export function ChatSessionProvider({
             }
             updateThread(skillKey, (prev) => ({
               ...prev,
-              messages: [...prev.messages.filter((m) => m.role !== 'progress'), errMsg],
+              messages: [
+                ...prev.messages.filter((m) => m.role !== 'progress' && m.id !== prevStreamingId),
+                errMsg,
+              ],
             }))
           },
 
           onNetworkError: () => {
             setIsStreaming(false)
             progressIdRef.current = null
+            const prevStreamingId = streamingMsgIdRef.current
+            streamingMsgIdRef.current = null
             const errMsg: ErrorMessage = {
               id: nextId(),
               role: 'error',
@@ -246,7 +287,10 @@ export function ChatSessionProvider({
             }
             updateThread(skillKey, (prev) => ({
               ...prev,
-              messages: [...prev.messages.filter((m) => m.role !== 'progress'), errMsg],
+              messages: [
+                ...prev.messages.filter((m) => m.role !== 'progress' && m.id !== prevStreamingId),
+                errMsg,
+              ],
             }))
           },
         },
@@ -259,11 +303,13 @@ export function ChatSessionProvider({
     abortRef.current?.abort()
     setIsStreaming(false)
     progressIdRef.current = null
+    const prevStreamingId = streamingMsgIdRef.current
+    streamingMsgIdRef.current = null
     const skill = activeSkillRef.current
     if (skill) {
       updateThread(skill, (prev) => ({
         ...prev,
-        messages: prev.messages.filter((m) => m.role !== 'progress'),
+        messages: prev.messages.filter((m) => m.role !== 'progress' && m.id !== prevStreamingId),
       }))
     }
   }, [updateThread])
