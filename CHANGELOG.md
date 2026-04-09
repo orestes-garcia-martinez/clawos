@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.16.1...v0.17.0) (2026-04-09)
+
+
+### Features
+
+* **api,web:** stream briefing format tokens to client via SSE ([#171](https://github.com/orestes-garcia-martinez/clawos/issues/171)) ([668e1e6](https://github.com/orestes-garcia-martinez/clawos/commit/668e1e671dc79fe42a5fc001bbe414e91acd2dde))
+
 ## [0.16.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.16.0...v0.16.1) (2026-04-08)
 
 
