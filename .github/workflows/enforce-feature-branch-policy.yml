@@ -29,18 +29,18 @@ jobs:
 
           # Use the PR creator's login instead of the triggering actor
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
-          TRUSTED_RELEASE_BOT_PATTERN='^clawos-release-bot\[bot\]$'
+          TRUSTED_RELEASE_BOT_PATTERN='^ogm-release-bot\[bot\]$'
 
           echo "Checking branch: $SOURCE_BRANCH"
           echo "PR created by: $PR_AUTHOR"
 
-          # 1. Check if it's a Release Please branch created by the ClawOS-Release-Bot
+          # 1. Check if it's a Release Please branch created by the OGM-Release-Bot
           if [[ "$SOURCE_BRANCH" =~ $RELEASE_PLEASE_PATTERN ]]; then
             if [[ "$PR_AUTHOR" =~ $TRUSTED_RELEASE_BOT_PATTERN ]]; then
               echo "✓ Branch '$SOURCE_BRANCH' created by bot '$PR_AUTHOR'. Skipping naming convention check."
               exit 0
             else
-              echo "::error::Branch '$SOURCE_BRANCH' matches the Release Please pattern but was created by '$PR_AUTHOR', not the ClawOS-Release-Bot."
+              echo "::error::Branch '$SOURCE_BRANCH' matches the Release Please pattern but was created by '$PR_AUTHOR', not the OGM-Release-Bot."
               exit 1
             fi
           fi
