@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.17.0...v0.17.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **api:** raise worker timeout to 60s and improve error diagnostics ([#174](https://github.com/orestes-garcia-martinez/clawos/issues/174)) ([bf4a7ca](https://github.com/orestes-garcia-martinez/clawos/commit/bf4a7cad01ad977286d97cdf96fe2f4dc6f06633))
+
 ## [0.17.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.16.1...v0.17.0) (2026-04-09)
 
 
