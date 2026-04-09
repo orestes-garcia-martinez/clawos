@@ -52,6 +52,12 @@ export interface CareerClawWorkerProfile {
   targetRoles?: string[]
   experienceYears?: number | null
   resumeSummary?: string | null
+  /**
+   * Target industry or sector (e.g. "B2B SaaS", "fintech", "healthtech").
+   * Included in SerpAPI queries to narrow results to the user's domain.
+   * Supports future agent-driven overrides: "find me fintech jobs".
+   */
+  targetIndustry?: string | null
 }
 
 export interface CareerClawWorkerInput {

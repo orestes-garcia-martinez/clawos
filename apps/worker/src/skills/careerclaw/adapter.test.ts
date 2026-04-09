@@ -108,6 +108,7 @@ describe('CareerClaw mapping helpers', () => {
       location: 'Florida',
       location_radius_km: null,
       salary_min: 150000,
+      target_industry: null,
     })
   })
 
@@ -183,6 +184,7 @@ describe('careerClawAdapter.execute', () => {
           location: 'Florida',
           location_radius_km: null,
           salary_min: 150000,
+          target_industry: null,
         },
         resumeText: 'Detailed resume text',
         topK: 3,
@@ -341,6 +343,7 @@ describe('careerClawCoverLetterAdapter.execute', () => {
         location: null,
         location_radius_km: null,
         salary_min: null,
+        target_industry: null,
       },
       expect.anything(),
       {
