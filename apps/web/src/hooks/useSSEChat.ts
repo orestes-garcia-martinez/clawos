@@ -145,6 +145,7 @@ export function useSSEChat({ jwt, userId }: UseSSEChatOptions): UseSSEChatReturn
                 streaming: true,
               }
               streamingMsgIdRef.current = streamMsg.id
+              progressIdRef.current = null
               return [...prev.filter((m) => m.role !== 'progress'), streamMsg]
             })
           },

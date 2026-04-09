@@ -227,6 +227,7 @@ export function ChatSessionProvider({
                 streaming: true,
               }
               streamingMsgIdRef.current = streamMsg.id
+              progressIdRef.current = null
               return {
                 ...prev,
                 messages: [...prev.messages.filter((m) => m.role !== 'progress'), streamMsg],
