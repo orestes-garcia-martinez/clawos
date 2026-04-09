@@ -109,7 +109,16 @@ export function MessageBubble({ message }: MessageBubbleProps): JSX.Element {
         className="max-w-[88%] px-4 py-3 rounded-2xl rounded-tl-md text-sm leading-relaxed"
         style={{ background: 'var(--surface-2)', border: '1px solid var(--border-subtle)' }}
       >
-        <div className="text-text">{renderText(message.content)}</div>
+        <div className="text-text">
+          {renderText(message.content)}
+          {message.streaming ? (
+            <span
+              className="inline-block w-0.5 h-3.5 ml-0.5 bg-text-dim align-middle"
+              style={{ animation: 'pulse 1s step-end infinite' }}
+              aria-hidden="true"
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   )

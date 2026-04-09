@@ -14,6 +14,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { chatSSE } from '../lib/api.ts'
+import type { ChunkEvent } from '../lib/api.ts'
 
 // ── Message types ──────────────────────────────────────────────────────────
 
@@ -29,6 +30,8 @@ export interface AssistantMessage {
   role: 'assistant'
   content: string
   timestamp: string
+  /** True while the message is still being streamed token-by-token. */
+  streaming?: boolean
 }
 
 export interface ApiProgressEvent {
@@ -81,6 +84,8 @@ export function useSSEChat({ jwt, userId }: UseSSEChatOptions): UseSSEChatReturn
   const abortRef = useRef<AbortController | null>(null)
   // Track the id of the current progress message so we can remove it on done
   const progressIdRef = useRef<string | null>(null)
+  // Track the id of the streaming assistant message so onDone can replace it
+  const streamingMsgIdRef = useRef<string | null>(null)
 
   const send = useCallback(
     (text: string) => {
@@ -122,10 +127,35 @@ export function useSSEChat({ jwt, userId }: UseSSEChatOptions): UseSSEChatReturn
             })
           },
 
+          onChunk: (event: ChunkEvent) => {
+            setMessages((prev) => {
+              // Append to existing streaming message or create one (removing progress first)
+              if (streamingMsgIdRef.current) {
+                return prev.map((m) =>
+                  m.id === streamingMsgIdRef.current && m.role === 'assistant'
+                    ? ({ ...m, content: m.content + event.text } as AssistantMessage)
+                    : m,
+                )
+              }
+              const streamMsg: AssistantMessage = {
+                id: nextId(),
+                role: 'assistant',
+                content: event.text,
+                timestamp: new Date().toISOString(),
+                streaming: true,
+              }
+              streamingMsgIdRef.current = streamMsg.id
+              progressIdRef.current = null
+              return [...prev.filter((m) => m.role !== 'progress'), streamMsg]
+            })
+          },
+
           onDone: (event) => {
             setSessionId(event.sessionId)
             setIsStreaming(false)
             progressIdRef.current = null
+            const prevStreamingId = streamingMsgIdRef.current
+            streamingMsgIdRef.current = null
 
             const normalized = event.message.trim()
             if (!normalized) {
@@ -136,8 +166,10 @@ export function useSSEChat({ jwt, userId }: UseSSEChatOptions): UseSSEChatReturn
                 content: 'The assistant returned an empty response. Please try again.',
               }
               setMessages((prev) => {
-                const withoutProgress = prev.filter((m) => m.role !== 'progress')
-                return [...withoutProgress, errMsg]
+                return [
+                  ...prev.filter((m) => m.role !== 'progress' && m.id !== prevStreamingId),
+                  errMsg,
+                ]
               })
               return
             }
@@ -150,14 +182,18 @@ export function useSSEChat({ jwt, userId }: UseSSEChatOptions): UseSSEChatReturn
             }
 
             setMessages((prev) => {
-              const withoutProgress = prev.filter((m) => m.role !== 'progress')
-              return [...withoutProgress, assistantMsg]
+              return [
+                ...prev.filter((m) => m.role !== 'progress' && m.id !== prevStreamingId),
+                assistantMsg,
+              ]
             })
           },
 
           onError: (event) => {
             setIsStreaming(false)
             progressIdRef.current = null
+            const prevStreamingId = streamingMsgIdRef.current
+            streamingMsgIdRef.current = null
             const errMsg: ErrorMessage = {
               id: nextId(),
               role: 'error',
@@ -165,14 +201,18 @@ export function useSSEChat({ jwt, userId }: UseSSEChatOptions): UseSSEChatReturn
               content: event.message,
             }
             setMessages((prev) => {
-              const withoutProgress = prev.filter((m) => m.role !== 'progress')
-              return [...withoutProgress, errMsg]
+              return [
+                ...prev.filter((m) => m.role !== 'progress' && m.id !== prevStreamingId),
+                errMsg,
+              ]
             })
           },
 
           onNetworkError: () => {
             setIsStreaming(false)
             progressIdRef.current = null
+            const prevStreamingId = streamingMsgIdRef.current
+            streamingMsgIdRef.current = null
             const errMsg: ErrorMessage = {
               id: nextId(),
               role: 'error',
@@ -180,8 +220,10 @@ export function useSSEChat({ jwt, userId }: UseSSEChatOptions): UseSSEChatReturn
               content: 'Connection lost. Check your network and try again.',
             }
             setMessages((prev) => {
-              const withoutProgress = prev.filter((m) => m.role !== 'progress')
-              return [...withoutProgress, errMsg]
+              return [
+                ...prev.filter((m) => m.role !== 'progress' && m.id !== prevStreamingId),
+                errMsg,
+              ]
             })
           },
         },
@@ -194,7 +236,9 @@ export function useSSEChat({ jwt, userId }: UseSSEChatOptions): UseSSEChatReturn
     abortRef.current?.abort()
     setIsStreaming(false)
     progressIdRef.current = null
-    setMessages((prev) => prev.filter((m) => m.role !== 'progress'))
+    const prevStreamingId = streamingMsgIdRef.current
+    streamingMsgIdRef.current = null
+    setMessages((prev) => prev.filter((m) => m.role !== 'progress' && m.id !== prevStreamingId))
   }, [])
 
   const reset = useCallback(() => {

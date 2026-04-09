@@ -49,7 +49,7 @@ import type {
   RunCoverLetterInput,
   TrackApplicationInput,
 } from '@clawos/shared'
-import { callLLM, callLLMWithToolResult } from '../llm.js'
+import { callLLM, callLLMWithToolResult, callLLMWithToolResultStream } from '../llm.js'
 import { resolveCareerClawEntitlements } from '../entitlements.js'
 import { issueSkillAssertion } from '../skill-assertions.js'
 import {
@@ -923,6 +923,24 @@ export async function chatHandler(c: Context): Promise<Response> {
       })
     }
 
+    // Accumulate streaming tokens and apply stripGroundingBlock before forwarding
+    // so grounding-context content never reaches the client even partially.
+    // Only the net-new clean delta is emitted per token; once the grounding block
+    // starts appearing at the tail, the strip removes it and the delta is empty.
+    let _chunkAccumulated = ''
+    let _chunkForwarded = ''
+    const sendChunk = async (text: string) => {
+      _chunkAccumulated += text
+      // Apply only the grounding-block regex (not .trim()) — trim is for the final
+      // buffered result, not individual deltas where trailing spaces are meaningful.
+      const stripped = _chunkAccumulated.replace(/\[Active briefing ground truth[\s\S]*$/, '')
+      const delta = stripped.slice(_chunkForwarded.length)
+      if (delta) {
+        _chunkForwarded += delta
+        await stream.writeSSE({ data: JSON.stringify({ type: 'chunk', text: delta }) })
+      }
+    }
+
     try {
       // ── 3. Load session ──────────────────────────────────────────────────
       await sendProgress('session', 'Loading context...')
@@ -1598,7 +1616,7 @@ export async function chatHandler(c: Context): Promise<Response> {
 
         let formattedResponse: string
         try {
-          const formatResult = await callLLMWithToolResult(
+          const formatResult = await callLLMWithToolResultStream(
             CAREERCLAW_SYSTEM_PROMPT,
             baseMessages,
             llmResult.toolUseId,
@@ -1614,6 +1632,7 @@ export async function chatHandler(c: Context): Promise<Response> {
                 includeGapAnalysis: featureSet.has('careerclaw.resume_gap_analysis'),
               },
             },
+            sendChunk,
             rid,
             'run_careerclaw_format',
           )

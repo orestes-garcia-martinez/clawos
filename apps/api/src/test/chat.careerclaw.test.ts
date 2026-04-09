@@ -4,6 +4,7 @@ import {
   buildSupabaseMock,
   mockCallLLM,
   mockCallLLMWithToolResult,
+  mockCallLLMWithToolResultStream,
   mockIssueSkillAssertion,
   mockRunWorkerCareerclaw,
   parseSSEEvents,
@@ -22,12 +23,29 @@ describe('POST /chat — CareerClaw tool use path', () => {
     mockRunWorkerCareerclaw.mockReset()
     mockCallLLM.mockReset()
     mockCallLLMWithToolResult.mockReset()
+    mockCallLLMWithToolResultStream.mockReset()
 
     mockIssueSkillAssertion.mockReturnValue('test-signed-assertion')
     mockRunWorkerCareerclaw.mockResolvedValue({
       result: MOCK_BRIEFING,
       durationMs: 1500,
     })
+    // Briefing format now uses the streaming variant; simulate one chunk + full text
+    mockCallLLMWithToolResultStream.mockImplementation(
+      async (
+        _sys: unknown,
+        _msgs: unknown,
+        _id: unknown,
+        _name: unknown,
+        _input: unknown,
+        _result: unknown,
+        onChunk: (text: string) => Promise<void>,
+      ) => {
+        await onChunk('Here are your top matches.')
+        return { type: 'text', content: 'Here are your top matches.', provider: 'anthropic' }
+      },
+    )
+    // Non-briefing format calls (gap analysis, cover letter) still use the non-streaming path
     mockCallLLMWithToolResult.mockResolvedValue({
       type: 'text',
       content: 'Here are your top matches.',
@@ -129,7 +147,7 @@ describe('POST /chat — CareerClaw tool use path', () => {
       }),
     })
 
-    expect(mockCallLLMWithToolResult).toHaveBeenCalledWith(
+    expect(mockCallLLMWithToolResultStream).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(Array),
       'tool_pro123',
@@ -144,6 +162,7 @@ describe('POST /chat — CareerClaw tool use path', () => {
           includeGapAnalysis: true,
         }),
       }),
+      expect.any(Function),
       expect.any(String),
       expect.any(String),
     )
@@ -172,7 +191,7 @@ describe('POST /chat — CareerClaw tool use path', () => {
 
     await res.text()
 
-    expect(mockCallLLMWithToolResult).toHaveBeenCalledWith(
+    expect(mockCallLLMWithToolResultStream).toHaveBeenCalledWith(
       expect.any(String),
       expect.any(Array),
       'tool_meta123',
@@ -186,6 +205,7 @@ describe('POST /chat — CareerClaw tool use path', () => {
           includeGapAnalysis: false,
         }),
       }),
+      expect.any(Function),
       expect.any(String),
       expect.any(String),
     )

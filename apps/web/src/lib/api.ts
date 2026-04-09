@@ -31,16 +31,22 @@ export interface DoneEvent {
   message: string
 }
 
+export interface ChunkEvent {
+  type: 'chunk'
+  text: string
+}
+
 export interface ErrorEvent {
   type: 'error'
   code: string
   message: string
 }
 
-export type SSEEvent = ProgressEvent | DoneEvent | ErrorEvent
+export type SSEEvent = ProgressEvent | ChunkEvent | DoneEvent | ErrorEvent
 
 export interface ChatSSEHandlers {
   onProgress: (event: ProgressEvent) => void
+  onChunk: (event: ChunkEvent) => void
   onDone: (event: DoneEvent) => void
   onError: (event: ErrorEvent) => void
   onNetworkError: (err: unknown) => void
@@ -125,6 +131,7 @@ export function chatSSE(
           }
 
           if (event.type === 'progress') handlers.onProgress(event)
+          else if (event.type === 'chunk') handlers.onChunk(event as ChunkEvent)
           else if (event.type === 'done') {
             receivedTerminalEvent = true
             handlers.onDone(event)
