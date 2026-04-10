@@ -231,7 +231,7 @@ export function SkillCard({ skillKey, onInstall, isInstalling }: SkillCardProps)
         <button
           onClick={() => void onInstall(skillKey)}
           disabled={isInstalling}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold bg-accent text-bg hover:brightness-110 active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-2.5 rounded-xl text-sm font-semibold bg-accent text-bg hover:brightness-110 active:scale-[0.98] transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isInstalling ? 'Installing…' : 'Install'}
         </button>

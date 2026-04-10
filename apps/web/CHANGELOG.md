@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0] (2026-04-09)
+
+### Features
+
+- **web:** add Documentation link to `PlatformNav` (opens `docs.clawoshq.com` in a new tab) with `IconDocument` SVG; link renders after Notifications in the sidebar nav
+- **web:** inject monorepo version as `__APP_VERSION__` compile-time constant via `vite.config.ts` `define`; `AppShell` now renders dynamic `v{__APP_VERSION__}` instead of hardcoded `v1.0.0`
+- **web:** add `cursor-pointer` to all interactive `<button>` elements across `SkillCard`, `AccountPage`, `HomePage`, `SkillsPage`, and `PlatformNav` for consistent pointer cursor UX
+
+### Bug Fixes
+
+- **web:** add `apps/web/turbo.json` to track `../../package.json` as a build input — prevents Turbo from serving a stale `__APP_VERSION__` cache hit when only the root monorepo version bumps
+
 ## [0.6.0] (2026-04-08)
 
 ### Features
