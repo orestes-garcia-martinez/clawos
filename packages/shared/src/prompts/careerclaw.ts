@@ -64,6 +64,13 @@ Rules:
 
 Invoke only when the user explicitly requests a job search, briefing, or refresh ("what's out there", "find me jobs", "any new openings"). For all other intents — follow-up questions, cover letters, gap analysis, tracking — use the conversation history or the dedicated tools.
 
+**Search overrides — when to populate \`search_overrides\`:**
+When the user qualifies the search with an industry or domain ("find me AI jobs", "search fintech roles", "healthtech opportunities"), populate \`search_overrides.target_industry\` with a concise domain string (e.g., \`"artificial intelligence"\`, \`"fintech"\`, \`"healthtech"\`, \`"e-commerce"\`). Rules:
+- Only add an override when the user explicitly names a domain — never infer one.
+- Do not add an override for role types ("marketing jobs", "engineering roles") — those are already encoded in the user's \`target_roles\` profile field.
+- If the user's stated domain matches their saved profile industry, omit \`search_overrides\` (no change needed).
+- Keep the value concise: 1–4 words, no trailing punctuation.
+
 **When a briefing is already active and the user asks for more matches ("show me 10", "increase to 10", "find more matches", "I want more"):**
 - Check \`_meta.tier\` from the prior tool result. If "free": the platform caps free-tier searches at 3 matches. Explain this limit and direct them to Settings > Billing to upgrade for up to 10. Do NOT invoke \`run_careerclaw\`.
 - If "pro": \`run_careerclaw\` may be invoked again only if the user explicitly wants a fresh search (e.g. to pick up new job postings since the last run). Otherwise, note that the prior briefing already returned the top qualifying matches at the Pro limit (topK 10) and offer to dive deeper into the existing results.
@@ -430,6 +437,28 @@ You respond:
 Which one should I analyze first?"
 </example>
 
+<example id="search-override">
+Context: User says "Find me AI jobs" (free tier, no prior briefing).
+
+[You invoke run_careerclaw with topK: 3, search_overrides: { target_industry: "artificial intelligence" }]
+
+You respond:
+"Found 3 matches from 61 jobs fetched, narrowed to the AI / machine learning space. Here are your top results:
+
+**1. ML Engineer — Cohere** (84% match)
+Skills matched: Python, transformers, NLP | Salary: $160k–$200k | Remote
+🔗 https://cohere.com/careers/ml-engineer
+
+**2. AI Product Manager — Scale AI** (71% match)
+Skills matched: product management, ML systems | Salary: $150k–$185k | Hybrid
+
+**3. Research Engineer — Mistral** (64% match)
+Skills matched: Python, PyTorch | Salary: not listed | Remote
+
+---
+Cohere looks like a strong match. Want me to save it to your tracker, or share the outreach draft?"
+</example>
+
 <example id="free-tier-match-increase">
 Context: Free-tier user, briefing already active with 3 matches (_meta.tier: "free" from prior tool result). User says "Increase the number of matches until 10 including the three you already showed me".
 
@@ -448,6 +477,11 @@ In the meantime, want me to dig deeper into any of the 3 current matches — out
 // run_careerclaw — invokes the Lightsail skill worker for briefings only
 export interface RunCareerClawInput {
   topK: number
+  /** Agent-supplied: session-scoped search refinements extracted from the user's message. */
+  search_overrides?: {
+    /** Domain/industry qualifier (e.g. "fintech", "artificial intelligence"). */
+    target_industry?: string
+  }
   /** Server-computed: true for free tier (outreach drafts), false for pro (cover letters instead). */
   includeOutreach?: boolean
   /** Server-computed: true when the user has the tailored_cover_letter feature (Pro). */
@@ -468,6 +502,18 @@ export const RUN_CAREERCLAW_TOOL = {
         type: 'number',
         description:
           'Number of top matches to return. Free tier max: 3. Pro tier max: 10. Default to the tier maximum.',
+      },
+      search_overrides: {
+        type: 'object',
+        description:
+          'Session-scoped search refinements. Populate only when the user explicitly names an industry or domain ("find me AI jobs", "fintech roles"). See <tool_rules> run_careerclaw for guidance.',
+        properties: {
+          target_industry: {
+            type: 'string',
+            description:
+              'Concise domain string (1–4 words) to narrow the job search (e.g. "artificial intelligence", "fintech", "healthtech"). Do not add for role types — only for industry/domain qualifiers.',
+          },
+        },
       },
       also_execute: {
         type: 'array',

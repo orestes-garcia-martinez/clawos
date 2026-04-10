@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] (2026-04-10)
+
+### Features
+
+- **security:** add `SearchOverridesSchema` (`targetIndustry: string`, `targetCompanies: string[]`) and include `searchOverrides` as an optional field in `CareerClawWorkerInputSchema` — validates agent-driven search refinements at the worker boundary before they reach careerclaw-js
+
 ## [0.4.0] (2026-04-09)
 
 ### Features

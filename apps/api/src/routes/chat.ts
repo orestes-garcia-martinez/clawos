@@ -1491,6 +1491,13 @@ export async function chatHandler(c: Context): Promise<Response> {
               },
               resumeText: profileRow?.resume_text ?? undefined,
               topK,
+              ...(toolInput.search_overrides?.target_industry
+                ? {
+                    searchOverrides: {
+                      targetIndustry: toolInput.search_overrides.target_industry,
+                    },
+                  }
+                : {}),
             },
           })
         } catch (err) {

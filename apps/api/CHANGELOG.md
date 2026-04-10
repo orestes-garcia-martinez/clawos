@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.0] (2026-04-10)
+
+### Features
+
+- **api:** extract `search_overrides.target_industry` from `run_careerclaw` tool input and forward as `searchOverrides.targetIndustry` in the worker request — enables agent-driven industry narrowing ("find me AI jobs") end-to-end
+
 ## [0.20.1] (2026-04-09)
 
 ### Bug Fixes

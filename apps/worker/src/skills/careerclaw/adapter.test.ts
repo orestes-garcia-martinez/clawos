@@ -200,6 +200,37 @@ describe('careerClawAdapter.execute', () => {
     expect(result).toEqual({ matches: [], drafts: [] })
   })
 
+  it('maps searchOverrides to snake_case careerclaw-js SearchOverrides', async () => {
+    await careerClawAdapter.execute(
+      {
+        profile: { skills: [], targetRoles: [] },
+        topK: 3,
+        searchOverrides: { targetIndustry: 'fintech', targetCompanies: ['Stripe', 'Plaid'] },
+      },
+      FREE_CTX,
+    )
+
+    expect(mockRunCareerClawWithContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        searchOverrides: {
+          target_industry: 'fintech',
+          target_companies: ['Stripe', 'Plaid'],
+        },
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('omits searchOverrides from the careerclaw call when not provided', async () => {
+    await careerClawAdapter.execute({ profile: { skills: [], targetRoles: [] }, topK: 3 }, FREE_CTX)
+
+    const callArg = (mockRunCareerClawWithContext.mock.calls[0] as unknown[])[0] as Record<
+      string,
+      unknown
+    >
+    expect(callArg).not.toHaveProperty('searchOverrides')
+  })
+
   it('keeps topK at 10 for verified pro users with the extended topK feature', async () => {
     await careerClawAdapter.execute(
       {
