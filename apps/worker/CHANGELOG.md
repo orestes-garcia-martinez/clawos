@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0] (2026-04-10)
+
+### Features
+
+- **worker:** bump `careerclaw-js` `^1.12.0` → `^1.13.0` to consume improved briefing precision across retrieval, deduplication, and role-fit scoring
+- **worker:** refresh lockfile to resolve published `careerclaw-js@1.13.0`
+
 ## [0.9.0] (2026-04-10)
 
 ### Features
