@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.18.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.17.1...v0.18.0) (2026-04-10)
+
+
+### Features
+
+* **api,worker,shared,security:** wire agent-driven search overrides end-to-end ([#178](https://github.com/orestes-garcia-martinez/clawos/issues/178)) ([93b1971](https://github.com/orestes-garcia-martinez/clawos/commit/93b19715c02a833504e26770679d46dd971a701b))
+* **shared,security,worker:** add targetIndustry to profile for domain-aware briefing ([#176](https://github.com/orestes-garcia-martinez/clawos/issues/176)) ([1cfd4f2](https://github.com/orestes-garcia-martinez/clawos/commit/1cfd4f2759dd4c7c47aab726961b0afc9cd97328))
+* **web:** add docs nav link, dynamic app version, and cursor-pointer polish ([#180](https://github.com/orestes-garcia-martinez/clawos/issues/180)) ([9b4e478](https://github.com/orestes-garcia-martinez/clawos/commit/9b4e47882948c7b15c687591fbf5d5da0f1379fb))
+
 ## [0.17.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.17.0...v0.17.1) (2026-04-09)
 
 
