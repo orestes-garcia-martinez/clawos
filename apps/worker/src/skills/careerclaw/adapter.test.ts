@@ -222,12 +222,12 @@ describe('careerClawAdapter.execute', () => {
   })
 
   it('omits searchOverrides from the careerclaw call when not provided', async () => {
-    await careerClawAdapter.execute(
-      { profile: { skills: [], targetRoles: [] }, topK: 3 },
-      FREE_CTX,
-    )
+    await careerClawAdapter.execute({ profile: { skills: [], targetRoles: [] }, topK: 3 }, FREE_CTX)
 
-    const callArg = (mockRunCareerClawWithContext.mock.calls[0] as unknown[])[0] as Record<string, unknown>
+    const callArg = (mockRunCareerClawWithContext.mock.calls[0] as unknown[])[0] as Record<
+      string,
+      unknown
+    >
     expect(callArg).not.toHaveProperty('searchOverrides')
   })
 
