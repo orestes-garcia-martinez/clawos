@@ -60,10 +60,28 @@ export interface CareerClawWorkerProfile {
   targetIndustry?: string | null
 }
 
+/**
+ * Session-scoped search overrides — agent-driven query refinements that
+ * augment the user's profile for a single briefing run without mutating it.
+ *
+ * Populated by the API when Claude detects a search qualifier in the user's
+ * message (e.g. "find me AI jobs" → { targetIndustry: "artificial intelligence" }).
+ *
+ * Maps to careerclaw-js SearchOverrides (snake_case) in the worker adapter.
+ */
+export interface SearchOverrides {
+  /** Override the profile's target industry for this run (e.g. "fintech", "artificial intelligence"). */
+  targetIndustry?: string
+  /** Restrict results to specific companies — wired in careerclaw-js Phase 2. */
+  targetCompanies?: string[]
+}
+
 export interface CareerClawWorkerInput {
   profile: CareerClawWorkerProfile
   resumeText?: string
   topK: number
+  /** Session-scoped search refinements extracted from the user's message by the agent. */
+  searchOverrides?: SearchOverrides
 }
 
 /**

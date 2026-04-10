@@ -74,6 +74,18 @@ export const careerClawAdapter = {
         ...(input.resumeText !== undefined ? { resumeText: input.resumeText } : {}),
         topK: clampTopK(ctx, input.topK),
         dryRun: true,
+        ...(input.searchOverrides !== undefined
+          ? {
+              searchOverrides: {
+                ...(input.searchOverrides.targetIndustry !== undefined
+                  ? { target_industry: input.searchOverrides.targetIndustry }
+                  : {}),
+                ...(input.searchOverrides.targetCompanies !== undefined
+                  ? { target_companies: input.searchOverrides.targetCompanies }
+                  : {}),
+              },
+            }
+          : {}),
       },
       buildCareerClawExecutionContext(ctx),
     )

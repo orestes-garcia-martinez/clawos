@@ -16,11 +16,17 @@ export const CareerClawProfileSchema = z.object({
   targetIndustry: z.string().max(200).nullable().optional(),
 })
 
+const SearchOverridesSchema = z.object({
+  targetIndustry: z.string().max(200).optional(),
+  targetCompanies: z.array(z.string().max(200)).max(10).optional(),
+})
+
 export const CareerClawWorkerInputSchema = z
   .object({
     profile: CareerClawProfileSchema,
     resumeText: z.string().max(50_000, 'Resume text too long (max 50k chars)').optional(),
     topK: z.number().int().min(1).max(10).default(3),
+    searchOverrides: SearchOverridesSchema.optional(),
   })
   .refine(
     (d) => {

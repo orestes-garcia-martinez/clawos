@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0] (2026-04-10)
+
+### Features
+
+- **shared:** add `SearchOverrides` interface and `searchOverrides` field to `CareerClawWorkerInput` — session-scoped query refinements that let the agent narrow a briefing run by industry (`targetIndustry`) or company (`targetCompanies`) without mutating the user's stored profile
+- **prompts:** add `search_overrides.target_industry` to `RunCareerClawInput` and `RUN_CAREERCLAW_TOOL` schema; add `search_overrides` rule to `<tool_rules>` and `<example id="search-override">` so Claude knows when and how to emit domain qualifiers ("find me AI jobs" → `{ target_industry: "artificial intelligence" }`)
+
 ## [0.9.0] (2026-04-09)
 
 ### Features

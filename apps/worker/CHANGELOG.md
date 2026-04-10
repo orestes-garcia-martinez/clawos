@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.0] (2026-04-10)
+
+### Features
+
+- **worker:** forward `searchOverrides` from `CareerClawWorkerInput` to `runCareerClawWithContext` with camelCase→snake_case mapping (`targetIndustry` → `target_industry`, `targetCompanies` → `target_companies`) — completes the agent-driven search override pipe from API to careerclaw-js engine
+
 ## [0.8.0] (2026-04-09)
 
 ### Features
