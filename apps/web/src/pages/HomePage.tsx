@@ -165,7 +165,7 @@ export function HomePage(): JSX.Element {
 
             <button
               onClick={onOpenAddSkills}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 cursor-pointer"
               style={{
                 background: 'var(--surface-2)',
                 border: '1px solid var(--border)',

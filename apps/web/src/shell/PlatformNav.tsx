@@ -14,8 +14,9 @@
 import type { JSX } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
-import { IconLayers, IconBell, IconSettings, IconPlus } from './icons.tsx'
+import { IconLayers, IconBell, IconSettings, IconPlus, IconDocument } from './icons.tsx'
 import { PLATFORM_NAV } from '../skills'
+import React from 'react'
 
 interface IconProps {
   className?: string
@@ -26,6 +27,8 @@ const NAV_ICONS: Record<string, (props: IconProps) => JSX.Element> = {
   notifications: IconBell,
   account: IconSettings,
 }
+
+const DOCS_URL = 'https://docs.clawoshq.com/'
 
 interface PlatformNavProps {
   onAddSkills?: () => void
@@ -63,22 +66,43 @@ export function PlatformNav({ onAddSkills }: PlatformNavProps): JSX.Element {
           const active = pathname.startsWith(path)
           const IconComp = NAV_ICONS[id]
 
+          /* Render Documentation link after notifications */
+          const extra =
+            id === 'notifications' ? (
+              <a
+                key="documentation"
+                href={DOCS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={[
+                  'w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-left cursor-pointer',
+                  'transition-all duration-150',
+                  'text-text-muted hover:bg-surface-2 hover:text-text',
+                ].join(' ')}
+              >
+                <IconDocument />
+                <span className="font-medium">Documentation</span>
+              </a>
+            ) : null
+
           return (
-            <button
-              key={id}
-              onClick={() => navigate(path)}
-              className={[
-                'w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-left cursor-pointer',
-                'transition-all duration-150',
-                active
-                  ? 'bg-surface-2 text-text'
-                  : 'text-text-muted hover:bg-surface-2 hover:text-text',
-              ].join(' ')}
-              aria-current={active ? 'page' : undefined}
-            >
-              {IconComp && <IconComp />}
-              <span className="font-medium">{label}</span>
-            </button>
+            <React.Fragment key={id}>
+              <button
+                onClick={() => navigate(path)}
+                className={[
+                  'w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-left cursor-pointer',
+                  'transition-all duration-150',
+                  active
+                    ? 'bg-surface-2 text-text'
+                    : 'text-text-muted hover:bg-surface-2 hover:text-text',
+                ].join(' ')}
+                aria-current={active ? 'page' : undefined}
+              >
+                {IconComp && <IconComp />}
+                <span className="font-medium">{label}</span>
+              </button>
+              {extra}
+            </React.Fragment>
           )
         })}
       </nav>

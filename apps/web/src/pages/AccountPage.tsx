@@ -104,7 +104,7 @@ function TelegramLinkSection({ jwt }: { jwt: string }): JSX.Element {
               void handleGenerate()
             }}
             disabled={generating}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-accent text-bg hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-accent text-bg hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
           >
             <IconLink className="w-4 h-4" />
             {generating ? 'Generating…' : 'Generate link token'}
@@ -124,7 +124,7 @@ function TelegramLinkSection({ jwt }: { jwt: string }): JSX.Element {
               onClick={() => {
                 void handleCopy(`/link ${token}`)
               }}
-              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer"
               style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}
               aria-label="Copy link command"
             >
@@ -197,7 +197,7 @@ function BillingSection({ tier, jwt }: { tier: string; jwt: string }): JSX.Eleme
               void handleBillingClick()
             }}
             disabled={loading}
-            className="px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+            className="px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 cursor-pointer"
             style={{
               background: tier === 'pro' ? 'var(--surface-2)' : 'var(--accent)',
               color: tier === 'pro' ? 'var(--text-muted)' : 'var(--bg)',

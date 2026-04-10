@@ -246,7 +246,7 @@ export function AppShell(): JSX.Element {
                 )}
               </>
             ) : (
-              <span className="font-display font-semibold text-sm">v1.0.0</span>
+              <span className="font-display font-semibold text-sm">v{__APP_VERSION__}</span>
             )}
           </div>
           <div className="ml-auto flex items-center gap-2">

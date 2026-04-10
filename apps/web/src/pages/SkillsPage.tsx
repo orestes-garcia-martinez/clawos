@@ -63,7 +63,7 @@ export function SkillsPage(): JSX.Element {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(-1)}
-                className="p-2 rounded-xl text-text-muted hover:text-text hover:bg-surface-2 transition-all duration-150"
+                className="p-2 rounded-xl text-text-muted hover:text-text hover:bg-surface-2 transition-all duration-150 cursor-pointer"
                 aria-label="Go back"
               >
                 {/* Left arrow */}
@@ -201,7 +201,7 @@ export function SkillsPage(): JSX.Element {
 
                       <button
                         onClick={() => navigate(`/${skill.key}/chat`)}
-                        className="w-full py-2.5 rounded-xl text-sm font-semibold border transition-all duration-150 hover:bg-surface-2 text-text-muted mt-auto"
+                        className="w-full py-2.5 rounded-xl text-sm font-semibold border transition-all duration-150 hover:bg-surface-2 text-text-muted mt-auto cursor-pointer"
                         style={{ borderColor: 'var(--border)' }}
                       >
                         Open workspace →
