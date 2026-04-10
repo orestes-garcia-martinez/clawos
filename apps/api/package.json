@@ -20,7 +20,7 @@
     "@clawos/billing": "*",
     "@clawos/security": "*",
     "@clawos/shared": "*",
-    "@hono/node-server": "^1.13.0",
+    "@hono/node-server": "^1.19.13",
     "hono": "^4.12.8",
     "openai": "^4.96.0",
     "pdf-parse": "^1.1.1",
