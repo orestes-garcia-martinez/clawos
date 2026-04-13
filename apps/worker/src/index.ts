@@ -36,7 +36,21 @@ if (!WORKER_SECRET) {
 }
 
 const WORKER_SECRET_BUF = Buffer.from(WORKER_SECRET)
-const SKILL_EXECUTION_TIMEOUT_MS = Number(process.env.SKILL_EXECUTION_TIMEOUT_MS ?? 30_000)
+
+function numberEnv(key: string, fallback: number): number {
+  const raw = process.env[key]
+  if (!raw) return fallback
+
+  const value = Number(raw)
+  if (!Number.isFinite(value) || value <= 0) {
+    console.error(`[worker] Fatal: environment variable "${key}" must be a positive number.`)
+    process.exit(1)
+  }
+
+  return value
+}
+
+const SKILL_EXECUTION_TIMEOUT_MS = numberEnv('SKILL_EXECUTION_TIMEOUT_MS', 60_000)
 
 class SkillExecutionTimeoutError extends Error {
   constructor(

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.21.1] (2026-04-13)
+
+### Bug Fixes
+
+- **api:** validate numeric worker timeout env, use an explicit API-side worker request timeout, and add structured CareerClaw briefing worker telemetry to diagnose timeouts ([fbcd95f](https://github.com/orestes-garcia-martinez/clawos/commit/fbcd95fd7a487c6545593a26b9d9a5b76cfbced0))
+
 ## [0.21.0] (2026-04-10)
 
 ### Features

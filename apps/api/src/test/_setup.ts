@@ -61,6 +61,7 @@ vi.mock('../env.js', () => ({
     CLAWOS_OPENAI_KEY: 'sk-test',
     WORKER_URL: 'http://localhost:3002',
     WORKER_SECRET: 'test-worker-secret',
+    WORKER_REQUEST_TIMEOUT_MS: 65000,
     SKILL_ASSERTION_PRIVATE_KEY: 'test-private-key',
     SKILL_ASSERTION_KEY_ID: 'skill-assertion-current',
     ALLOWED_ORIGIN: 'http://localhost:5173',

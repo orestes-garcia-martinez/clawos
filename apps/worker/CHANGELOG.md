@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.1] (2026-04-13)
+
+### Bug Fixes
+
+- **worker:** raise and validate the skill execution timeout, and strip `careerclaw.llm_outreach_draft` from synchronous briefing execution so Pro briefings stop timing out in the hot path ([fbcd95f](https://github.com/orestes-garcia-martinez/clawos/commit/fbcd95fd7a487c6545593a26b9d9a5b76cfbced0))
+
 ## [0.10.0] (2026-04-10)
 
 ### Features

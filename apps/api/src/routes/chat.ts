@@ -1463,6 +1463,7 @@ export async function chatHandler(c: Context): Promise<Response> {
         const effectiveTier = entitlements.effectiveTier
         const maxTopK = featureSet.has('careerclaw.topk_extended') ? 10 : 3
         const topK = Math.min(toolInput.topK ?? maxTopK, maxTopK)
+        const briefingFeatureList = [...featureSet].sort()
 
         const assertion = issueSkillAssertion({
           userId,
@@ -1472,6 +1473,17 @@ export async function chatHandler(c: Context): Promise<Response> {
         })
 
         await sendProgress('fetching', 'Fetching jobs...')
+
+        console.log(
+          JSON.stringify({
+            event: 'careerclaw_briefing_worker_request',
+            rid,
+            userId,
+            tier: effectiveTier,
+            topK,
+            features: briefingFeatureList,
+          }),
+        )
 
         let workerResult
         try {
@@ -1507,6 +1519,9 @@ export async function chatHandler(c: Context): Promise<Response> {
             rid,
             userId,
             errorCode,
+            tier: effectiveTier,
+            topK,
+            features: briefingFeatureList,
             message: err instanceof Error ? err.message : String(err),
             durationMs: Date.now() - startMs,
           })
@@ -1535,6 +1550,26 @@ export async function chatHandler(c: Context): Promise<Response> {
         const jobCount = (briefing['matches'] as unknown[])?.length ?? 0
         const topMatch = (briefing['matches'] as Array<{ score?: number }>)?.[0]
         const topScore = topMatch?.score ?? null
+        const runMeta = (briefing['run'] ?? {}) as Record<string, unknown>
+        const runTimings = (runMeta['timings'] ?? {}) as Record<string, unknown>
+
+        console.log(
+          JSON.stringify({
+            event: 'careerclaw_briefing_worker_result',
+            rid,
+            userId,
+            tier: effectiveTier,
+            topK,
+            features: briefingFeatureList,
+            workerDurationMs: workerResult.durationMs,
+            jobCount,
+            topScore,
+            fetchMs: runTimings['fetch_ms'] ?? null,
+            rankMs: runTimings['rank_ms'] ?? null,
+            draftMs: runTimings['draft_ms'] ?? null,
+            persistMs: runTimings['persist_ms'] ?? null,
+          }),
+        )
 
         // Forensic: log briefing worker signal
         logWorkerSignal({

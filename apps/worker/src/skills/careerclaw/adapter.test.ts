@@ -12,6 +12,7 @@ const mockCreateClawOsExecutionContext = vi.fn((params) => ({
 
 vi.mock('careerclaw-js', () => ({
   CAREERCLAW_FEATURES: {
+    LLM_OUTREACH_DRAFT: 'careerclaw.llm_outreach_draft',
     TOPK_EXTENDED: 'careerclaw.topk_extended',
   },
   createClawOsExecutionContext: mockCreateClawOsExecutionContext,
@@ -21,6 +22,7 @@ vi.mock('careerclaw-js', () => ({
 }))
 
 const {
+  buildCareerClawBriefingExecutionContext,
   buildCareerClawExecutionContext,
   buildCareerClawProfile,
   careerClawAdapter,
@@ -45,7 +47,12 @@ const PRO_CTX: VerifiedSkillExecutionContext = {
   ...FREE_CTX,
   userId: '00000000-0000-0000-0000-000000000002',
   tier: 'pro',
-  features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
+  features: [
+    'careerclaw.topk_extended',
+    'careerclaw.llm_outreach_draft',
+    'careerclaw.llm_gap_analysis',
+    'careerclaw.tailored_cover_letter',
+  ],
   requestId: 'req-pro',
 }
 
@@ -145,11 +152,42 @@ describe('CareerClaw mapping helpers', () => {
       source: 'clawos',
       verified: true,
       tier: 'pro',
-      features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
+      features: [
+        'careerclaw.topk_extended',
+        'careerclaw.llm_outreach_draft',
+        'careerclaw.llm_gap_analysis',
+        'careerclaw.tailored_cover_letter',
+      ],
     })
     expect(mockCreateClawOsExecutionContext).toHaveBeenCalledWith({
       tier: 'pro',
-      features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
+      features: [
+        'careerclaw.topk_extended',
+        'careerclaw.llm_outreach_draft',
+        'careerclaw.llm_gap_analysis',
+        'careerclaw.tailored_cover_letter',
+      ],
+    })
+  })
+
+  it('omits llm_outreach_draft from the synchronous briefing execution context', () => {
+    expect(buildCareerClawBriefingExecutionContext(PRO_CTX)).toEqual({
+      source: 'clawos',
+      verified: true,
+      tier: 'pro',
+      features: [
+        'careerclaw.topk_extended',
+        'careerclaw.llm_gap_analysis',
+        'careerclaw.tailored_cover_letter',
+      ],
+    })
+    expect(mockCreateClawOsExecutionContext).toHaveBeenCalledWith({
+      tier: 'pro',
+      features: [
+        'careerclaw.topk_extended',
+        'careerclaw.llm_gap_analysis',
+        'careerclaw.tailored_cover_letter',
+      ],
     })
   })
 })
@@ -247,7 +285,11 @@ describe('careerClawAdapter.execute', () => {
       expect.objectContaining({ topK: 10, dryRun: true }),
       expect.objectContaining({
         tier: 'pro',
-        features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
+        features: [
+          'careerclaw.topk_extended',
+          'careerclaw.llm_gap_analysis',
+          'careerclaw.tailored_cover_letter',
+        ],
       }),
     )
   })
@@ -296,7 +338,12 @@ describe('careerClawGapAnalysisAdapter.execute', () => {
         source: 'clawos',
         verified: true,
         tier: 'pro',
-        features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
+        features: [
+          'careerclaw.topk_extended',
+          'careerclaw.llm_outreach_draft',
+          'careerclaw.llm_gap_analysis',
+          'careerclaw.tailored_cover_letter',
+        ],
       },
     })
     expect(result).toEqual(
@@ -383,7 +430,12 @@ describe('careerClawCoverLetterAdapter.execute', () => {
           source: 'clawos',
           verified: true,
           tier: 'pro',
-          features: ['careerclaw.topk_extended', 'careerclaw.llm_gap_analysis'],
+          features: [
+            'careerclaw.topk_extended',
+            'careerclaw.llm_outreach_draft',
+            'careerclaw.llm_gap_analysis',
+            'careerclaw.tailored_cover_letter',
+          ],
         },
       },
     )
