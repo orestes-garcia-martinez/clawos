@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.19.0...v0.19.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* **worker:** prevent careerclaw briefing timeouts ([#191](https://github.com/orestes-garcia-martinez/clawos/issues/191)) ([d5fcb5f](https://github.com/orestes-garcia-martinez/clawos/commit/d5fcb5f25844ba95c2b6de7ee0c8c9091ca5fdf2))
+
 ## [0.19.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.18.0...v0.19.0) (2026-04-10)
 
 
