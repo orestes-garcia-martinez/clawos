@@ -59,6 +59,21 @@ export function buildCareerClawExecutionContext(
   })
 }
 
+export function buildCareerClawBriefingExecutionContext(
+  ctx: VerifiedSkillExecutionContext,
+): ClawOsExecutionContext {
+  // Keep the synchronous briefing hot path deterministic; expensive Pro draft
+  // enhancement remains available on explicit follow-up actions.
+  const features = ctx.features.filter(
+    (feature) => feature !== CAREERCLAW_FEATURES.LLM_OUTREACH_DRAFT,
+  )
+
+  return createClawOsExecutionContext({
+    tier: ctx.tier,
+    features,
+  })
+}
+
 export const careerClawAdapter = {
   slug: 'careerclaw' as const,
   validateInput(input: unknown): CareerClawWorkerInput {
@@ -87,7 +102,7 @@ export const careerClawAdapter = {
             }
           : {}),
       },
-      buildCareerClawExecutionContext(ctx),
+      buildCareerClawBriefingExecutionContext(ctx),
     )
 
     // Intentional: BriefingResult is typed by careerclaw-js; we erase to Record

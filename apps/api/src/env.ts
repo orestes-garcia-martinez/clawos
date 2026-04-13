@@ -21,8 +21,21 @@ function optionalEnv(key: string): string | undefined {
   return process.env[key] || undefined
 }
 
+function numberEnv(key: string, fallback: number): number {
+  const raw = process.env[key]
+  if (!raw) return fallback
+
+  const value = Number(raw)
+  if (!Number.isFinite(value) || value <= 0) {
+    console.error(`[api] Fatal: environment variable "${key}" must be a positive number. Exiting.`)
+    process.exit(1)
+  }
+
+  return value
+}
+
 export const ENV = {
-  PORT: Number(process.env['PORT'] ?? 3001),
+  PORT: numberEnv('PORT', 3001),
 
   // Supabase
   SUPABASE_URL: requireEnv('SUPABASE_URL'),
@@ -35,6 +48,7 @@ export const ENV = {
   // Lightsail skill worker
   WORKER_URL: requireEnv('WORKER_URL'),
   WORKER_SECRET: requireEnv('WORKER_SECRET'),
+  WORKER_REQUEST_TIMEOUT_MS: numberEnv('WORKER_REQUEST_TIMEOUT_MS', 65_000),
 
   // Signed skill assertions (API -> worker)
   SKILL_ASSERTION_PRIVATE_KEY: requireEnv('SKILL_ASSERTION_PRIVATE_KEY'),

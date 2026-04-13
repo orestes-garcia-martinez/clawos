@@ -5,8 +5,9 @@
  * The worker is the only process that executes skill adapters.
  *
  * Auth: x-worker-secret header — shared secret, never in URLs or logs.
- * Timeout: 60s hard limit — raised from 30s after observing careerclaw runs
- * taking up to 47s in production. Matches the worker's current CLI_TIMEOUT_MS.
+ * Timeout: API-side deadline is configured via env and must stay slightly
+ * higher than the worker's own execution timeout so worker-originated 504s
+ * are surfaced cleanly instead of being masked by client aborts.
  */
 
 import type {
@@ -19,7 +20,7 @@ import type {
 } from '@clawos/shared'
 import { ENV } from './env.js'
 
-const WORKER_TIMEOUT_MS = 60_000
+const WORKER_TIMEOUT_MS = ENV.WORKER_REQUEST_TIMEOUT_MS
 
 export class WorkerError extends Error {
   constructor(
