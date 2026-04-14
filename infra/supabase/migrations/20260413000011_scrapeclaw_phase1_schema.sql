@@ -30,10 +30,15 @@ create index if not exists scrapeclaw_businesses_user_id_idx on public.scrapecla
 create index if not exists scrapeclaw_businesses_niche_slug_idx on public.scrapeclaw_businesses (niche_slug);
 
 alter table public.scrapeclaw_businesses enable row level security;
+drop policy if exists "Users can view their own ScrapeClaw businesses" on public.scrapeclaw_businesses;
 create policy "Users can view their own ScrapeClaw businesses" on public.scrapeclaw_businesses for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their own ScrapeClaw businesses" on public.scrapeclaw_businesses;
 create policy "Users can insert their own ScrapeClaw businesses" on public.scrapeclaw_businesses for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can update their own ScrapeClaw businesses" on public.scrapeclaw_businesses;
 create policy "Users can update their own ScrapeClaw businesses" on public.scrapeclaw_businesses for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their own ScrapeClaw businesses" on public.scrapeclaw_businesses;
 create policy "Users can delete their own ScrapeClaw businesses" on public.scrapeclaw_businesses for delete using (auth.uid() = user_id);
+drop trigger if exists scrapeclaw_businesses_updated_at on public.scrapeclaw_businesses;
 create trigger scrapeclaw_businesses_updated_at before update on public.scrapeclaw_businesses for each row execute function public.set_updated_at();
 
 create table if not exists public.scrapeclaw_prospects (
@@ -62,10 +67,15 @@ create table if not exists public.scrapeclaw_prospects (
 create index if not exists scrapeclaw_prospects_user_id_status_idx on public.scrapeclaw_prospects (user_id, status);
 
 alter table public.scrapeclaw_prospects enable row level security;
+drop policy if exists "Users can view their own ScrapeClaw prospects" on public.scrapeclaw_prospects;
 create policy "Users can view their own ScrapeClaw prospects" on public.scrapeclaw_prospects for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their own ScrapeClaw prospects" on public.scrapeclaw_prospects;
 create policy "Users can insert their own ScrapeClaw prospects" on public.scrapeclaw_prospects for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can update their own ScrapeClaw prospects" on public.scrapeclaw_prospects;
 create policy "Users can update their own ScrapeClaw prospects" on public.scrapeclaw_prospects for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their own ScrapeClaw prospects" on public.scrapeclaw_prospects;
 create policy "Users can delete their own ScrapeClaw prospects" on public.scrapeclaw_prospects for delete using (auth.uid() = user_id);
+drop trigger if exists scrapeclaw_prospects_updated_at on public.scrapeclaw_prospects;
 create trigger scrapeclaw_prospects_updated_at before update on public.scrapeclaw_prospects for each row execute function public.set_updated_at();
 
 create table if not exists public.scrapeclaw_evidence_items (
@@ -88,9 +98,13 @@ create index if not exists scrapeclaw_evidence_items_user_id_idx on public.scrap
 create index if not exists scrapeclaw_evidence_items_prospect_id_idx on public.scrapeclaw_evidence_items (prospect_id);
 
 alter table public.scrapeclaw_evidence_items enable row level security;
+drop policy if exists "Users can view their own ScrapeClaw evidence items" on public.scrapeclaw_evidence_items;
 create policy "Users can view their own ScrapeClaw evidence items" on public.scrapeclaw_evidence_items for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their own ScrapeClaw evidence items" on public.scrapeclaw_evidence_items;
 create policy "Users can insert their own ScrapeClaw evidence items" on public.scrapeclaw_evidence_items for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can update their own ScrapeClaw evidence items" on public.scrapeclaw_evidence_items;
 create policy "Users can update their own ScrapeClaw evidence items" on public.scrapeclaw_evidence_items for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their own ScrapeClaw evidence items" on public.scrapeclaw_evidence_items;
 create policy "Users can delete their own ScrapeClaw evidence items" on public.scrapeclaw_evidence_items for delete using (auth.uid() = user_id);
 
 create table if not exists public.scrapeclaw_demo_packages (
@@ -122,10 +136,15 @@ create index if not exists scrapeclaw_demo_packages_user_id_status_idx on public
 create index if not exists scrapeclaw_demo_packages_prospect_id_idx on public.scrapeclaw_demo_packages (prospect_id);
 
 alter table public.scrapeclaw_demo_packages enable row level security;
+drop policy if exists "Users can view their own ScrapeClaw demo packages" on public.scrapeclaw_demo_packages;
 create policy "Users can view their own ScrapeClaw demo packages" on public.scrapeclaw_demo_packages for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their own ScrapeClaw demo packages" on public.scrapeclaw_demo_packages;
 create policy "Users can insert their own ScrapeClaw demo packages" on public.scrapeclaw_demo_packages for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can update their own ScrapeClaw demo packages" on public.scrapeclaw_demo_packages;
 create policy "Users can update their own ScrapeClaw demo packages" on public.scrapeclaw_demo_packages for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their own ScrapeClaw demo packages" on public.scrapeclaw_demo_packages;
 create policy "Users can delete their own ScrapeClaw demo packages" on public.scrapeclaw_demo_packages for delete using (auth.uid() = user_id);
+drop trigger if exists scrapeclaw_demo_packages_updated_at on public.scrapeclaw_demo_packages;
 create trigger scrapeclaw_demo_packages_updated_at before update on public.scrapeclaw_demo_packages for each row execute function public.set_updated_at();
 
 create table if not exists public.scrapeclaw_package_attachments (
@@ -148,9 +167,13 @@ create table if not exists public.scrapeclaw_package_attachments (
 create index if not exists scrapeclaw_package_attachments_user_id_idx on public.scrapeclaw_package_attachments (user_id);
 
 alter table public.scrapeclaw_package_attachments enable row level security;
+drop policy if exists "Users can view their own ScrapeClaw package attachments" on public.scrapeclaw_package_attachments;
 create policy "Users can view their own ScrapeClaw package attachments" on public.scrapeclaw_package_attachments for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their own ScrapeClaw package attachments" on public.scrapeclaw_package_attachments;
 create policy "Users can insert their own ScrapeClaw package attachments" on public.scrapeclaw_package_attachments for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can update their own ScrapeClaw package attachments" on public.scrapeclaw_package_attachments;
 create policy "Users can update their own ScrapeClaw package attachments" on public.scrapeclaw_package_attachments for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their own ScrapeClaw package attachments" on public.scrapeclaw_package_attachments;
 create policy "Users can delete their own ScrapeClaw package attachments" on public.scrapeclaw_package_attachments for delete using (auth.uid() = user_id);
 
 create table if not exists public.scrapeclaw_outbound_drafts (
@@ -175,8 +198,13 @@ create table if not exists public.scrapeclaw_outbound_drafts (
 create index if not exists scrapeclaw_outbound_drafts_user_id_status_idx on public.scrapeclaw_outbound_drafts (user_id, status);
 
 alter table public.scrapeclaw_outbound_drafts enable row level security;
+drop policy if exists "Users can view their own ScrapeClaw outbound drafts" on public.scrapeclaw_outbound_drafts;
 create policy "Users can view their own ScrapeClaw outbound drafts" on public.scrapeclaw_outbound_drafts for select using (auth.uid() = user_id);
+drop policy if exists "Users can insert their own ScrapeClaw outbound drafts" on public.scrapeclaw_outbound_drafts;
 create policy "Users can insert their own ScrapeClaw outbound drafts" on public.scrapeclaw_outbound_drafts for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can update their own ScrapeClaw outbound drafts" on public.scrapeclaw_outbound_drafts;
 create policy "Users can update their own ScrapeClaw outbound drafts" on public.scrapeclaw_outbound_drafts for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their own ScrapeClaw outbound drafts" on public.scrapeclaw_outbound_drafts;
 create policy "Users can delete their own ScrapeClaw outbound drafts" on public.scrapeclaw_outbound_drafts for delete using (auth.uid() = user_id);
+drop trigger if exists scrapeclaw_outbound_drafts_updated_at on public.scrapeclaw_outbound_drafts;
 create trigger scrapeclaw_outbound_drafts_updated_at before update on public.scrapeclaw_outbound_drafts for each row execute function public.set_updated_at();
