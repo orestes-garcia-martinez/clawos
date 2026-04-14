@@ -1,7 +1,7 @@
 {
   "name": "clawos",
   "private": true,
-  "version": "0.19.1",
+  "version": "1.0.0",
   "description": "ClawOS — Multi-channel AI agent platform",
   "type": "module",
   "workspaces": [
