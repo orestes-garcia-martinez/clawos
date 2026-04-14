@@ -8,6 +8,6 @@ export interface SkillAdapter<TInput = unknown, TResult = unknown> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const skillRegistry: Record<SkillSlug, SkillAdapter<any, any>> = {
+export const skillRegistry: Partial<Record<SkillSlug, SkillAdapter<any, any>>> = {
   careerclaw: careerClawAdapter,
 }

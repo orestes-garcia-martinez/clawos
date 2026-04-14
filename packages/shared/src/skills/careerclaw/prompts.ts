@@ -1,15 +1,23 @@
 /**
- * careerclaw.ts — CareerClaw system prompt and tool definitions.
+ * prompts.ts — CareerClaw system prompt and Claude tool definitions.
  *
- * Exported from @clawos/shared so every channel adapter imports the same
- * prompt. Business logic lives in careerclaw-js; this file governs how
- * the Agent layer describes that logic to Claude.
+ * Located at: packages/shared/src/skills/careerclaw/prompts.ts
  *
- * Tools:
- *   run_careerclaw      — invoke the skill worker (job fetch + score + drafts)
- *   run_gap_analysis    — post-briefing deep dive for a specific match (Pro)
- *   run_cover_letter    — post-briefing cover letter for a specific match (Pro)
- *   track_application   — write directly to careerclaw_job_tracking in Supabase
+ * Exported from @clawos/shared so every channel adapter (web, telegram,
+ * API) imports the same prompt and tool schemas. Business logic lives in
+ * careerclaw-js; this file governs how the Agent layer describes that
+ * logic to Claude.
+ *
+ * Exports:
+ *   CAREERCLAW_SYSTEM_PROMPT  — full system prompt injected into every Claude call
+ *   RUN_CAREERCLAW_TOOL       — tool schema: invoke the skill worker (briefing)
+ *   RUN_GAP_ANALYSIS_TOOL     — tool schema: post-briefing gap analysis (Pro)
+ *   RUN_COVER_LETTER_TOOL     — tool schema: post-briefing cover letter (Pro)
+ *   TRACK_APPLICATION_TOOL    — tool schema: write to careerclaw_job_tracking
+ *
+ * Input types:
+ *   RunCareerClawInput, RunGapAnalysisInput, RunCoverLetterInput,
+ *   TrackApplicationInput — TypeScript interfaces matching each tool's input_schema.
  *
  * v2.0 — Prompt engineering improvements:
  *   - Added <role> tag wrapping identity/scope

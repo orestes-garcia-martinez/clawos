@@ -4,10 +4,11 @@ import {
   sign as nodeSign,
   verify as nodeVerify,
 } from 'node:crypto'
+import { SKILL_SLUGS } from '@clawos/shared'
 import { z } from 'zod'
 import { TierSchema } from './schemas.js'
 
-export const SkillSlugSchema = z.enum(['careerclaw'])
+export const SkillSlugSchema = z.enum(SKILL_SLUGS)
 
 const SkillAssertionHeaderSchema = z.object({
   alg: z.literal('EdDSA'),

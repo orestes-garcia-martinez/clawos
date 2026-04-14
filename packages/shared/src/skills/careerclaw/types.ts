@@ -1,39 +1,16 @@
-/**
- * skills.ts — shared platform skill contracts.
- *
- * These types define the ClawOS-side contract between:
- *   - Agent API
- *   - worker
- *   - first-party skill adapters
- *
- * They are intentionally generic enough to scale to future skills while
- * still exporting the concrete CareerClaw worker input contract used today.
- */
-
-export type SkillSlug = 'careerclaw'
-export type SkillFeatureKey = string
-
-export interface VerifiedSkillExecutionContext {
-  source: 'clawos'
-  verified: true
-  userId: string
-  skill: SkillSlug
-  tier: 'free' | 'pro'
-  features: SkillFeatureKey[]
-  requestId: string
-  issuedAt: number
-  expiresAt: number
-}
-
-export interface WorkerSkillRunRequest<TInput> {
-  assertion: string
-  input: TInput
-}
-
-export interface WorkerSkillRunResult<TResult> {
-  result: TResult
-  durationMs: number
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// CareerClaw skill types — worker input contracts for the CareerClaw skill.
+//
+// These types define the API ↔ worker boundary for CareerClaw:
+//   - CareerClawWorkerProfile  — user profile shape sent to the worker
+//   - SearchOverrides          — session-scoped search refinements from the agent
+//   - CareerClawWorkerInput    — primary briefing input
+//   - CareerClawGapAnalysisWorkerInput  — post-briefing gap analysis input
+//   - CareerClawCoverLetterWorkerInput  — post-briefing cover letter input
+//
+// Business logic lives in careerclaw-js; these types govern the serialisation
+// boundary between the API server and the Lightsail skill worker.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface CareerClawWorkerProfile {
   name?: string
@@ -86,27 +63,27 @@ export interface CareerClawWorkerInput {
 
 /**
  * Worker input for post-briefing gap analysis.
- * The API serializes cached ScoredJob + ResumeIntelligence from the briefing cache.
+ * The API serialises cached ScoredJob + ResumeIntelligence from the briefing cache.
  * The worker adapter casts these to careerclaw-js types internally.
  */
 export interface CareerClawGapAnalysisWorkerInput {
-  /** Serialized ScoredJob from careerclaw-js */
+  /** Serialised ScoredJob from careerclaw-js */
   match: Record<string, unknown>
-  /** Serialized ResumeIntelligence from careerclaw-js */
+  /** Serialised ResumeIntelligence from careerclaw-js */
   resumeIntel: Record<string, unknown>
 }
 
 /**
  * Worker input for post-briefing cover letter generation.
- * The API serializes cached match data + profile + resume intel.
+ * The API serialises cached match data + profile + resume intel.
  * Accepts optional precomputed gap to avoid redundant analysis.
  */
 export interface CareerClawCoverLetterWorkerInput {
-  /** Serialized ScoredJob from careerclaw-js */
+  /** Serialised ScoredJob from careerclaw-js */
   match: Record<string, unknown>
   /** User profile for the cover letter prompt */
   profile: CareerClawWorkerProfile
-  /** Serialized ResumeIntelligence from careerclaw-js */
+  /** Serialised ResumeIntelligence from careerclaw-js */
   resumeIntel: Record<string, unknown>
   /** Optional: resume text for fallback intelligence resolution */
   resumeText?: string

@@ -27,6 +27,10 @@ const SKILL_FEATURES: Record<SkillSlug, { free: string[]; pro: string[] }> = {
       'careerclaw.topk_extended',
     ],
   },
+  scrapeclaw: {
+    free: [],
+    pro: [],
+  },
 }
 
 function freeTierDefaults(skillSlug: SkillSlug): SkillEntitlements {

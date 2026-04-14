@@ -15,6 +15,7 @@ import {
   CareerClawCoverLetterRequestSchema,
   buildAuditEntry,
 } from '@clawos/security'
+import { SKILL_SLUGS } from '@clawos/shared'
 import type { SkillSlug } from '@clawos/shared'
 import { warmEmbeddingProvider } from 'careerclaw-js'
 import { verifyAndConsumeSkillAssertion } from './assertion-verifier.js'
@@ -204,12 +205,18 @@ function requireWorkerSecret(req: Request, res: Response, next: NextFunction): v
 }
 
 function isSkillSlug(value: string): value is SkillSlug {
-  return value === 'careerclaw'
+  return (SKILL_SLUGS as readonly string[]).includes(value)
 }
 
 app.post('/run/:skill', requireWorkerSecret, async (req: Request, res: Response): Promise<void> => {
   const skillParam = req.params['skill']
   if (typeof skillParam !== 'string' || !isSkillSlug(skillParam)) {
+    res.status(404).json({ error: 'Unknown skill' })
+    return
+  }
+
+  const adapter = skillRegistry[skillParam]
+  if (!adapter) {
     res.status(404).json({ error: 'Unknown skill' })
     return
   }
@@ -226,7 +233,6 @@ app.post('/run/:skill', requireWorkerSecret, async (req: Request, res: Response)
   }
 
   const startMs = Date.now()
-  const adapter = skillRegistry[skillParam]
   const input = adapter.validateInput(parseResult.data.input)
 
   await runWorkerAction(
