@@ -1,6 +1,12 @@
 -- ============================================================================
 -- Migration: 20260413000011_scrapeclaw_phase1_schema.sql
 -- ScrapeClaw phase 1 — shared contracts and persistence foundations
+--
+-- Tenant isolation strategy: every child table carries its own user_id column
+-- and uses a composite (user_id, parent_id) foreign key rather than a simple
+-- parent_id FK. This guarantees at the constraint level that a row cannot
+-- reference a parent that belongs to a different user, closing the cross-tenant
+-- link vector that a simple FK + RLS-only policy would leave open.
 -- ============================================================================
 
 create table if not exists public.scrapeclaw_businesses (
@@ -15,7 +21,9 @@ create table if not exists public.scrapeclaw_businesses (
   service_area_text text check (service_area_text is null or char_length(service_area_text) <= 500),
   niche_slug text not null default 'residential_property_management' check (char_length(niche_slug) <= 120),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- Composite unique required so child tables can use (user_id, business_id) FKs
+  unique (user_id, id)
 );
 
 create index if not exists scrapeclaw_businesses_user_id_idx on public.scrapeclaw_businesses (user_id);
@@ -31,7 +39,7 @@ create trigger scrapeclaw_businesses_updated_at before update on public.scrapecl
 create table if not exists public.scrapeclaw_prospects (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
-  business_id uuid not null references public.scrapeclaw_businesses(id) on delete cascade,
+  business_id uuid not null,
   status text not null default 'discovered' check (status in ('discovered', 'qualified', 'disqualified', 'packaged', 'contacted', 'archived')),
   wedge_slug text not null default 'residential_property_management' check (char_length(wedge_slug) <= 120),
   market_city text check (market_city is null or char_length(market_city) <= 120),
@@ -44,7 +52,11 @@ create table if not exists public.scrapeclaw_prospects (
   confidence_level text check (confidence_level is null or confidence_level in ('low', 'medium', 'high')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (user_id, business_id)
+  -- Composite FK: ensures business_id belongs to the same user (not a different tenant's business)
+  foreign key (user_id, business_id) references public.scrapeclaw_businesses(user_id, id) on delete cascade,
+  unique (user_id, business_id),
+  -- Composite unique required so child tables can use (user_id, prospect_id) FKs
+  unique (user_id, id)
 );
 
 create index if not exists scrapeclaw_prospects_user_id_status_idx on public.scrapeclaw_prospects (user_id, status);
@@ -59,7 +71,7 @@ create trigger scrapeclaw_prospects_updated_at before update on public.scrapecla
 create table if not exists public.scrapeclaw_evidence_items (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
-  prospect_id uuid not null references public.scrapeclaw_prospects(id) on delete cascade,
+  prospect_id uuid not null,
   page_kind text not null check (page_kind in ('homepage', 'about', 'services', 'contact', 'niche_relevant', 'other')),
   source_url text not null check (char_length(source_url) <= 2000),
   observed_at timestamptz not null default now(),
@@ -67,7 +79,9 @@ create table if not exists public.scrapeclaw_evidence_items (
   snippet text check (snippet is null or char_length(snippet) <= 4000),
   extracted_facts jsonb not null default '{}'::jsonb,
   source_confidence text check (source_confidence is null or source_confidence in ('low', 'medium', 'high')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Composite FK: ensures prospect_id belongs to the same user
+  foreign key (user_id, prospect_id) references public.scrapeclaw_prospects(user_id, id) on delete cascade
 );
 
 create index if not exists scrapeclaw_evidence_items_user_id_idx on public.scrapeclaw_evidence_items (user_id);
@@ -82,7 +96,7 @@ create policy "Users can delete their own ScrapeClaw evidence items" on public.s
 create table if not exists public.scrapeclaw_demo_packages (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
-  prospect_id uuid not null references public.scrapeclaw_prospects(id) on delete cascade,
+  prospect_id uuid not null,
   status text not null default 'draft' check (status in ('generating', 'draft', 'approved', 'queued', 'sent', 'failed', 'archived', 'rejected')),
   template_slug text check (template_slug is null or char_length(template_slug) <= 120),
   summary_markdown text,
@@ -97,7 +111,11 @@ create table if not exists public.scrapeclaw_demo_packages (
   failed_at timestamptz,
   archived_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- Composite FK: ensures prospect_id belongs to the same user
+  foreign key (user_id, prospect_id) references public.scrapeclaw_prospects(user_id, id) on delete cascade,
+  -- Composite unique required so child tables can use (user_id, package_id) FKs
+  unique (user_id, id)
 );
 
 create index if not exists scrapeclaw_demo_packages_user_id_status_idx on public.scrapeclaw_demo_packages (user_id, status);
@@ -113,7 +131,7 @@ create trigger scrapeclaw_demo_packages_updated_at before update on public.scrap
 create table if not exists public.scrapeclaw_package_attachments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
-  package_id uuid not null references public.scrapeclaw_demo_packages(id) on delete cascade,
+  package_id uuid not null,
   kind text not null check (kind in ('csv', 'json', 'manifest', 'summary_pdf')),
   storage_path text not null check (char_length(storage_path) <= 1000),
   mime_type text not null check (char_length(mime_type) <= 255),
@@ -122,6 +140,8 @@ create table if not exists public.scrapeclaw_package_attachments (
   row_count integer check (row_count is null or row_count >= 0),
   schema_version text not null default '1.0',
   created_at timestamptz not null default now(),
+  -- Composite FK: ensures package_id belongs to the same user
+  foreign key (user_id, package_id) references public.scrapeclaw_demo_packages(user_id, id) on delete cascade,
   unique (package_id, kind)
 );
 
@@ -136,8 +156,8 @@ create policy "Users can delete their own ScrapeClaw package attachments" on pub
 create table if not exists public.scrapeclaw_outbound_drafts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
-  prospect_id uuid not null references public.scrapeclaw_prospects(id) on delete cascade,
-  package_id uuid not null references public.scrapeclaw_demo_packages(id) on delete cascade,
+  prospect_id uuid not null,
+  package_id uuid not null,
   status text not null default 'draft' check (status in ('draft', 'approved', 'queued', 'sent', 'failed', 'archived')),
   to_email text check (to_email is null or char_length(to_email) <= 320),
   cc_email text check (cc_email is null or char_length(cc_email) <= 320),
@@ -146,7 +166,10 @@ create table if not exists public.scrapeclaw_outbound_drafts (
   provider_message_id text check (provider_message_id is null or char_length(provider_message_id) <= 300),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  sent_at timestamptz
+  sent_at timestamptz,
+  -- Composite FKs: ensures both prospect_id and package_id belong to the same user
+  foreign key (user_id, prospect_id) references public.scrapeclaw_prospects(user_id, id) on delete cascade,
+  foreign key (user_id, package_id) references public.scrapeclaw_demo_packages(user_id, id) on delete cascade
 );
 
 create index if not exists scrapeclaw_outbound_drafts_user_id_status_idx on public.scrapeclaw_outbound_drafts (user_id, status);
