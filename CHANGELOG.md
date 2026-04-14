@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.19.1...v1.0.0) (2026-04-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **shared:** SkillSlug expands to 'careerclaw' | 'scrapeclaw'. Any Record<SkillSlug, …> that omits scrapeclaw is a TypeScript error. Any switch over SkillSlug must handle the scrapeclaw branch.
+
+### Features
+
+* **shared:** add scrapeclaw phase 1 — shared contracts, DB schema, multi-skill dispatch ([#193](https://github.com/orestes-garcia-martinez/clawos/issues/193)) ([41302c6](https://github.com/orestes-garcia-martinez/clawos/commit/41302c6d369b9b1a24acc8e37836dc93b2dc06c7))
+
 ## [0.19.1](https://github.com/orestes-garcia-martinez/clawos/compare/v0.19.0...v0.19.1) (2026-04-13)
 
 
