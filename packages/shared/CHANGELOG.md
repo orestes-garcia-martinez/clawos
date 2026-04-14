@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.0] (2026-04-13)
+
+### ⚠ BREAKING CHANGES
+
+- **skills:** `SkillSlug` is now `'careerclaw' | 'scrapeclaw'`. Any `Record<SkillSlug, …>` that omits `scrapeclaw` is a TypeScript error. Any exhaustive switch over `SkillSlug` must add a `scrapeclaw` branch.
+
+### Features
+
+- **skills:** restructure into `platform/`, `supabase/`, and `skills/` submodules — public barrel (`index.ts`) is unchanged
+- **scrapeclaw:** add phase 1 shared contracts — domain interfaces, enums, storage path builders, and Supabase DB row aliases for `scrapeclaw_businesses`, `scrapeclaw_prospects`, `scrapeclaw_evidence_items`, `scrapeclaw_demo_packages`, `scrapeclaw_package_attachments`, `scrapeclaw_outbound_drafts`
+- **skills:** add `SKILL_SLUGS` constant (`['careerclaw', 'scrapeclaw'] as const`) so consumers can derive `SkillSlug` and validate at runtime without duplicating the list
+- **careerclaw:** move DB aliases, types, and prompts into `skills/careerclaw/` submodule
+
 ## [0.10.0] (2026-04-10)
 
 ### Features

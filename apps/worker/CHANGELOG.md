@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.2] (2026-04-13)
+
+### Bug Fixes
+
+- **worker:** `isSkillSlug` now uses `SKILL_SLUGS.includes()` instead of `value === 'careerclaw'` so new skills are accepted without a code change
+- **worker:** move adapter existence check before skill-specific request parsing — recognised-but-unimplemented slugs (e.g. `scrapeclaw`) now return 404 instead of a misleading 400
+- **registry:** type `skillRegistry` as `Partial<Record<SkillSlug, …>>` to allow valid slugs that don't yet have a worker adapter
+
 ## [0.10.1] (2026-04-13)
 
 ### Bug Fixes

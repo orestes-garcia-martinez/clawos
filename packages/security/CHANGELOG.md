@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.0] (2026-04-13)
+
+### ⚠ BREAKING CHANGES
+
+- **assertions:** `SkillSlugSchema` now derives from `SKILL_SLUGS` (imported from `@clawos/shared`) rather than a hardcoded `z.enum(['careerclaw'])`. The schema now accepts `'scrapeclaw'`; callers that relied on the enum rejecting unknown slugs should be aware the allowed set can expand when `SKILL_SLUGS` grows.
+
+### Features
+
+- **assertions:** `SkillSlugSchema` is now driven by `SKILL_SLUGS` — no manual sync required when new skills are added to `@clawos/shared`
+
 ## [0.5.0] (2026-04-10)
 
 ### Features

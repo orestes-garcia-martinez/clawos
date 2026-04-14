@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.0] (2026-04-13)
+
+### Features
+
+- **entitlements:** add `scrapeclaw` entry to `SKILL_FEATURES` so `resolveSkillEntitlements` handles the full `SkillSlug` union without a runtime crash or TypeScript error
+
 ## [0.21.1] (2026-04-13)
 
 ### Bug Fixes

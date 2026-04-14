@@ -246,6 +246,390 @@ export type Database = {
           },
         ]
       }
+      scrapeclaw_businesses: {
+        Row: {
+          business_type: string | null
+          canonical_website_url: string | null
+          city: string | null
+          created_at: string
+          id: string
+          name: string
+          niche_slug: string
+          service_area_text: string | null
+          source_url: string | null
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          business_type?: string | null
+          canonical_website_url?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          niche_slug?: string
+          service_area_text?: string | null
+          source_url?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          business_type?: string | null
+          canonical_website_url?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          niche_slug?: string
+          service_area_text?: string | null
+          source_url?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'scrapeclaw_businesses_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      scrapeclaw_demo_packages: {
+        Row: {
+          approved_at: string | null
+          archived_at: string | null
+          created_at: string
+          evidence_references: Json
+          failed_at: string | null
+          finalized_at: string | null
+          id: string
+          manifest: Json
+          prospect_id: string
+          queued_at: string | null
+          schema_version: string
+          sent_at: string | null
+          status: string
+          summary_markdown: string | null
+          template_slug: string | null
+          updated_at: string
+          user_id: string
+          validation_errors: Json
+        }
+        Insert: {
+          approved_at?: string | null
+          archived_at?: string | null
+          created_at?: string
+          evidence_references?: Json
+          failed_at?: string | null
+          finalized_at?: string | null
+          id?: string
+          manifest?: Json
+          prospect_id: string
+          queued_at?: string | null
+          schema_version?: string
+          sent_at?: string | null
+          status?: string
+          summary_markdown?: string | null
+          template_slug?: string | null
+          updated_at?: string
+          user_id: string
+          validation_errors?: Json
+        }
+        Update: {
+          approved_at?: string | null
+          archived_at?: string | null
+          created_at?: string
+          evidence_references?: Json
+          failed_at?: string | null
+          finalized_at?: string | null
+          id?: string
+          manifest?: Json
+          prospect_id?: string
+          queued_at?: string | null
+          schema_version?: string
+          sent_at?: string | null
+          status?: string
+          summary_markdown?: string | null
+          template_slug?: string | null
+          updated_at?: string
+          user_id?: string
+          validation_errors?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'scrapeclaw_demo_packages_prospect_id_fkey'
+            columns: ['prospect_id']
+            isOneToOne: false
+            referencedRelation: 'scrapeclaw_prospects'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'scrapeclaw_demo_packages_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      scrapeclaw_evidence_items: {
+        Row: {
+          created_at: string
+          extracted_facts: Json
+          id: string
+          observed_at: string
+          page_kind: string
+          prospect_id: string
+          snippet: string | null
+          source_confidence: string | null
+          source_url: string
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          extracted_facts?: Json
+          id?: string
+          observed_at?: string
+          page_kind: string
+          prospect_id: string
+          snippet?: string | null
+          source_confidence?: string | null
+          source_url: string
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          extracted_facts?: Json
+          id?: string
+          observed_at?: string
+          page_kind?: string
+          prospect_id?: string
+          snippet?: string | null
+          source_confidence?: string | null
+          source_url?: string
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'scrapeclaw_evidence_items_prospect_id_fkey'
+            columns: ['prospect_id']
+            isOneToOne: false
+            referencedRelation: 'scrapeclaw_prospects'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'scrapeclaw_evidence_items_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      scrapeclaw_outbound_drafts: {
+        Row: {
+          body_markdown: string
+          cc_email: string | null
+          created_at: string
+          id: string
+          package_id: string
+          prospect_id: string
+          provider_message_id: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+          to_email: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body_markdown: string
+          cc_email?: string | null
+          created_at?: string
+          id?: string
+          package_id: string
+          prospect_id: string
+          provider_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+          to_email?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body_markdown?: string
+          cc_email?: string | null
+          created_at?: string
+          id?: string
+          package_id?: string
+          prospect_id?: string
+          provider_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          to_email?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'scrapeclaw_outbound_drafts_package_id_fkey'
+            columns: ['package_id']
+            isOneToOne: false
+            referencedRelation: 'scrapeclaw_demo_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'scrapeclaw_outbound_drafts_prospect_id_fkey'
+            columns: ['prospect_id']
+            isOneToOne: false
+            referencedRelation: 'scrapeclaw_prospects'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'scrapeclaw_outbound_drafts_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      scrapeclaw_package_attachments: {
+        Row: {
+          byte_size: number | null
+          created_at: string
+          id: string
+          kind: string
+          mime_type: string
+          package_id: string
+          row_count: number | null
+          schema_version: string
+          sha256: string | null
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          byte_size?: number | null
+          created_at?: string
+          id?: string
+          kind: string
+          mime_type: string
+          package_id: string
+          row_count?: number | null
+          schema_version?: string
+          sha256?: string | null
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          byte_size?: number | null
+          created_at?: string
+          id?: string
+          kind?: string
+          mime_type?: string
+          package_id?: string
+          row_count?: number | null
+          schema_version?: string
+          sha256?: string | null
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'scrapeclaw_package_attachments_package_id_fkey'
+            columns: ['package_id']
+            isOneToOne: false
+            referencedRelation: 'scrapeclaw_demo_packages'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'scrapeclaw_package_attachments_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      scrapeclaw_prospects: {
+        Row: {
+          business_id: string
+          confidence_level: string | null
+          created_at: string
+          data_need_hypothesis: string | null
+          demo_type_recommendation: string | null
+          fit_score: number | null
+          id: string
+          market_city: string | null
+          market_region: string | null
+          outreach_angle: string | null
+          status: string
+          updated_at: string
+          use_case_hypothesis: string | null
+          user_id: string
+          wedge_slug: string
+        }
+        Insert: {
+          business_id: string
+          confidence_level?: string | null
+          created_at?: string
+          data_need_hypothesis?: string | null
+          demo_type_recommendation?: string | null
+          fit_score?: number | null
+          id?: string
+          market_city?: string | null
+          market_region?: string | null
+          outreach_angle?: string | null
+          status?: string
+          updated_at?: string
+          use_case_hypothesis?: string | null
+          user_id: string
+          wedge_slug?: string
+        }
+        Update: {
+          business_id?: string
+          confidence_level?: string | null
+          created_at?: string
+          data_need_hypothesis?: string | null
+          demo_type_recommendation?: string | null
+          fit_score?: number | null
+          id?: string
+          market_city?: string | null
+          market_region?: string | null
+          outreach_angle?: string | null
+          status?: string
+          updated_at?: string
+          use_case_hypothesis?: string | null
+          user_id?: string
+          wedge_slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'scrapeclaw_prospects_business_id_fkey'
+            columns: ['business_id']
+            isOneToOne: false
+            referencedRelation: 'scrapeclaw_businesses'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'scrapeclaw_prospects_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       sessions: {
         Row: {
           channel: string
