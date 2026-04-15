@@ -1,16 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { VerifiedSkillExecutionContext } from '@clawos/shared'
 
 const mockRun = vi.fn()
 vi.mock('@clawos/scrapeclaw-engine', () => ({ runScrapeClawAgent1Research: mockRun }))
 
 const { scrapeClawResearchAdapter } = await import('./adapter.js')
 
-const VERIFIED_CTX = {
-  source: 'clawos' as const,
+const VERIFIED_CTX: VerifiedSkillExecutionContext = {
+  source: 'clawos',
   verified: true,
   userId: '00000000-0000-0000-0000-000000000001',
-  skill: 'scrapeclaw' as const,
-  tier: 'free' as const,
+  skill: 'scrapeclaw',
+  tier: 'free',
   features: [],
   requestId: 'req-1',
   issuedAt: 1,

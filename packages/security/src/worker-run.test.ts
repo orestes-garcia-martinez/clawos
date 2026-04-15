@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { CareerClawCoverLetterInputSchema, CareerClawGapAnalysisInputSchema, ScrapeClawResearchWorkerInputSchema } from './worker-run.js'
+import {
+  CareerClawCoverLetterInputSchema,
+  CareerClawGapAnalysisInputSchema,
+  ScrapeClawResearchWorkerInputSchema,
+} from './worker-run.js'
 
 const MATCH = {
   job: {

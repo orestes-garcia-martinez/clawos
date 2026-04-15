@@ -133,18 +133,18 @@ function isSsrfSafeUrl(url: string): boolean {
   if (ipv4) {
     const a = Number(ipv4[1])
     const b = Number(ipv4[2])
-    if (a === 0) return false                          // 0.0.0.0/8
-    if (a === 10) return false                         // 10.0.0.0/8 private
+    if (a === 0) return false // 0.0.0.0/8
+    if (a === 10) return false // 10.0.0.0/8 private
     if (a === 100 && b >= 64 && b <= 127) return false // 100.64.0.0/10 shared
-    if (a === 127) return false                        // 127.0.0.0/8 loopback
-    if (a === 169 && b === 254) return false           // 169.254.0.0/16 link-local (AWS metadata)
-    if (a === 172 && b >= 16 && b <= 31) return false  // 172.16.0.0/12 private
-    if (a === 192 && b === 168) return false           // 192.168.0.0/16 private
+    if (a === 127) return false // 127.0.0.0/8 loopback
+    if (a === 169 && b === 254) return false // 169.254.0.0/16 link-local (AWS metadata)
+    if (a === 172 && b >= 16 && b <= 31) return false // 172.16.0.0/12 private
+    if (a === 192 && b === 168) return false // 192.168.0.0/16 private
   }
   if (host.startsWith('[')) {
     const ipv6 = host.slice(1, -1).toLowerCase()
-    if (ipv6 === '::1') return false                   // loopback
-    if (ipv6.startsWith('fe80:')) return false         // link-local
+    if (ipv6 === '::1') return false // loopback
+    if (ipv6.startsWith('fe80:')) return false // link-local
     if (ipv6.startsWith('fc') || ipv6.startsWith('fd')) return false // unique local
   }
   return true

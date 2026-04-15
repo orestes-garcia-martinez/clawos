@@ -172,5 +172,7 @@ export const ScrapeClawResearchRunRequestSchema = z.object({
   input: ScrapeClawResearchWorkerInputSchema,
 })
 
-export type ScrapeClawResearchWorkerInputParsed = z.infer<typeof ScrapeClawResearchWorkerInputSchema>
+export type ScrapeClawResearchWorkerInputParsed = z.infer<
+  typeof ScrapeClawResearchWorkerInputSchema
+>
 export type ScrapeClawResearchRunRequestInput = z.infer<typeof ScrapeClawResearchRunRequestSchema>

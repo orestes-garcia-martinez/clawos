@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.0] (2026-04-15)
+
+### Features
+
+- **security:** add ScrapeClawResearchWorkerInputSchema and ScrapeClawResearchRunRequestSchema with HTTPS-only URL refinement ([c2f937c](https://github.com/orestes-garcia-martinez/clawos/commit/c2f937cd6f7c5f4446f27ca87842957612532862))
+
 ## [1.0.0] (2026-04-13)
 
 ### ⚠ BREAKING CHANGES
