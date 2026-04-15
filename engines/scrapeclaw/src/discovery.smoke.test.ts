@@ -41,6 +41,12 @@ describe.skipIf(!API_KEY)('Google Places smoke tests (live — requires API key)
         locationRestriction: { rectangle: SCRAPECLAW_CLAY_COUNTY_BOUNDING_BOX },
       })
 
+      console.log(
+        '[textSearchGooglePlaces] places (%d):',
+        response.places?.length ?? 0,
+        JSON.stringify(response.places, null, 2),
+      )
+
       expect(Array.isArray(response.places)).toBe(true)
       expect(response.places!.length).toBeGreaterThan(0)
 
@@ -72,6 +78,8 @@ describe.skipIf(!API_KEY)('Google Places smoke tests (live — requires API key)
         placeId: placeId!,
       })
 
+      console.log('[getGooglePlaceDetails] details:', JSON.stringify(details, null, 2))
+
       expect(details.id).toBe(placeId)
       expect(details.displayName?.text).toBeTruthy()
       // websiteUri is optional — just confirm the shape is returned without throwing
@@ -94,6 +102,9 @@ describe.skipIf(!API_KEY)('Google Places smoke tests (live — requires API key)
       },
       { apiKey: API_KEY! },
     )
+
+    console.log('[discoverPlaceSeeds/primary] plannedQueries:', JSON.stringify(result.plannedQueries, null, 2))
+    console.log('[discoverPlaceSeeds/primary] placeSeeds (%d):', result.placeSeeds.length, JSON.stringify(result.placeSeeds, null, 2))
 
     expect(result.plannedQueries.length).toBeGreaterThanOrEqual(1)
     expect(result.plannedQueries[0]?.queryKind).toBe('primary')
@@ -126,6 +137,9 @@ describe.skipIf(!API_KEY)('Google Places smoke tests (live — requires API key)
         { apiKey: API_KEY! },
       )
 
+      console.log('[discoverPlaceSeeds/fallback] plannedQueries:', JSON.stringify(result.plannedQueries, null, 2))
+      console.log('[discoverPlaceSeeds/fallback] placeSeeds (%d):', result.placeSeeds.length, JSON.stringify(result.placeSeeds, null, 2))
+
       expect(result.plannedQueries.length).toBe(2)
       expect(result.plannedQueries[1]?.queryKind).toBe('fallback')
       expect(result.placeSeeds.length).toBeGreaterThan(0)
@@ -156,6 +170,8 @@ describe.skipIf(!API_KEY)('Google Places smoke tests (live — requires API key)
 
     // Resolve first seed — whatever the API returns is fine as long as it doesn't throw
     const resolved = await resolvePlaceSeedWebsite(seeds[0]!, { apiKey: API_KEY! })
+
+    console.log('[resolvePlaceSeedWebsite] resolved:', JSON.stringify(resolved, null, 2))
 
     if (resolved !== null) {
       expect(resolved.websiteUri).toMatch(/^https?:\/\//)
