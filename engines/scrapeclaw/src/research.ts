@@ -16,7 +16,7 @@ import {
   SCRAPECLAW_DEFAULT_MAX_PAGES_PER_BUSINESS,
   SCRAPECLAW_DEFAULT_USER_AGENT,
 } from './constants.js'
-import type { PageSummary, RunScrapeClawResearchOptions } from './types.js'
+import type { DnsLookupFn, PageSummary, RunScrapeClawResearchOptions } from './types.js'
 import {
   collapseWhitespace,
   extractAnchors,
@@ -119,6 +119,18 @@ function prioritiseLinks(
   push('niche_relevant', 2)
   return out.slice(0, Math.max(0, maxPages - 1))
 }
+function isPrivateIpv4(a: number, b: number): boolean {
+  return (
+    a === 0 || // 0.0.0.0/8
+    a === 10 || // 10.0.0.0/8 private
+    (a === 100 && b >= 64 && b <= 127) || // 100.64.0.0/10 shared
+    a === 127 || // 127.0.0.0/8 loopback
+    (a === 169 && b === 254) || // 169.254.0.0/16 link-local (AWS metadata)
+    (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12 private
+    (a === 192 && b === 168) // 192.168.0.0/16 private
+  )
+}
+
 function isSsrfSafeUrl(url: string): boolean {
   let parsed: URL
   try {
@@ -129,25 +141,58 @@ function isSsrfSafeUrl(url: string): boolean {
   if (parsed.protocol !== 'https:') return false
   const host = parsed.hostname
   if (host === 'localhost') return false
+  // IPv4 literal
   const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
   if (ipv4) {
-    const a = Number(ipv4[1])
-    const b = Number(ipv4[2])
-    if (a === 0) return false // 0.0.0.0/8
-    if (a === 10) return false // 10.0.0.0/8 private
-    if (a === 100 && b >= 64 && b <= 127) return false // 100.64.0.0/10 shared
-    if (a === 127) return false // 127.0.0.0/8 loopback
-    if (a === 169 && b === 254) return false // 169.254.0.0/16 link-local (AWS metadata)
-    if (a === 172 && b >= 16 && b <= 31) return false // 172.16.0.0/12 private
-    if (a === 192 && b === 168) return false // 192.168.0.0/16 private
+    return !isPrivateIpv4(Number(ipv4[1]), Number(ipv4[2]))
   }
+  // IPv6 literal
   if (host.startsWith('[')) {
     const ipv6 = host.slice(1, -1).toLowerCase()
     if (ipv6 === '::1') return false // loopback
     if (ipv6.startsWith('fe80:')) return false // link-local
     if (ipv6.startsWith('fc') || ipv6.startsWith('fd')) return false // unique local
+    // IPv4-mapped IPv6 (::ffff:w.x.y.z) routes to the embedded IPv4 address
+    if (ipv6.startsWith('::ffff:')) return false
   }
   return true
+}
+
+/** Validates a resolved DNS address (from dns.lookup) against private/reserved ranges. */
+function isDnsAddressSafe(address: string, family: number): boolean {
+  if (family === 6) {
+    const ip = address.toLowerCase()
+    if (ip === '::1') return false // loopback
+    if (ip.startsWith('fe80:')) return false // link-local
+    if (ip.startsWith('fc') || ip.startsWith('fd')) return false // unique local
+    if (ip.startsWith('::ffff:')) return false // IPv4-mapped
+    return true
+  }
+  // IPv4
+  const m = address.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (!m) return true
+  return !isPrivateIpv4(Number(m[1]), Number(m[2]))
+}
+
+/**
+ * Async SSRF guard: runs the synchronous URL check then pre-resolves the
+ * hostname via DNS and validates every returned address.
+ *
+ * Note: a TOCTOU gap exists between this check and the actual TCP connection.
+ * VPC-level egress filtering (Lightsail security groups) is the proper
+ * defense-in-depth backstop for production.
+ */
+async function assertSsrfSafeUrl(url: string, dnsLookupImpl: DnsLookupFn): Promise<void> {
+  if (!isSsrfSafeUrl(url)) throw new Error(`Blocked unsafe URL: ${url}`)
+  const { hostname } = new URL(url)
+  // IP literals are already fully validated by isSsrfSafeUrl above
+  if (/^[\d.]+$/.test(hostname) || hostname.startsWith('[')) return
+  const records = await dnsLookupImpl(hostname)
+  for (const { address, family } of records) {
+    if (!isDnsAddressSafe(address, family)) {
+      throw new Error(`Blocked: ${hostname} resolves to reserved address ${address}`)
+    }
+  }
 }
 
 async function fetchHtml(
@@ -155,8 +200,9 @@ async function fetchHtml(
   timeoutMs: number,
   userAgent: string,
   fetchImpl: typeof fetch,
+  dnsLookupImpl: DnsLookupFn,
 ): Promise<string> {
-  if (!isSsrfSafeUrl(url)) throw new Error(`Blocked unsafe URL: ${url}`)
+  await assertSsrfSafeUrl(url, dnsLookupImpl)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -301,12 +347,13 @@ async function researchCandidate(
   candidate: ScrapeClawResearchCandidateBusinessInput,
   input: ScrapeClawResearchWorkerInput,
   fetchImpl: typeof fetch,
+  dnsLookupImpl: DnsLookupFn,
 ): Promise<ScrapeClawResearchProspectResult> {
   const timeoutMs = input.fetchTimeoutMs ?? SCRAPECLAW_DEFAULT_FETCH_TIMEOUT_MS
   const maxPages = input.maxPagesPerBusiness ?? SCRAPECLAW_DEFAULT_MAX_PAGES_PER_BUSINESS
   const userAgent = input.userAgent ?? SCRAPECLAW_DEFAULT_USER_AGENT
   const websiteUrl = normaliseUrl(candidate.canonicalWebsiteUrl)
-  const homepageHtml = await fetchHtml(websiteUrl, timeoutMs, userAgent, fetchImpl)
+  const homepageHtml = await fetchHtml(websiteUrl, timeoutMs, userAgent, fetchImpl, dnsLookupImpl)
   const nowIso = new Date().toISOString()
   const evidencePages: PageSummary[] = [buildPageSummary('homepage', websiteUrl, homepageHtml)]
   for (const nextPage of prioritiseLinks(websiteUrl, homepageHtml, maxPages)) {
@@ -315,7 +362,7 @@ async function researchCandidate(
         buildPageSummary(
           nextPage.pageKind,
           nextPage.url,
-          await fetchHtml(nextPage.url, timeoutMs, userAgent, fetchImpl),
+          await fetchHtml(nextPage.url, timeoutMs, userAgent, fetchImpl, dnsLookupImpl),
         ),
       )
     } catch {
@@ -356,6 +403,12 @@ export async function runScrapeClawAgent1Research(
 ): Promise<ScrapeClawResearchWorkerResult> {
   const fetchImpl = options.fetchImpl ?? globalThis.fetch
   if (!fetchImpl) throw new Error('Global fetch is not available in this runtime')
+  const dnsLookupImpl: DnsLookupFn =
+    options.dnsLookupImpl ??
+    (async (hostname) => {
+      const { lookup } = await import('node:dns/promises')
+      return lookup(hostname, { all: true })
+    })
   const rankedProspects: ScrapeClawResearchProspectResult[] = []
   const discardedBusinesses: ScrapeClawResearchWorkerResult['discardedBusinesses'] = []
   for (const candidate of input.candidates.slice(
@@ -363,7 +416,7 @@ export async function runScrapeClawAgent1Research(
     input.maxCandidates ?? SCRAPECLAW_DEFAULT_MAX_CANDIDATES,
   )) {
     try {
-      rankedProspects.push(await researchCandidate(candidate, input, fetchImpl))
+      rankedProspects.push(await researchCandidate(candidate, input, fetchImpl, dnsLookupImpl))
     } catch (error) {
       discardedBusinesses.push({
         business: candidate,

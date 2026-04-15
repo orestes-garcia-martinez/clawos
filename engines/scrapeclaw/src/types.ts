@@ -17,8 +17,12 @@ export interface PageSummary {
   extractedFacts: Json
 }
 
+export type DnsLookupFn = (hostname: string) => Promise<Array<{ address: string; family: number }>>
+
 export interface RunScrapeClawResearchOptions {
   fetchImpl?: typeof fetch
+  /** Injectable DNS resolver — defaults to node:dns/promises lookup. Override in tests to avoid real DNS. */
+  dnsLookupImpl?: DnsLookupFn
 }
 
 export type { ScrapeClawResearchWorkerInput, ScrapeClawResearchWorkerResult }
