@@ -103,8 +103,15 @@ describe.skipIf(!API_KEY)('Google Places smoke tests (live — requires API key)
       { apiKey: API_KEY! },
     )
 
-    console.log('[discoverPlaceSeeds/primary] plannedQueries:', JSON.stringify(result.plannedQueries, null, 2))
-    console.log('[discoverPlaceSeeds/primary] placeSeeds (%d):', result.placeSeeds.length, JSON.stringify(result.placeSeeds, null, 2))
+    console.log(
+      '[discoverPlaceSeeds/primary] plannedQueries:',
+      JSON.stringify(result.plannedQueries, null, 2),
+    )
+    console.log(
+      '[discoverPlaceSeeds/primary] placeSeeds (%d):',
+      result.placeSeeds.length,
+      JSON.stringify(result.placeSeeds, null, 2),
+    )
 
     expect(result.plannedQueries.length).toBeGreaterThanOrEqual(1)
     expect(result.plannedQueries[0]?.queryKind).toBe('primary')
@@ -137,8 +144,15 @@ describe.skipIf(!API_KEY)('Google Places smoke tests (live — requires API key)
         { apiKey: API_KEY! },
       )
 
-      console.log('[discoverPlaceSeeds/fallback] plannedQueries:', JSON.stringify(result.plannedQueries, null, 2))
-      console.log('[discoverPlaceSeeds/fallback] placeSeeds (%d):', result.placeSeeds.length, JSON.stringify(result.placeSeeds, null, 2))
+      console.log(
+        '[discoverPlaceSeeds/fallback] plannedQueries:',
+        JSON.stringify(result.plannedQueries, null, 2),
+      )
+      console.log(
+        '[discoverPlaceSeeds/fallback] placeSeeds (%d):',
+        result.placeSeeds.length,
+        JSON.stringify(result.placeSeeds, null, 2),
+      )
 
       expect(result.plannedQueries.length).toBe(2)
       expect(result.plannedQueries[1]?.queryKind).toBe('fallback')
