@@ -206,8 +206,13 @@ const VALID_SCRAPECLAW_PAYLOAD = {
 
 describe('scrapeclaw dispatch', () => {
   it('accepts a valid scrapeclaw request through the generic route', async () => {
-    mockVerifyAndConsumeSkillAssertion.mockResolvedValueOnce({ ...VERIFIED_CTX, skill: 'scrapeclaw' })
-    mockScrapeClawExecute.mockResolvedValueOnce({ rankedProspects: [{ business: { name: 'Example PM' } }] })
+    mockVerifyAndConsumeSkillAssertion.mockResolvedValueOnce({
+      ...VERIFIED_CTX,
+      skill: 'scrapeclaw',
+    })
+    mockScrapeClawExecute.mockResolvedValueOnce({
+      rankedProspects: [{ business: { name: 'Example PM' } }],
+    })
     const res = await request(app)
       .post('/run/scrapeclaw')
       .set('x-worker-secret', 'test-secret-abc123')
