@@ -6,10 +6,11 @@
   "type": "module",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "engines/*"
   ],
   "scripts": {
-    "build:packages": "npm run build --workspace=packages/shared --workspace=packages/security --workspace=packages/billing",
+    "build:packages": "npm run build --workspace=packages/shared --workspace=packages/security --workspace=packages/billing --workspace=engines/scrapeclaw",
     "postinstall": "npm run build:packages",
     "build": "npm run build:packages && turbo run build",
     "dev": "turbo run dev",

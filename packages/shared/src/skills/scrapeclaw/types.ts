@@ -163,3 +163,64 @@ export interface ScrapeClawOutboundDraft {
   updatedAt: string
   sentAt: string | null
 }
+
+export interface ScrapeClawResearchCandidateBusinessInput {
+  name: string
+  canonicalWebsiteUrl: string
+  sourceUrl?: string | null
+  businessType?: string | null
+  city?: string | null
+  state?: string | null
+  serviceAreaText?: string | null
+  nicheSlug?: ScrapeClawWedgeSlug | null
+}
+
+export interface ScrapeClawEvidenceDraft {
+  pageKind: ScrapeClawEvidencePageKind
+  sourceUrl: string
+  observedAt: string
+  title: string | null
+  snippet: string | null
+  extractedFacts: Json
+  sourceConfidence: ScrapeClawConfidenceLevel | null
+}
+
+export interface ScrapeClawProspectDraft {
+  status: Extract<ScrapeClawProspectStatus, 'qualified' | 'disqualified'>
+  wedgeSlug: ScrapeClawWedgeSlug
+  marketCity: string
+  marketRegion: string
+  fitScore: number
+  useCaseHypothesis: string
+  dataNeedHypothesis: string
+  demoTypeRecommendation: string
+  outreachAngle: string
+  confidenceLevel: ScrapeClawConfidenceLevel
+}
+
+export interface ScrapeClawResearchProspectResult {
+  business: ScrapeClawResearchCandidateBusinessInput
+  prospect: ScrapeClawProspectDraft
+  evidenceItems: ScrapeClawEvidenceDraft[]
+  reasoning: string[]
+}
+
+export interface ScrapeClawResearchWorkerInput {
+  wedgeSlug: ScrapeClawWedgeSlug
+  marketCity: string
+  marketRegion: string
+  candidates: ScrapeClawResearchCandidateBusinessInput[]
+  maxCandidates?: number
+  maxPagesPerBusiness?: number
+  fetchTimeoutMs?: number
+  userAgent?: string | null
+}
+
+export interface ScrapeClawResearchWorkerResult {
+  wedgeSlug: ScrapeClawWedgeSlug
+  marketCity: string
+  marketRegion: string
+  generatedAt: string
+  rankedProspects: ScrapeClawResearchProspectResult[]
+  discardedBusinesses: Array<{ business: ScrapeClawResearchCandidateBusinessInput; reason: string }>
+}

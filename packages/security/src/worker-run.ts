@@ -138,3 +138,39 @@ export type CareerClawWorkerInputParsed = z.infer<typeof CareerClawWorkerInputSc
 export type CareerClawRunRequestInput = z.infer<typeof CareerClawRunRequestSchema>
 export type CareerClawGapAnalysisInputParsed = z.infer<typeof CareerClawGapAnalysisInputSchema>
 export type CareerClawCoverLetterInputParsed = z.infer<typeof CareerClawCoverLetterInputSchema>
+
+const httpsUrl = z
+  .string()
+  .url()
+  .max(2_000)
+  .refine((url) => url.startsWith('https://'), { message: 'URL must use HTTPS' })
+
+const ScrapeClawCandidateBusinessSchema = z.object({
+  name: z.string().min(1).max(300),
+  canonicalWebsiteUrl: httpsUrl,
+  sourceUrl: httpsUrl.nullable().optional(),
+  businessType: z.string().max(120).nullable().optional(),
+  city: z.string().max(120).nullable().optional(),
+  state: z.string().max(120).nullable().optional(),
+  serviceAreaText: z.string().max(500).nullable().optional(),
+  nicheSlug: z.enum(['residential_property_management']).nullable().optional(),
+})
+
+export const ScrapeClawResearchWorkerInputSchema = z.object({
+  wedgeSlug: z.enum(['residential_property_management']),
+  marketCity: z.string().min(1).max(120),
+  marketRegion: z.string().min(1).max(120),
+  candidates: z.array(ScrapeClawCandidateBusinessSchema).min(1).max(50),
+  maxCandidates: z.number().int().min(1).max(50).optional(),
+  maxPagesPerBusiness: z.number().int().min(1).max(6).optional(),
+  fetchTimeoutMs: z.number().int().min(1_000).max(20_000).optional(),
+  userAgent: z.string().max(300).nullable().optional(),
+})
+
+export const ScrapeClawResearchRunRequestSchema = z.object({
+  assertion: WorkerAssertionTokenSchema,
+  input: ScrapeClawResearchWorkerInputSchema,
+})
+
+export type ScrapeClawResearchWorkerInputParsed = z.infer<typeof ScrapeClawResearchWorkerInputSchema>
+export type ScrapeClawResearchRunRequestInput = z.infer<typeof ScrapeClawResearchRunRequestSchema>
