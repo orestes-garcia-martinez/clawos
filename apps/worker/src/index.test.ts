@@ -38,7 +38,7 @@ process.env.SKILL_ASSERTION_PUBLIC_KEYS_JSON = JSON.stringify({
   'skill-assertion-current': '-----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----',
 })
 
-const { app } = await import('./index.js')
+const { app } = await import('./app.js')
 const { InvalidSkillAssertionError } = await import('./assertion-verifier.js')
 
 const VALID_PAYLOAD = {
@@ -218,7 +218,10 @@ describe('scrapeclaw dispatch', () => {
       .set('x-worker-secret', 'test-secret-abc123')
       .send(VALID_SCRAPECLAW_PAYLOAD)
     expect(res.status).toBe(200)
-    expect(mockScrapeClawValidateInput).toHaveBeenCalledWith(VALID_SCRAPECLAW_PAYLOAD.input)
+    expect(mockScrapeClawValidateInput).toHaveBeenCalledWith({
+      ...VALID_SCRAPECLAW_PAYLOAD.input,
+      mode: 'research',
+    })
     expect(mockScrapeClawExecute).toHaveBeenCalled()
   })
 })

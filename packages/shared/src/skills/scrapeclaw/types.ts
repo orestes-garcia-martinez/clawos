@@ -16,6 +16,22 @@ import type { Json } from '../../types/database.types.js'
 export const SCRAPECLAW_WEDGE_SLUGS = ['residential_property_management'] as const
 export type ScrapeClawWedgeSlug = (typeof SCRAPECLAW_WEDGE_SLUGS)[number]
 
+export const SCRAPECLAW_BUSINESS_STATUSES = ['discovered', 'researched', 'archived'] as const
+export type ScrapeClawBusinessStatus = (typeof SCRAPECLAW_BUSINESS_STATUSES)[number]
+
+export const SCRAPECLAW_DISCOVERY_PROVIDERS = ['google_places'] as const
+export type ScrapeClawDiscoveryProvider = (typeof SCRAPECLAW_DISCOVERY_PROVIDERS)[number]
+
+export const SCRAPECLAW_DISCOVERY_QUERY_KINDS = ['primary', 'fallback'] as const
+export type ScrapeClawDiscoveryQueryKind = (typeof SCRAPECLAW_DISCOVERY_QUERY_KINDS)[number]
+
+export const SCRAPECLAW_DISCOVERY_DISCARD_REASONS = [
+  'no_website',
+  'duplicate_place',
+  'duplicate_website',
+] as const
+export type ScrapeClawDiscoveryDiscardReason = (typeof SCRAPECLAW_DISCOVERY_DISCARD_REASONS)[number]
+
 export const SCRAPECLAW_PROSPECT_STATUSES = [
   'discovered',
   'qualified',
@@ -70,13 +86,31 @@ export interface ScrapeClawBusiness {
   id: string
   userId: string
   name: string
+  status: ScrapeClawBusinessStatus
   canonicalWebsiteUrl: string | null
   sourceUrl: string | null
   businessType: string | null
   city: string | null
   state: string | null
+  formattedAddress: string | null
   serviceAreaText: string | null
   nicheSlug: string
+  discoveryProvider: ScrapeClawDiscoveryProvider | null
+  discoveryExternalId: string | null
+  discoveryQuery: string | null
+  discoveredAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ScrapeClawDiscoveryDiscard {
+  id: string
+  userId: string
+  provider: ScrapeClawDiscoveryProvider
+  externalId: string
+  reason: ScrapeClawDiscoveryDiscardReason
+  linkedBusinessId: string | null
+  metadata: Json
   createdAt: string
   updatedAt: string
 }
@@ -206,6 +240,7 @@ export interface ScrapeClawResearchProspectResult {
 }
 
 export interface ScrapeClawResearchWorkerInput {
+  mode?: 'research'
   wedgeSlug: ScrapeClawWedgeSlug
   marketCity: string
   marketRegion: string
@@ -217,6 +252,7 @@ export interface ScrapeClawResearchWorkerInput {
 }
 
 export interface ScrapeClawResearchWorkerResult {
+  mode: 'research'
   wedgeSlug: ScrapeClawWedgeSlug
   marketCity: string
   marketRegion: string
@@ -224,3 +260,53 @@ export interface ScrapeClawResearchWorkerResult {
   rankedProspects: ScrapeClawResearchProspectResult[]
   discardedBusinesses: Array<{ business: ScrapeClawResearchCandidateBusinessInput; reason: string }>
 }
+
+export interface ScrapeClawDiscoveryQueryPlan {
+  hubName: string
+  queryKind: ScrapeClawDiscoveryQueryKind
+  queryText: string
+  pageSize: number
+}
+
+export interface ScrapeClawDiscoveryWorkerInput {
+  mode: 'discover'
+  wedgeSlug: ScrapeClawWedgeSlug
+  marketRegion: string
+  hubNames?: string[]
+  minPrimaryResultsBeforeFallback?: number
+  textSearchPageSize?: number
+}
+
+export interface ScrapeClawDiscoveryInsertedBusiness {
+  businessId: string
+  name: string
+  canonicalWebsiteUrl: string
+  discoveryExternalId: string
+  hubName: string
+  queryText: string
+}
+
+export interface ScrapeClawDiscoveryDiscardedCandidate {
+  placeId: string
+  name: string
+  reason: ScrapeClawDiscoveryDiscardReason
+  hubName: string
+  queryText: string
+  existingBusinessId?: string | null
+}
+
+export interface ScrapeClawDiscoveryWorkerResult {
+  mode: 'discover'
+  wedgeSlug: ScrapeClawWedgeSlug
+  marketRegion: string
+  generatedAt: string
+  plannedQueries: ScrapeClawDiscoveryQueryPlan[]
+  insertedBusinesses: ScrapeClawDiscoveryInsertedBusiness[]
+  discardedCandidates: ScrapeClawDiscoveryDiscardedCandidate[]
+}
+
+export type ScrapeClawWorkerInput = ScrapeClawResearchWorkerInput | ScrapeClawDiscoveryWorkerInput
+
+export type ScrapeClawWorkerResult =
+  | ScrapeClawResearchWorkerResult
+  | ScrapeClawDiscoveryWorkerResult

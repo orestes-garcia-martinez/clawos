@@ -58,6 +58,7 @@ describe('runScrapeClawAgent1Research', () => {
       // Avoid real DNS lookups in tests — return a safe public IP for all hostnames
       dnsLookupImpl: async () => [{ address: '93.184.216.34', family: 4 }],
     })
+    expect(result.mode).toBe('research')
     expect(result.rankedProspects).toHaveLength(2)
     expect(result.rankedProspects[0]?.business.name).toBe('Example Property Management')
     expect(result.rankedProspects[0]?.prospect.status).toBe('qualified')

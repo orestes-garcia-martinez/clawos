@@ -252,12 +252,18 @@ export type Database = {
           canonical_website_url: string | null
           city: string | null
           created_at: string
+          discovered_at: string
+          discovery_external_id: string | null
+          discovery_provider: string | null
+          discovery_query: string | null
+          formatted_address: string | null
           id: string
           name: string
           niche_slug: string
           service_area_text: string | null
           source_url: string | null
           state: string | null
+          status: string
           updated_at: string
           user_id: string
         }
@@ -266,12 +272,18 @@ export type Database = {
           canonical_website_url?: string | null
           city?: string | null
           created_at?: string
+          discovered_at?: string
+          discovery_external_id?: string | null
+          discovery_provider?: string | null
+          discovery_query?: string | null
+          formatted_address?: string | null
           id?: string
           name: string
           niche_slug?: string
           service_area_text?: string | null
           source_url?: string | null
           state?: string | null
+          status?: string
           updated_at?: string
           user_id: string
         }
@@ -280,12 +292,18 @@ export type Database = {
           canonical_website_url?: string | null
           city?: string | null
           created_at?: string
+          discovered_at?: string
+          discovery_external_id?: string | null
+          discovery_provider?: string | null
+          discovery_query?: string | null
+          formatted_address?: string | null
           id?: string
           name?: string
           niche_slug?: string
           service_area_text?: string | null
           source_url?: string | null
           state?: string | null
+          status?: string
           updated_at?: string
           user_id?: string
         }
@@ -299,6 +317,58 @@ export type Database = {
           },
         ]
       }
+      scrapeclaw_discovery_discards: {
+        Row: {
+          created_at: string
+          external_id: string
+          id: string
+          linked_business_id: string | null
+          metadata: Json
+          provider: string
+          reason: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          external_id: string
+          id?: string
+          linked_business_id?: string | null
+          metadata?: Json
+          provider: string
+          reason: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          external_id?: string
+          id?: string
+          linked_business_id?: string | null
+          metadata?: Json
+          provider?: string
+          reason?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'scrapeclaw_discovery_discards_linked_business_id_fkey'
+            columns: ['linked_business_id']
+            isOneToOne: false
+            referencedRelation: 'scrapeclaw_businesses'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'scrapeclaw_discovery_discards_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+
       scrapeclaw_demo_packages: {
         Row: {
           approved_at: string | null

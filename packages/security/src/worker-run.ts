@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SCRAPECLAW_WEDGE_SLUGS } from '@clawos/shared'
 
 export const WorkModeSchema = z.enum(['remote', 'hybrid', 'onsite'])
 
@@ -45,12 +46,10 @@ export const CareerClawRunRequestSchema = z.object({
   input: CareerClawWorkerInputSchema,
 })
 
-// ── Post-briefing action schemas ─────────────────────────────────────────────
-
-// NOTE: ScoredJobSchema and ResumeIntelSchema mirror careerclaw-js internal types.
-// If careerclaw-js changes field shapes (additions, renames, type changes), update
-// these schemas to match — validation will silently pass stale shapes otherwise.
-// Cross-reference: careerclaw-js ScoredJob and ResumeIntelligence interfaces.
+// NOTE: ScoredJobSchema, ResumeIntelSchema, and GapAnalysisResultSchema mirror careerclaw-js
+// internal types. If careerclaw-js changes field shapes (additions, renames, type changes),
+// update these schemas to match — validation will silently pass stale shapes otherwise.
+// Cross-reference: careerclaw-js ScoredJob, ResumeIntelligence, and GapAnalysisResult interfaces.
 
 /** Serialized ScoredJob from careerclaw-js — validated structurally. */
 const ScoredJobSchema = z.object({
@@ -145,6 +144,8 @@ const httpsUrl = z
   .max(2_000)
   .refine((url) => url.startsWith('https://'), { message: 'URL must use HTTPS' })
 
+const ScrapeClawWedgeSlugSchema = z.enum(SCRAPECLAW_WEDGE_SLUGS)
+
 const ScrapeClawCandidateBusinessSchema = z.object({
   name: z.string().min(1).max(300),
   canonicalWebsiteUrl: httpsUrl,
@@ -153,18 +154,40 @@ const ScrapeClawCandidateBusinessSchema = z.object({
   city: z.string().max(120).nullable().optional(),
   state: z.string().max(120).nullable().optional(),
   serviceAreaText: z.string().max(500).nullable().optional(),
-  nicheSlug: z.enum(['residential_property_management']).nullable().optional(),
+  nicheSlug: ScrapeClawWedgeSlugSchema.nullable().optional(),
 })
 
-export const ScrapeClawResearchWorkerInputSchema = z.object({
-  wedgeSlug: z.enum(['residential_property_management']),
-  marketCity: z.string().min(1).max(120),
+export const ScrapeClawResearchWorkerInputSchema = z
+  .object({
+    mode: z.literal('research').optional(),
+    wedgeSlug: ScrapeClawWedgeSlugSchema,
+    marketCity: z.string().min(1).max(120),
+    marketRegion: z.string().min(1).max(120),
+    candidates: z.array(ScrapeClawCandidateBusinessSchema).min(1).max(50),
+    maxCandidates: z.number().int().min(1).max(50).optional(),
+    maxPagesPerBusiness: z.number().int().min(1).max(6).optional(),
+    fetchTimeoutMs: z.number().int().min(1_000).max(20_000).optional(),
+    userAgent: z.string().max(300).nullable().optional(),
+  })
+  .transform((input) => ({ ...input, mode: 'research' as const }))
+
+export const ScrapeClawDiscoveryWorkerInputSchema = z.object({
+  mode: z.literal('discover'),
+  wedgeSlug: ScrapeClawWedgeSlugSchema,
   marketRegion: z.string().min(1).max(120),
-  candidates: z.array(ScrapeClawCandidateBusinessSchema).min(1).max(50),
-  maxCandidates: z.number().int().min(1).max(50).optional(),
-  maxPagesPerBusiness: z.number().int().min(1).max(6).optional(),
-  fetchTimeoutMs: z.number().int().min(1_000).max(20_000).optional(),
-  userAgent: z.string().max(300).nullable().optional(),
+  hubNames: z.array(z.string().min(1).max(120)).min(1).max(10).optional(),
+  minPrimaryResultsBeforeFallback: z.number().int().min(1).max(20).optional(),
+  textSearchPageSize: z.number().int().min(1).max(20).optional(),
+})
+
+export const ScrapeClawWorkerInputSchema = z.union([
+  ScrapeClawResearchWorkerInputSchema,
+  ScrapeClawDiscoveryWorkerInputSchema,
+])
+
+export const ScrapeClawRunRequestSchema = z.object({
+  assertion: WorkerAssertionTokenSchema,
+  input: ScrapeClawWorkerInputSchema,
 })
 
 export const ScrapeClawResearchRunRequestSchema = z.object({
@@ -172,7 +195,18 @@ export const ScrapeClawResearchRunRequestSchema = z.object({
   input: ScrapeClawResearchWorkerInputSchema,
 })
 
+export const ScrapeClawDiscoveryRunRequestSchema = z.object({
+  assertion: WorkerAssertionTokenSchema,
+  input: ScrapeClawDiscoveryWorkerInputSchema,
+})
+
 export type ScrapeClawResearchWorkerInputParsed = z.infer<
   typeof ScrapeClawResearchWorkerInputSchema
 >
 export type ScrapeClawResearchRunRequestInput = z.infer<typeof ScrapeClawResearchRunRequestSchema>
+export type ScrapeClawDiscoveryWorkerInputParsed = z.infer<
+  typeof ScrapeClawDiscoveryWorkerInputSchema
+>
+export type ScrapeClawDiscoveryRunRequestInput = z.infer<typeof ScrapeClawDiscoveryRunRequestSchema>
+export type ScrapeClawWorkerInputParsed = z.infer<typeof ScrapeClawWorkerInputSchema>
+export type ScrapeClawRunRequestInput = z.infer<typeof ScrapeClawRunRequestSchema>

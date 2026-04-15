@@ -426,6 +426,7 @@ export async function runScrapeClawAgent1Research(
   }
   rankedProspects.sort((a, b) => b.prospect.fitScore - a.prospect.fitScore)
   return {
+    mode: 'research',
     wedgeSlug: input.wedgeSlug,
     marketCity: input.marketCity,
     marketRegion: input.marketRegion,
