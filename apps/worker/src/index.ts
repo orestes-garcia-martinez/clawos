@@ -13,6 +13,7 @@ import {
   CareerClawRunRequestSchema,
   CareerClawGapAnalysisRequestSchema,
   CareerClawCoverLetterRequestSchema,
+  ScrapeClawResearchRunRequestSchema,
   buildAuditEntry,
 } from '@clawos/security'
 import { SKILL_SLUGS } from '@clawos/shared'
@@ -221,13 +222,25 @@ app.post('/run/:skill', requireWorkerSecret, async (req: Request, res: Response)
     return
   }
 
-  const parseResult =
-    skillParam === 'careerclaw' ? CareerClawRunRequestSchema.safeParse(req.body) : null
+  const runRequestSchemaBySkill: Partial<
+    Record<SkillSlug, typeof CareerClawRunRequestSchema | typeof ScrapeClawResearchRunRequestSchema>
+  > = {
+    careerclaw: CareerClawRunRequestSchema,
+    scrapeclaw: ScrapeClawResearchRunRequestSchema,
+  }
 
-  if (!parseResult || !parseResult.success) {
+  const schema = runRequestSchemaBySkill[skillParam]
+  if (!schema) {
+    res.status(400).json({ error: 'Invalid input' })
+    return
+  }
+
+  const parseResult = schema.safeParse(req.body)
+
+  if (!parseResult.success) {
     res.status(400).json({
       error: 'Invalid input',
-      details: parseResult?.success === false ? parseResult.error.flatten() : undefined,
+      details: parseResult.error.flatten(),
     })
     return
   }

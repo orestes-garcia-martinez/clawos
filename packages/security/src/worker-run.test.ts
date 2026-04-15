@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { CareerClawCoverLetterInputSchema, CareerClawGapAnalysisInputSchema } from './worker-run.js'
+import {
+  CareerClawCoverLetterInputSchema,
+  CareerClawGapAnalysisInputSchema,
+  ScrapeClawResearchWorkerInputSchema,
+} from './worker-run.js'
 
 const MATCH = {
   job: {
@@ -87,5 +91,38 @@ describe('CareerClaw gap-analysis worker input schema', () => {
         resumeIntel: RESUME_INTEL,
       }),
     ).not.toThrow()
+  })
+})
+
+describe('ScrapeClaw research worker input schema', () => {
+  it('accepts bounded candidate research input', () => {
+    expect(() =>
+      ScrapeClawResearchWorkerInputSchema.parse({
+        wedgeSlug: 'residential_property_management',
+        marketCity: 'Green Cove Springs',
+        marketRegion: 'Clay County',
+        candidates: [
+          {
+            name: 'Example Property Management',
+            canonicalWebsiteUrl: 'https://examplepm.com',
+            city: 'Green Cove Springs',
+            state: 'FL',
+          },
+        ],
+        maxCandidates: 5,
+        maxPagesPerBusiness: 4,
+      }),
+    ).not.toThrow()
+  })
+
+  it('rejects non-HTTPS candidate URLs', () => {
+    expect(() =>
+      ScrapeClawResearchWorkerInputSchema.parse({
+        wedgeSlug: 'residential_property_management',
+        marketCity: 'Green Cove Springs',
+        marketRegion: 'Clay County',
+        candidates: [{ name: 'Example PM', canonicalWebsiteUrl: 'http://examplepm.com' }],
+      }),
+    ).toThrow()
   })
 })

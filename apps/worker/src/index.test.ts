@@ -4,6 +4,8 @@ import request from 'supertest'
 const mockVerifyAndConsumeSkillAssertion = vi.fn()
 const mockCareerClawValidateInput = vi.fn((input) => input)
 const mockCareerClawExecute = vi.fn()
+const mockScrapeClawValidateInput = vi.fn((input) => input)
+const mockScrapeClawExecute = vi.fn()
 
 vi.mock('./assertion-verifier.js', () => ({
   verifyAndConsumeSkillAssertion: mockVerifyAndConsumeSkillAssertion,
@@ -21,6 +23,11 @@ vi.mock('./registry.js', () => ({
       slug: 'careerclaw',
       validateInput: mockCareerClawValidateInput,
       execute: mockCareerClawExecute,
+    },
+    scrapeclaw: {
+      slug: 'scrapeclaw',
+      validateInput: mockScrapeClawValidateInput,
+      execute: mockScrapeClawExecute,
     },
   },
 }))
@@ -59,6 +66,7 @@ describe('worker route auth', () => {
     vi.clearAllMocks()
     mockVerifyAndConsumeSkillAssertion.mockResolvedValue(VERIFIED_CTX)
     mockCareerClawExecute.mockResolvedValue({ matches: [] })
+    mockScrapeClawExecute.mockResolvedValue({ rankedProspects: [] })
   })
 
   it('rejects requests with no x-worker-secret header', async () => {
@@ -97,6 +105,8 @@ describe('assertion validation and dispatch', () => {
     mockVerifyAndConsumeSkillAssertion.mockResolvedValue(VERIFIED_CTX)
     mockCareerClawValidateInput.mockImplementation((input) => input)
     mockCareerClawExecute.mockResolvedValue({ matches: [] })
+    mockScrapeClawValidateInput.mockImplementation((input) => input)
+    mockScrapeClawExecute.mockResolvedValue({ rankedProspects: [] })
   })
 
   afterEach(() => {
@@ -181,5 +191,34 @@ describe('assertion validation and dispatch', () => {
       .send(VALID_PAYLOAD)
     expect(res.status).toBe(500)
     expect(res.body.error).toBe('Internal worker error')
+  })
+})
+
+const VALID_SCRAPECLAW_PAYLOAD = {
+  assertion: 'test-assertion-token-that-is-at-least-32-chars-long',
+  input: {
+    wedgeSlug: 'residential_property_management',
+    marketCity: 'Green Cove Springs',
+    marketRegion: 'Clay County',
+    candidates: [{ name: 'Example PM', canonicalWebsiteUrl: 'https://examplepm.com' }],
+  },
+}
+
+describe('scrapeclaw dispatch', () => {
+  it('accepts a valid scrapeclaw request through the generic route', async () => {
+    mockVerifyAndConsumeSkillAssertion.mockResolvedValueOnce({
+      ...VERIFIED_CTX,
+      skill: 'scrapeclaw',
+    })
+    mockScrapeClawExecute.mockResolvedValueOnce({
+      rankedProspects: [{ business: { name: 'Example PM' } }],
+    })
+    const res = await request(app)
+      .post('/run/scrapeclaw')
+      .set('x-worker-secret', 'test-secret-abc123')
+      .send(VALID_SCRAPECLAW_PAYLOAD)
+    expect(res.status).toBe(200)
+    expect(mockScrapeClawValidateInput).toHaveBeenCalledWith(VALID_SCRAPECLAW_PAYLOAD.input)
+    expect(mockScrapeClawExecute).toHaveBeenCalled()
   })
 })

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.0] (2026-04-15)
+
+### Features
+
+- **worker:** add ScrapeClaw Agent 1 research skill — deterministic HTML scraping pipeline with fit scoring, SSRF guard, and typed skill registry map ([c2f937c](https://github.com/orestes-garcia-martinez/clawos/commit/c2f937cd6f7c5f4446f27ca87842957612532862))
+
 ## [0.10.2] (2026-04-13)
 
 ### Bug Fixes
