@@ -51,18 +51,42 @@ create unique index if not exists scrapeclaw_businesses_user_discovery_external_
 create index if not exists scrapeclaw_businesses_user_status_idx
   on public.scrapeclaw_businesses (user_id, status);
 
+-- Composite unique constraint required by the tenant-scoped FK below.
+-- Guarantees that (id, user_id) is a valid FK target on this table.
+alter table public.scrapeclaw_businesses
+  drop constraint if exists scrapeclaw_businesses_id_user_unique,
+  add constraint scrapeclaw_businesses_id_user_unique unique (id, user_id);
+
 create table if not exists public.scrapeclaw_discovery_discards (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references public.users(id) on delete cascade,
     provider text not null check (provider in ('google_places')),
     external_id text not null check (char_length(external_id) <= 200),
     reason text not null check (reason in ('no_website', 'duplicate_place', 'duplicate_website')),
-    linked_business_id uuid references public.scrapeclaw_businesses(id) on delete set null,
+    -- linked_business_id has no inline FK here; the tenant-scoped composite FK
+    -- is added via ALTER TABLE below so the upgrade path is idempotent for
+    -- databases where this table already exists.
+    linked_business_id uuid,
     metadata jsonb not null default '{}'::jsonb,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     unique (user_id, provider, external_id)
 );
+
+-- Drop the simple FK if it was created by a previous run of this migration
+-- (auto-named by PostgreSQL when the inline REFERENCES clause was used).
+alter table public.scrapeclaw_discovery_discards
+  drop constraint if exists scrapeclaw_discovery_discards_linked_business_id_fkey;
+
+-- Add the tenant-scoped composite FK (idempotent via drop-if-exists).
+-- PostgreSQL 15+: ON DELETE SET NULL (linked_business_id) nulls only the
+-- business reference, leaving user_id (NOT NULL) intact.
+alter table public.scrapeclaw_discovery_discards
+  drop constraint if exists scrapeclaw_discovery_discards_linked_business_tenant_fk,
+  add constraint scrapeclaw_discovery_discards_linked_business_tenant_fk
+    foreign key (linked_business_id, user_id)
+    references public.scrapeclaw_businesses(id, user_id)
+    on delete set null (linked_business_id);
 
 create index if not exists scrapeclaw_discovery_discards_user_reason_idx
   on public.scrapeclaw_discovery_discards (user_id, reason);

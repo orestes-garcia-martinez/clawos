@@ -114,11 +114,61 @@ async function executeDiscovery(
   const discovery = await discoverPlaceSeeds(input, { apiKey })
   const store = new ScrapeClawDiscoveryStore(createServerClient())
 
+  // ── Phase 1: parallel dedup reads ───────────────────────────────────────────
+  // Check every seed against existing discards and known place IDs simultaneously.
+  const phase1 = await Promise.all(
+    discovery.placeSeeds.map(async (seed) => {
+      const [existingDiscard, existingPlace] = await Promise.all([
+        store.findDiscard(ctx.userId, seed.provider, seed.placeId),
+        store.findBusinessByPlaceId(ctx.userId, seed.provider, seed.placeId),
+      ])
+      return { seed, existingDiscard, existingPlace }
+    }),
+  )
+
+  const needsResolution = phase1.filter((c) => !c.existingDiscard && !c.existingPlace)
+
+  // ── Phase 2: parallel website resolution (HTTP) ──────────────────────────────
+  // Only seeds that passed Phase 1 reach the Places Details API.
+  const phase2 = await Promise.all(
+    needsResolution.map(async ({ seed }) => ({
+      seed,
+      resolved: await resolvePlaceSeedWebsite(seed, { apiKey }),
+    })),
+  )
+
+  const hasWebsite = phase2.filter((c) => c.resolved !== null) as Array<{
+    seed: (typeof phase2)[number]['seed']
+    resolved: NonNullable<(typeof phase2)[number]['resolved']>
+  }>
+
+  // ── Phase 3: parallel canonical-website dedup reads ──────────────────────────
+  // Build the insert payload and check for an existing business at each URL.
+  const phase3 = await Promise.all(
+    hasWebsite.map(async ({ seed, resolved }) => {
+      const businessInsert = buildBusinessInsert({
+        userId: ctx.userId,
+        wedgeSlug: input.wedgeSlug,
+        candidate: resolved,
+      })
+      const existingWebsite = await store.findBusinessByCanonicalWebsite(
+        ctx.userId,
+        businessInsert.canonical_website_url!,
+      )
+      return { seed, resolved, businessInsert, existingWebsite }
+    }),
+  )
+
+  // ── Phase 4: serial writes ───────────────────────────────────────────────────
+  // Reads are done; writes are kept serial to avoid constraint races.
+  // A Set guards against two seeds in the same run resolving to the same
+  // canonical URL: the second seed is treated as duplicate_website without
+  // hitting the unique index.
   const insertedBusinesses: ScrapeClawDiscoveryInsertedBusiness[] = []
   const discardedCandidates: ScrapeClawDiscoveryDiscardedCandidate[] = []
+  const writtenWebsites = new Set<string>()
 
-  for (const seed of discovery.placeSeeds) {
-    const existingDiscard = await store.findDiscard(ctx.userId, seed.provider, seed.placeId)
+  for (const { seed, existingDiscard, existingPlace } of phase1) {
     if (existingDiscard) {
       discardedCandidates.push({
         placeId: seed.placeId,
@@ -128,11 +178,7 @@ async function executeDiscovery(
         queryText: seed.queryText,
         existingBusinessId: existingDiscard.linked_business_id,
       })
-      continue
-    }
-
-    const existingPlace = await store.findBusinessByPlaceId(ctx.userId, seed.provider, seed.placeId)
-    if (existingPlace) {
+    } else if (existingPlace) {
       discardedCandidates.push({
         placeId: seed.placeId,
         name: seed.name,
@@ -141,10 +187,10 @@ async function executeDiscovery(
         queryText: seed.queryText,
         existingBusinessId: existingPlace.id,
       })
-      continue
     }
+  }
 
-    const resolved = await resolvePlaceSeedWebsite(seed, { apiKey })
+  for (const { seed, resolved } of phase2) {
     if (!resolved) {
       await store.upsertDiscard(
         buildDiscardInsert({
@@ -167,34 +213,30 @@ async function executeDiscovery(
         hubName: seed.hubName,
         queryText: seed.queryText,
       })
-      continue
     }
+  }
 
-    const businessInsert = buildBusinessInsert({
-      userId: ctx.userId,
-      wedgeSlug: input.wedgeSlug,
-      candidate: resolved,
-    })
+  for (const { seed, businessInsert, existingWebsite } of phase3) {
+    const canonicalUrl = businessInsert.canonical_website_url!
+    const isDuplicateInRun = writtenWebsites.has(canonicalUrl)
 
-    const existingWebsite = await store.findBusinessByCanonicalWebsite(
-      ctx.userId,
-      businessInsert.canonical_website_url!,
-    )
-    if (existingWebsite) {
-      await store.mergeBusinessMetadata(
-        existingWebsite.id,
-        ctx.userId,
-        buildMergePatch(existingWebsite, businessInsert),
-      )
+    if (existingWebsite || isDuplicateInRun) {
+      if (existingWebsite) {
+        await store.mergeBusinessMetadata(
+          existingWebsite.id,
+          ctx.userId,
+          buildMergePatch(existingWebsite, businessInsert),
+        )
+      }
       await store.upsertDiscard(
         buildDiscardInsert({
           userId: ctx.userId,
           provider: seed.provider,
           externalId: seed.placeId,
           reason: 'duplicate_website',
-          linkedBusinessId: existingWebsite.id,
+          linkedBusinessId: existingWebsite?.id ?? null,
           metadata: {
-            canonicalWebsiteUrl: businessInsert.canonical_website_url,
+            canonicalWebsiteUrl: canonicalUrl,
             hubName: seed.hubName,
             queryText: seed.queryText,
           },
@@ -206,16 +248,17 @@ async function executeDiscovery(
         reason: 'duplicate_website',
         hubName: seed.hubName,
         queryText: seed.queryText,
-        existingBusinessId: existingWebsite.id,
+        existingBusinessId: existingWebsite?.id ?? null,
       })
       continue
     }
 
+    writtenWebsites.add(canonicalUrl)
     const inserted = await store.insertBusiness(businessInsert)
     insertedBusinesses.push({
       businessId: inserted.id,
       name: inserted.name,
-      canonicalWebsiteUrl: inserted.canonical_website_url ?? businessInsert.canonical_website_url!,
+      canonicalWebsiteUrl: inserted.canonical_website_url ?? canonicalUrl,
       discoveryExternalId: inserted.discovery_external_id ?? seed.placeId,
       hubName: seed.hubName,
       queryText: seed.queryText,
