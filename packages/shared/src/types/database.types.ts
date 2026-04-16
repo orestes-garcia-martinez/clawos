@@ -317,58 +317,6 @@ export type Database = {
           },
         ]
       }
-      scrapeclaw_discovery_discards: {
-        Row: {
-          created_at: string
-          external_id: string
-          id: string
-          linked_business_id: string | null
-          metadata: Json
-          provider: string
-          reason: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          external_id: string
-          id?: string
-          linked_business_id?: string | null
-          metadata?: Json
-          provider: string
-          reason: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          external_id?: string
-          id?: string
-          linked_business_id?: string | null
-          metadata?: Json
-          provider?: string
-          reason?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: 'scrapeclaw_discovery_discards_linked_business_id_fkey'
-            columns: ['linked_business_id']
-            isOneToOne: false
-            referencedRelation: 'scrapeclaw_businesses'
-            referencedColumns: ['id']
-          },
-          {
-            foreignKeyName: 'scrapeclaw_discovery_discards_user_id_fkey'
-            columns: ['user_id']
-            isOneToOne: false
-            referencedRelation: 'users'
-            referencedColumns: ['id']
-          },
-        ]
-      }
-
       scrapeclaw_demo_packages: {
         Row: {
           approved_at: string | null
@@ -440,6 +388,57 @@ export type Database = {
           },
           {
             foreignKeyName: 'scrapeclaw_demo_packages_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'users'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      scrapeclaw_discovery_discards: {
+        Row: {
+          created_at: string
+          external_id: string
+          id: string
+          linked_business_id: string | null
+          metadata: Json
+          provider: string
+          reason: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          external_id: string
+          id?: string
+          linked_business_id?: string | null
+          metadata?: Json
+          provider: string
+          reason: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          external_id?: string
+          id?: string
+          linked_business_id?: string | null
+          metadata?: Json
+          provider?: string
+          reason?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'scrapeclaw_discovery_discards_linked_business_tenant_fk'
+            columns: ['linked_business_id', 'user_id']
+            isOneToOne: false
+            referencedRelation: 'scrapeclaw_businesses'
+            referencedColumns: ['id', 'user_id']
+          },
+          {
+            foreignKeyName: 'scrapeclaw_discovery_discards_user_id_fkey'
             columns: ['user_id']
             isOneToOne: false
             referencedRelation: 'users'

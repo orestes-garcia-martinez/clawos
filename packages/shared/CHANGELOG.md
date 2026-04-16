@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1] (2026-04-16)
+
+### Bug Fixes
+
+- **shared:** narrow `ScrapeClawDiscoveryWorkerInput.marketRegion` from `string` to `'Clay County'` to match the schema literal constraint
+- **shared:** regenerate `database.types.ts` — `scrapeclaw_discovery_discards` now reflects composite tenant FK `(linked_business_id, user_id) → scrapeclaw_businesses(id, user_id)` instead of the dropped single-column FK
+
 ## [1.2.0] (2026-04-15)
 
 ### Features

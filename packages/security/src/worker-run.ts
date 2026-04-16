@@ -174,7 +174,7 @@ export const ScrapeClawResearchWorkerInputSchema = z
 export const ScrapeClawDiscoveryWorkerInputSchema = z.object({
   mode: z.literal('discover'),
   wedgeSlug: ScrapeClawWedgeSlugSchema,
-  marketRegion: z.string().min(1).max(120),
+  marketRegion: z.literal('Clay County'),
   hubNames: z.array(z.string().min(1).max(120)).min(1).max(10).optional(),
   minPrimaryResultsBeforeFallback: z.number().int().min(1).max(20).optional(),
   textSearchPageSize: z.number().int().min(1).max(20).optional(),
