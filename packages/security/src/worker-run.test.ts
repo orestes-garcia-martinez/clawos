@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   CareerClawCoverLetterInputSchema,
   CareerClawGapAnalysisInputSchema,
+  ScrapeClawDiscoveryWorkerInputSchema,
   ScrapeClawResearchWorkerInputSchema,
+  ScrapeClawWorkerInputSchema,
 } from './worker-run.js'
 
 const MATCH = {
@@ -96,23 +98,23 @@ describe('CareerClaw gap-analysis worker input schema', () => {
 
 describe('ScrapeClaw research worker input schema', () => {
   it('accepts bounded candidate research input', () => {
-    expect(() =>
-      ScrapeClawResearchWorkerInputSchema.parse({
-        wedgeSlug: 'residential_property_management',
-        marketCity: 'Green Cove Springs',
-        marketRegion: 'Clay County',
-        candidates: [
-          {
-            name: 'Example Property Management',
-            canonicalWebsiteUrl: 'https://examplepm.com',
-            city: 'Green Cove Springs',
-            state: 'FL',
-          },
-        ],
-        maxCandidates: 5,
-        maxPagesPerBusiness: 4,
-      }),
-    ).not.toThrow()
+    const parsed = ScrapeClawResearchWorkerInputSchema.parse({
+      wedgeSlug: 'residential_property_management',
+      marketCity: 'Green Cove Springs',
+      marketRegion: 'Clay County',
+      candidates: [
+        {
+          name: 'Example Property Management',
+          canonicalWebsiteUrl: 'https://examplepm.com',
+          city: 'Green Cove Springs',
+          state: 'FL',
+        },
+      ],
+      maxCandidates: 5,
+      maxPagesPerBusiness: 4,
+    })
+
+    expect(parsed.mode).toBe('research')
   })
 
   it('rejects non-HTTPS candidate URLs', () => {
@@ -124,5 +126,30 @@ describe('ScrapeClaw research worker input schema', () => {
         candidates: [{ name: 'Example PM', canonicalWebsiteUrl: 'http://examplepm.com' }],
       }),
     ).toThrow()
+  })
+})
+
+describe('ScrapeClaw discovery worker input schema', () => {
+  it('accepts hub-based Google Places discovery input', () => {
+    expect(() =>
+      ScrapeClawDiscoveryWorkerInputSchema.parse({
+        mode: 'discover',
+        wedgeSlug: 'residential_property_management',
+        marketRegion: 'Clay County',
+        hubNames: ['Orange Park', 'Green Cove Springs'],
+        minPrimaryResultsBeforeFallback: 5,
+        textSearchPageSize: 20,
+      }),
+    ).not.toThrow()
+  })
+
+  it('accepts the research/discovery union', () => {
+    expect(() =>
+      ScrapeClawWorkerInputSchema.parse({
+        mode: 'discover',
+        wedgeSlug: 'residential_property_management',
+        marketRegion: 'Clay County',
+      }),
+    ).not.toThrow()
   })
 })

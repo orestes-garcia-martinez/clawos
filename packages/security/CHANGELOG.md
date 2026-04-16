@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.0] (2026-04-15)
+
+### Features
+
+- **security:** add ScrapeClawDiscoveryWorkerInputSchema, ScrapeClawWorkerInputSchema (union), ScrapeClawRunRequestSchema, and ScrapeClawDiscoveryRunRequestSchema; ScrapeClawResearchWorkerInputSchema gains .transform() to inject mode:'research' ([4411bad](https://github.com/orestes-garcia-martinez/clawos/commit/4411bad57f18a9af02c39ddb737a97b7bceac2fa))
+
+### Bug Fixes
+
+- **security:** restore careerclaw-js schema sync warning comment on ScoredJobSchema, ResumeIntelSchema, GapAnalysisResultSchema ([4411bad](https://github.com/orestes-garcia-martinez/clawos/commit/4411bad57f18a9af02c39ddb737a97b7bceac2fa))
+
 ## [1.1.0] (2026-04-15)
 
 ### Features

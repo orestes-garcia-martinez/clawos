@@ -3,6 +3,42 @@ export const SCRAPECLAW_DEFAULT_MAX_CANDIDATES = 10
 export const SCRAPECLAW_DEFAULT_MAX_PAGES_PER_BUSINESS = 6
 export const SCRAPECLAW_DEFAULT_FETCH_TIMEOUT_MS = 8_000
 
+export const SCRAPECLAW_DEFAULT_TEXT_SEARCH_PAGE_SIZE = 20
+export const SCRAPECLAW_DEFAULT_MIN_PRIMARY_RESULTS_BEFORE_FALLBACK = 5
+
+export const SCRAPECLAW_CLAY_COUNTY_HUBS = [
+  'Orange Park',
+  'Fleming Island',
+  'Middleburg',
+  'Green Cove Springs',
+  'Oakleaf Plantation',
+] as const
+
+export const SCRAPECLAW_CLAY_COUNTY_BOUNDING_BOX = {
+  low: { latitude: 29.718, longitude: -82.049 },
+  high: { latitude: 30.22, longitude: -81.636 },
+} as const
+
+export const SCRAPECLAW_PRIMARY_DISCOVERY_TEMPLATE = '{wedge} in {hub}, FL'
+export const SCRAPECLAW_FALLBACK_DISCOVERY_TEMPLATE = '{fallback} in {hub}, FL'
+export const SCRAPECLAW_PRIMARY_DISCOVERY_WEDGE = 'Property Management'
+export const SCRAPECLAW_FALLBACK_DISCOVERY_CATEGORY = 'Real Estate Agency'
+
+export const SCRAPECLAW_GOOGLE_PLACES_TEXT_SEARCH_URL =
+  'https://places.googleapis.com/v1/places:searchText'
+export const SCRAPECLAW_GOOGLE_PLACES_DETAILS_BASE_URL = 'https://places.googleapis.com/v1/places'
+export const SCRAPECLAW_GOOGLE_PLACES_TEXT_SEARCH_FIELDS = [
+  'places.id',
+  'places.displayName',
+  'places.formattedAddress',
+] as const
+export const SCRAPECLAW_GOOGLE_PLACES_DETAILS_FIELDS = [
+  'id',
+  'displayName',
+  'formattedAddress',
+  'websiteUri',
+] as const
+
 export const PROPERTY_MANAGEMENT_TERMS = [
   'property management',
   'property manager',
@@ -39,9 +75,6 @@ export const LISTING_TERMS = [
   'vacancies',
 ] as const
 
-// TODO: LOCAL_MARKET_TERMS is hardcoded to the Clay County FL pilot market.
-// When adding new markets, derive locality terms from the marketCity/marketRegion
-// input rather than matching against this fixed list.
 export const LOCAL_MARKET_TERMS = [
   'green cove springs',
   'clay county',

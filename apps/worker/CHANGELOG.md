@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0] (2026-04-15)
+
+### Features
+
+- **worker:** add ScrapeClaw discovery pipeline via Google Places API — hub query planning, fallback trigger, place-ID dedup, website resolution, and Supabase persistence via ScrapeClawDiscoveryStore ([4411bad](https://github.com/orestes-garcia-martinez/clawos/commit/4411bad57f18a9af02c39ddb737a97b7bceac2fa))
+- **worker:** extract Express app factory to app.ts (bootstrap-only index.ts); add skills/careerclaw/router.ts for gap-analysis and cover-letter sub-routes; delete dead cli-adapter.ts and cli-bridge.ts ([4411bad](https://github.com/orestes-garcia-martinez/clawos/commit/4411bad57f18a9af02c39ddb737a97b7bceac2fa))
+
 ## [0.11.0] (2026-04-15)
 
 ### Features

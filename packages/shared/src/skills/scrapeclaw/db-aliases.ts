@@ -14,6 +14,13 @@ export type ScrapeClawBusinessInsert =
 export type ScrapeClawBusinessUpdate =
   Database['public']['Tables']['scrapeclaw_businesses']['Update']
 
+export type ScrapeClawDiscoveryDiscardRow =
+  Database['public']['Tables']['scrapeclaw_discovery_discards']['Row']
+export type ScrapeClawDiscoveryDiscardInsert =
+  Database['public']['Tables']['scrapeclaw_discovery_discards']['Insert']
+export type ScrapeClawDiscoveryDiscardUpdate =
+  Database['public']['Tables']['scrapeclaw_discovery_discards']['Update']
+
 export type ScrapeClawProspectRow = Database['public']['Tables']['scrapeclaw_prospects']['Row']
 export type ScrapeClawProspectInsert =
   Database['public']['Tables']['scrapeclaw_prospects']['Insert']

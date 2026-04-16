@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0] (2026-04-15)
+
+### Features
+
+- **shared:** add ScrapeClawDiscovery* enums (Provider, QueryKind, DiscardReason, BusinessStatus) and interfaces (ScrapeClawDiscoveryDiscard, ScrapeClawDiscoveryWorkerInput/Result, ScrapeClawDiscoveryInsertedBusiness, ScrapeClawDiscoveryDiscardedCandidate); add ScrapeClawWorkerInput/Result union types ([4411bad](https://github.com/orestes-garcia-martinez/clawos/commit/4411bad57f18a9af02c39ddb737a97b7bceac2fa))
+- **shared:** add scrapeclaw_discovery_discards Row/Insert/Update DB aliases; expand scrapeclaw_businesses with status, formatted_address, and discovery_* columns ([4411bad](https://github.com/orestes-garcia-martinez/clawos/commit/4411bad57f18a9af02c39ddb737a97b7bceac2fa))
+
 ## [1.1.0] (2026-04-15)
 
 ### Features
