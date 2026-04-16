@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.1] (2026-04-16)
+
+### Bug Fixes
+
+- **security:** narrow `marketRegion` in `ScrapeClawDiscoveryWorkerInputSchema` from `z.string()` to `z.literal('Clay County')` — prevents silently routing unsupported regions to Clay County queries and persisting mislabeled businesses
+
 ## [1.2.0] (2026-04-15)
 
 ### Features

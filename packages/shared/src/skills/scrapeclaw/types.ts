@@ -271,7 +271,7 @@ export interface ScrapeClawDiscoveryQueryPlan {
 export interface ScrapeClawDiscoveryWorkerInput {
   mode: 'discover'
   wedgeSlug: ScrapeClawWedgeSlug
-  marketRegion: string
+  marketRegion: 'Clay County'
   hubNames?: string[]
   minPrimaryResultsBeforeFallback?: number
   textSearchPageSize?: number

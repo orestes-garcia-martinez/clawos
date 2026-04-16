@@ -152,4 +152,14 @@ describe('ScrapeClaw discovery worker input schema', () => {
       }),
     ).not.toThrow()
   })
+
+  it('rejects unsupported marketRegion values', () => {
+    expect(() =>
+      ScrapeClawDiscoveryWorkerInputSchema.parse({
+        mode: 'discover',
+        wedgeSlug: 'residential_property_management',
+        marketRegion: 'Miami-Dade County',
+      }),
+    ).toThrow()
+  })
 })
