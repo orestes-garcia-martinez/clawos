@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] (2026-04-17)
+
+### Features
+
+- **security:** add `ScrapeClawEnrichmentWorkerInputSchema` with mode literal, wedge slug, market fields, prospects array (1–25), optional `maxProspects` cap, and optional model override; add to `ScrapeClawWorkerInputSchema` union ([14f8f52](https://github.com/orestes-garcia-martinez/clawos/commit/14f8f52ba429a44beaf7ef0d6cb99d14e54bbcf3))
+
 ## [1.2.1] (2026-04-16)
 
 ### Bug Fixes
