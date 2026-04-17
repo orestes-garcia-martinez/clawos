@@ -85,3 +85,9 @@ export const LOCAL_MARKET_TERMS = [
   'st. johns',
   'st johns',
 ] as const
+
+export const SCRAPECLAW_ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages'
+export const SCRAPECLAW_DEFAULT_ENRICHMENT_MODEL = 'claude-haiku-4-5-20251001'
+export const SCRAPECLAW_DEFAULT_LLM_CALL_TIMEOUT_MS = 25_000
+export const SCRAPECLAW_ENRICHMENT_PROMPT_VERSION = 'scrapeclaw-enrichment-v1'
+export const SCRAPECLAW_DEFAULT_MAX_ENRICHMENT_PROSPECTS = 10

@@ -204,6 +204,45 @@ const VALID_SCRAPECLAW_PAYLOAD = {
   },
 }
 
+const VALID_SCRAPECLAW_ENRICH_PAYLOAD = {
+  assertion: 'test-assertion-token-that-is-at-least-32-chars-long',
+  input: {
+    mode: 'enrich',
+    wedgeSlug: 'residential_property_management',
+    marketCity: 'Green Cove Springs',
+    marketRegion: 'Clay County',
+    prospects: [
+      {
+        business: { name: 'Example PM', canonicalWebsiteUrl: 'https://examplepm.com' },
+        prospect: {
+          status: 'qualified',
+          wedgeSlug: 'residential_property_management',
+          marketCity: 'Green Cove Springs',
+          marketRegion: 'Clay County',
+          fitScore: 0.61,
+          useCaseHypothesis: 'Base use case',
+          dataNeedHypothesis: 'Base data need',
+          demoTypeRecommendation: 'competitor_listing_feed',
+          outreachAngle: 'Base outreach angle',
+          confidenceLevel: 'medium',
+        },
+        evidenceItems: [
+          {
+            pageKind: 'homepage',
+            sourceUrl: 'https://examplepm.com/',
+            observedAt: '2026-04-16T00:00:00.000Z',
+            title: 'Example PM',
+            snippet: 'Property management and rentals.',
+            extractedFacts: { matchedTerms: ['property management'] },
+            sourceConfidence: 'medium',
+          },
+        ],
+        reasoning: ['Observed property management signals.'],
+      },
+    ],
+  },
+}
+
 describe('scrapeclaw dispatch', () => {
   it('accepts a valid scrapeclaw request through the generic route', async () => {
     mockVerifyAndConsumeSkillAssertion.mockResolvedValueOnce({
@@ -222,6 +261,24 @@ describe('scrapeclaw dispatch', () => {
       ...VALID_SCRAPECLAW_PAYLOAD.input,
       mode: 'research',
     })
+    expect(mockScrapeClawExecute).toHaveBeenCalled()
+  })
+
+  it('accepts a valid scrapeclaw enrichment request through the generic route', async () => {
+    mockVerifyAndConsumeSkillAssertion.mockResolvedValueOnce({
+      ...VERIFIED_CTX,
+      skill: 'scrapeclaw',
+    })
+    mockScrapeClawExecute.mockResolvedValueOnce({
+      enrichedProspects: [],
+      warnings: [],
+    })
+    const res = await request(app)
+      .post('/run/scrapeclaw')
+      .set('x-worker-secret', 'test-secret-abc123')
+      .send(VALID_SCRAPECLAW_ENRICH_PAYLOAD)
+    expect(res.status).toBe(200)
+    expect(mockScrapeClawValidateInput).toHaveBeenCalledWith(VALID_SCRAPECLAW_ENRICH_PAYLOAD.input)
     expect(mockScrapeClawExecute).toHaveBeenCalled()
   })
 })

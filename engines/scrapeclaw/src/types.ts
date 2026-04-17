@@ -5,6 +5,8 @@ import type {
   ScrapeClawDiscoveryQueryKind,
   ScrapeClawDiscoveryWorkerInput,
   ScrapeClawDiscoveryWorkerResult,
+  ScrapeClawEnrichmentWorkerInput,
+  ScrapeClawEnrichmentWorkerResult,
   ScrapeClawResearchWorkerInput,
   ScrapeClawResearchWorkerResult,
 } from '@clawos/shared'
@@ -91,6 +93,12 @@ export interface RunScrapeClawDiscoveryOptions {
   fetchTimeoutMs?: number
 }
 
+export interface RunScrapeClawEnrichmentOptions {
+  fetchImpl?: typeof fetch
+  apiKey: string
+  model?: string
+}
+
 export interface PersistedScrapeClawDiscoveryOutcome {
   businessId: string
   canonicalWebsiteUrl: string
@@ -109,3 +117,5 @@ export type ScrapeClawDiscoveryWorkerEngineResult = Omit<
 
 export type { ScrapeClawResearchWorkerInput, ScrapeClawResearchWorkerResult }
 export type { ScrapeClawDiscoveryWorkerInput, ScrapeClawDiscoveryWorkerResult }
+
+export type { ScrapeClawEnrichmentWorkerInput, ScrapeClawEnrichmentWorkerResult }

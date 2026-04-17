@@ -22,7 +22,8 @@
     "test": "vitest run --pool=threads"
   },
   "dependencies": {
-    "@clawos/shared": "*"
+    "@clawos/shared": "*",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

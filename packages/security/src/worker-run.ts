@@ -171,6 +171,47 @@ export const ScrapeClawResearchWorkerInputSchema = z
   })
   .transform((input) => ({ ...input, mode: 'research' as const }))
 
+const JsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(JsonValueSchema),
+    z.record(JsonValueSchema),
+  ]),
+)
+
+const ScrapeClawEvidenceDraftSchema = z.object({
+  pageKind: z.enum(['homepage', 'about', 'services', 'contact', 'niche_relevant', 'other']),
+  sourceUrl: httpsUrl,
+  observedAt: z.string().datetime(),
+  title: z.string().max(300).nullable(),
+  snippet: z.string().max(4_000).nullable(),
+  extractedFacts: JsonValueSchema,
+  sourceConfidence: z.enum(['low', 'medium', 'high']).nullable(),
+})
+
+const ScrapeClawProspectDraftSchema = z.object({
+  status: z.enum(['qualified', 'disqualified']),
+  wedgeSlug: ScrapeClawWedgeSlugSchema,
+  marketCity: z.string().min(1).max(120),
+  marketRegion: z.string().min(1).max(120),
+  fitScore: z.number().min(0).max(1),
+  useCaseHypothesis: z.string().min(1).max(2_000),
+  dataNeedHypothesis: z.string().min(1).max(2_000),
+  demoTypeRecommendation: z.string().min(1).max(120),
+  outreachAngle: z.string().min(1).max(1_000),
+  confidenceLevel: z.enum(['low', 'medium', 'high']),
+})
+
+const ScrapeClawResearchProspectResultSchema = z.object({
+  business: ScrapeClawCandidateBusinessSchema,
+  prospect: ScrapeClawProspectDraftSchema,
+  evidenceItems: z.array(ScrapeClawEvidenceDraftSchema).min(1).max(6),
+  reasoning: z.array(z.string().min(1).max(500)).max(10),
+})
+
 export const ScrapeClawDiscoveryWorkerInputSchema = z.object({
   mode: z.literal('discover'),
   wedgeSlug: ScrapeClawWedgeSlugSchema,
@@ -180,9 +221,20 @@ export const ScrapeClawDiscoveryWorkerInputSchema = z.object({
   textSearchPageSize: z.number().int().min(1).max(20).optional(),
 })
 
+export const ScrapeClawEnrichmentWorkerInputSchema = z.object({
+  mode: z.literal('enrich'),
+  wedgeSlug: ScrapeClawWedgeSlugSchema,
+  marketCity: z.string().min(1).max(120),
+  marketRegion: z.string().min(1).max(120),
+  prospects: z.array(ScrapeClawResearchProspectResultSchema).min(1).max(25),
+  maxProspects: z.number().int().min(1).max(25).optional(),
+  model: z.string().min(1).max(200).nullable().optional(),
+})
+
 export const ScrapeClawWorkerInputSchema = z.union([
   ScrapeClawResearchWorkerInputSchema,
   ScrapeClawDiscoveryWorkerInputSchema,
+  ScrapeClawEnrichmentWorkerInputSchema,
 ])
 
 export const ScrapeClawRunRequestSchema = z.object({
@@ -200,6 +252,11 @@ export const ScrapeClawDiscoveryRunRequestSchema = z.object({
   input: ScrapeClawDiscoveryWorkerInputSchema,
 })
 
+export const ScrapeClawEnrichmentRunRequestSchema = z.object({
+  assertion: WorkerAssertionTokenSchema,
+  input: ScrapeClawEnrichmentWorkerInputSchema,
+})
+
 export type ScrapeClawResearchWorkerInputParsed = z.infer<
   typeof ScrapeClawResearchWorkerInputSchema
 >
@@ -208,5 +265,11 @@ export type ScrapeClawDiscoveryWorkerInputParsed = z.infer<
   typeof ScrapeClawDiscoveryWorkerInputSchema
 >
 export type ScrapeClawDiscoveryRunRequestInput = z.infer<typeof ScrapeClawDiscoveryRunRequestSchema>
+export type ScrapeClawEnrichmentWorkerInputParsed = z.infer<
+  typeof ScrapeClawEnrichmentWorkerInputSchema
+>
+export type ScrapeClawEnrichmentRunRequestInput = z.infer<
+  typeof ScrapeClawEnrichmentRunRequestSchema
+>
 export type ScrapeClawWorkerInputParsed = z.infer<typeof ScrapeClawWorkerInputSchema>
 export type ScrapeClawRunRequestInput = z.infer<typeof ScrapeClawRunRequestSchema>

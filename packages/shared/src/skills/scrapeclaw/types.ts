@@ -305,8 +305,50 @@ export interface ScrapeClawDiscoveryWorkerResult {
   discardedCandidates: ScrapeClawDiscoveryDiscardedCandidate[]
 }
 
-export type ScrapeClawWorkerInput = ScrapeClawResearchWorkerInput | ScrapeClawDiscoveryWorkerInput
+export interface ScrapeClawEnrichedProspectResult {
+  business: ScrapeClawResearchCandidateBusinessInput
+  baseProspect: ScrapeClawProspectDraft
+  enrichedProspect: ScrapeClawProspectDraft
+  evidenceItems: ScrapeClawEvidenceDraft[]
+  deterministicReasoning: string[]
+  llmReasoning: string[]
+  provider: 'anthropic'
+  model: string
+  promptVersion: string
+  usedFallback: boolean
+}
+
+export interface ScrapeClawEnrichmentWarning {
+  businessName: string
+  reason: string
+}
+
+export interface ScrapeClawEnrichmentWorkerInput {
+  mode: 'enrich'
+  wedgeSlug: ScrapeClawWedgeSlug
+  marketCity: string
+  marketRegion: string
+  prospects: ScrapeClawResearchProspectResult[]
+  maxProspects?: number
+  model?: string | null
+}
+
+export interface ScrapeClawEnrichmentWorkerResult {
+  mode: 'enrich'
+  wedgeSlug: ScrapeClawWedgeSlug
+  marketCity: string
+  marketRegion: string
+  generatedAt: string
+  enrichedProspects: ScrapeClawEnrichedProspectResult[]
+  warnings: ScrapeClawEnrichmentWarning[]
+}
+
+export type ScrapeClawWorkerInput =
+  | ScrapeClawResearchWorkerInput
+  | ScrapeClawDiscoveryWorkerInput
+  | ScrapeClawEnrichmentWorkerInput
 
 export type ScrapeClawWorkerResult =
   | ScrapeClawResearchWorkerResult
   | ScrapeClawDiscoveryWorkerResult
+  | ScrapeClawEnrichmentWorkerResult

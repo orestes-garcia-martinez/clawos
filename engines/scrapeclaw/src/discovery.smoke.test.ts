@@ -14,6 +14,12 @@
  * Assertions are minimal by design (smoke, not contract): we verify that the API
  * responds, that the shapes we parse are non-empty, and that our dedup Map works
  * against a real result set.
+ *
+ * PowerShell:
+ * $env:SCRAPECLAW_GOOGLE_PLACES_API_KEY="<your-key>"
+ * npx vitest run discovery.smoke.test.ts
+ *
+ *
  */
 
 import { describe, expect, it } from 'vitest'
