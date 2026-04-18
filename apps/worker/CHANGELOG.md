@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.1] (2026-04-17)
+
+### Bug Fixes
+
+- **deps:** bump `careerclaw-js` `^1.14.0` → `^1.14.1` — resolves 5 critical `protobufjs < 7.5.5` vulnerabilities (GHSA-xq3m-2v4x-88gg) transitively via `@xenova/transformers` upgrade in 1.14.1
+
 ## [0.12.0] (2026-04-15)
 
 ### Features
