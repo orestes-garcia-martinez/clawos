@@ -1,21 +1,28 @@
 ---
 name: review-pr-comments
 description: >
-  Use this skill to review and address PR review comments from GitHub. Fetches
-  the current branch's open pull request comments using the GitHub CLI, reads
-  the referenced source files at their current HEAD state, determines whether
-  each comment has been addressed, and produces an actionable summary with a
-  merge-readiness verdict. Trigger when the user says "review PR comments",
-  "check PR feedback", "address review comments", "what did the reviewer say",
-  "what feedback is still open", "what comments are left to fix",
-  "respond to PR review", or "are all PR comments resolved".
+  Review open PR review comments on the current branch, determine whether each
+  is addressed in HEAD, and either produce a blocker report or finalize the PR
+  (comment, resolve threads, merge). Use for "review PR comments", "check PR
+  feedback", "address review comments", "what feedback is still open", or "are
+  all PR comments resolved".
 ---
 
 # Review PR Comments
 
 Your goal is to review all open PR review comments on the current branch's pull
-request, determine whether each has been addressed in the code, and produce a
-clear summary with a final merge-readiness verdict.
+request, determine whether each has been addressed in the code, and either
+produce a blocker report or finalize the PR end-to-end.
+
+## When to use
+
+Use this skill to **audit and finalize** an existing PR's review feedback.
+
+## When NOT to use
+
+- Do **not** use to author new review comments on someone else's PR.
+- Do **not** use to open, rebase, or rewrite a PR's commit history.
+- Do **not** use on draft PRs — ask the user to mark the PR ready first.
 
 ## Prerequisites
 
@@ -38,21 +45,24 @@ git branch --show-current
 ## Step 2 — Fetch PR details
 
 ```bash
-gh pr view --json number,title,url,state,reviewDecision
+gh pr view --json number,title,url,state,reviewDecision,isDraft
 ```
 
 - If no PR exists for the current branch, report that and stop.
-- If the PR `state` is `CLOSED` or `MERGED`, note it but continue — reviewing
-  historical feedback is still valid.
-- Save the `number` field; you will need it in Step 3.
+- If `isDraft` is `true`, stop and ask the user to mark the PR ready.
+- If `state` is `CLOSED` or `MERGED`, note it. Skip Step 9 (nothing to
+  finalize) but continue through Steps 3–8 for historical review.
+- Save `number` as `<PR_NUMBER>` for later steps.
 
 ## Step 3 — Fetch all comment types
 
-Run these three commands. Each returns a different comment category:
+Run these three commands. `{owner}` and `{repo}` in the first command are
+**literal placeholders** that `gh api` expands from the current git remote —
+do **not** substitute them. Only `<PR_NUMBER>` is substituted.
 
 ```bash
 # 1. Inline code-review comments (line-specific, the primary signal)
-gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments --paginate
+gh api "repos/{owner}/{repo}/pulls/<PR_NUMBER>/comments" --paginate
 
 # 2. Formal review submissions (APPROVED / CHANGES_REQUESTED + top-level body)
 gh pr view --json reviews
@@ -61,24 +71,23 @@ gh pr view --json reviews
 gh pr view --json comments
 ```
 
-Replace `<PR_NUMBER>` with the `number` value from Step 2.
-
 **Understanding the three types:**
 
-| Source                          | JSON key                                                      | Contains                                                 |
-| ------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------- |
-| `gh api .../pulls/<n>/comments` | `path`, `line`, `body`, `diff_hunk`, `user`, `in_reply_to_id` | Inline line-specific review comments — **primary focus** |
-| `gh pr view --json reviews`     | `reviews[].body`, `reviews[].state`, `reviews[].author`       | Formal review submissions (APPROVED / CHANGES_REQUESTED) |
-| `gh pr view --json comments`    | `comments[].body`, `comments[].author`                        | General PR conversation (no file/line context)           |
+| Source                          | JSON key                                                      | Contains                                                                    |
+|---------------------------------|---------------------------------------------------------------|-----------------------------------------------------------------------------|
+| `gh api .../pulls/<n>/comments` | `path`, `line`, `body`, `diff_hunk`, `user`, `in_reply_to_id` | Inline line-specific review comments — **primary focus**                    |
+| `gh pr view --json reviews`     | `reviews[].body`, `reviews[].state`, `reviews[].author`       | Formal review submissions; `body` may contain actionable top-level feedback |
+| `gh pr view --json comments`    | `comments[].body`, `comments[].author`                        | General PR conversation (no file/line context)                              |
+
+Treat non-empty `reviews[].body` text as an additional actionable item to
+analyze in Step 5, alongside inline comments.
 
 **Filtering rules before analysis:**
 
-- Include comments from all authors regardless of `user.type` — bot reviewers
-  (Codex, CodeRabbit, etc.) are primary reviewers and their comments carry the
-  same weight as human comments.
-- Group inline comments by `in_reply_to_id`: a reply thread shares the same
-  root concern — treat the thread as one item and read the full thread for
-  context before deciding its status.
+- Include comments from **all authors** regardless of `user.type` — bot
+  reviewers (Codex, CodeRabbit, etc.) carry the same weight as humans.
+- Group inline comments by `in_reply_to_id`: a reply thread shares one root
+  concern. Read the whole thread, treat it as one item.
 
 ## Step 4 — Fetch the PR diff
 
@@ -86,75 +95,77 @@ Replace `<PR_NUMBER>` with the `number` value from Step 2.
 gh pr diff
 ```
 
-Use the diff to check whether a subsequent commit already addressed a comment
+Use the diff to check whether a later commit already addressed a comment
 without an explicit reply.
 
 ## Step 5 — Analyze each comment
 
-For every human-authored inline code-review comment (from Step 3, source 1),
-and every actionable concern raised in formal review bodies (source 2):
+For every inline code-review comment (Step 3, source 1) **and** every
+actionable concern in formal review bodies (source 2) — regardless of author
+type:
 
-1. **Locate the code** — use the `path` and `line` fields to read the file at
-   its **current HEAD state** (not the PR state). This shows whether the fix
-   was already applied.
+1. **Locate the code** — use `path` and `line` to read the file at **current
+   HEAD** (not the PR state). This shows whether the fix was already applied.
 2. **Parse the request** — read `body` (and `diff_hunk` for context) to
-   understand what the reviewer asked for: bug fix, naming change, missing test,
-   security concern, refactor, etc.
-3. **Check the diff** — look at the Step 4 diff to see if a subsequent commit
-   addressed the feedback.
+   understand the reviewer's intent: bug fix, rename, missing test, security,
+   refactor, etc.
+3. **Check the diff** — use Step 4's diff to see if a later commit addressed
+   the feedback.
 4. **Assign a verdict:**
 
-   | Verdict        | Meaning                                                                            |
-   | -------------- | ---------------------------------------------------------------------------------- |
-   | ✅ Addressed   | The code now reflects exactly what the reviewer requested.                         |
-   | ⚠️ Suggestion  | Some action was taken, or the comment is non-blocking (style preference, nitpick). |
-   | ❌ Unaddressed | No change was made, or the change does not satisfy the reviewer's request.         |
+   | Verdict       | Meaning                                                                           |
+      |---------------|-----------------------------------------------------------------------------------|
+   | ✅ Addressed   | The code now reflects exactly what the reviewer requested.                        |
+   | ⚠️ Suggestion | Action taken, or the comment is non-blocking (style, nitpick, optional refactor). |
+   | ❌ Unaddressed | No change was made, or the change does not satisfy the request.                   |
 
-5. **For ❌ and ⚠️ items**, record:
-   - What the reviewer requested.
-   - What the current code does instead.
-   - A concrete suggestion for how to resolve it.
+5. For ❌ and ⚠️ items, record: what was requested, what the code does now,
+   and a concrete fix.
 
-## Step 6 — Validate against ClawOS conventions
+## Step 6 — Validate against project conventions
 
-Load the `clawos-conventions` skill and verify unaddressed or partially
-addressed comments against those standards. Pay particular attention to:
+If a `clawos-conventions` skill is available, load it and verify unaddressed
+or partially addressed items against its standards. Otherwise, probe for
+conventions via `CLAUDE.md`, `CONTRIBUTING.md`, or the repo root and apply
+them.
+
+For ClawOS specifically, check:
 
 - TypeScript strict — no `any`, no implicit returns.
-- Zod validation — external input validated with `@clawos/security` schemas.
-- Tests — new logic must have colocated `*.test.ts` files.
+- Zod validation — external input validated via `@clawos/security` schemas.
+- Tests — new logic has a colocated `*.test.ts`.
 - Security non-negotiables — no secrets in code, RLS on new tables,
   rate-limit middleware on new routes, `safeCompare()` for secret comparisons.
-- Formatting — run `npm run format:check` to confirm Prettier compliance.
+- Formatting — `npm run format:check` passes.
 
 If `format:check` fails, treat it as a ❌ issue regardless of whether a
-reviewer explicitly flagged it.
+reviewer flagged it.
 
 ## Step 7 — Produce the summary
 
-Output a structured report in this format:
+Output a structured report:
 
 ---
 
-**PR:** {title} (#{number})  
+**PR:** {title} (#{number})
 **State:** {state} | **Review decision:** {reviewDecision}
 
-| #   | File                 | Comment summary                   | Status       |
-| --- | -------------------- | --------------------------------- | ------------ |
-| 1   | `path/to/file.ts:42` | Brief summary of reviewer request | ✅ / ⚠️ / ❌ |
+| # | File                 | Comment summary                   | Status     |
+|---|----------------------|-----------------------------------|------------|
+| 1 | `path/to/file.ts:42` | Brief summary of reviewer request | ✅ / ⚠️ / ❌ |
 
 ### ✅ Addressed
 
-List each resolved comment with one sentence confirming what changed.
+One sentence per resolved item describing what changed.
 
 ### ⚠️ Suggestions
 
-List each non-blocking item. For each: file + line, what the reviewer said,
-why it is non-blocking, and an optional improvement to consider.
+Per item: file + line, what the reviewer said, why it is non-blocking, an
+optional improvement.
 
 ### ❌ Unaddressed — must fix before merging
 
-For each blocking item:
+Per blocker:
 
 - **File:** `path/to/file.ts:42`
 - **Reviewer asked:** (exact request)
@@ -165,9 +176,134 @@ For each blocking item:
 
 ## Step 8 — Merge-readiness verdict
 
-Close the report with one of these three verdicts:
+Close the report with **exactly one** of these literal verdicts (the next
+step branches on the exact string):
 
-- **Ready to merge** — all ❌ items are resolved; no outstanding blockers.
-- **Not ready — N blocker(s) remain** — list the ❌ items by number.
-- **Ready with suggestions** — no ❌ blockers; Y ⚠️ suggestions remain for
-  the author to consider but are not blocking merge.
+- `READY_TO_MERGE` — all ❌ items resolved; no blockers.
+- `NOT_READY` — one or more ❌ items remain; list them by number.
+- `READY_WITH_SUGGESTIONS` — no ❌ blockers; Y ⚠️ suggestions remain.
+
+## Step 9 — Finalize the review
+
+Translate Step 8's verdict into concrete GitHub operations. Do **not** create
+intermediate commits or force-push without explicit user confirmation. Skip
+this entire step if Step 2 found the PR `CLOSED` or `MERGED`.
+
+### 9.1 — Decide the action path
+
+| Step 8 verdict           | Action path                                    |
+|--------------------------|------------------------------------------------|
+| `NOT_READY`              | Go to **9.2** (report blockers, do not merge). |
+| `READY_WITH_SUGGESTIONS` | Go to **9.3** (confirm), then **9.4**.         |
+| `READY_TO_MERGE`         | Go to **9.4**.                                 |
+
+### 9.2 — Blockers remain
+
+1. Surface the ❌ list from Step 7.
+2. Ask whether to (a) stop so the user fixes manually, or (b) draft fixes for
+   each blocker in a follow-up turn.
+3. **Do not merge. Do not resolve conversations.** Stop the skill here.
+
+### 9.3 — Confirm non-blocking suggestions
+
+Ask:
+
+> "There are {Y} non-blocking suggestions. Merge anyway, or address them first?"
+
+Proceed only on explicit confirmation.
+
+### 9.4 — Final confirmation gate
+
+Before any write action, show the user:
+
+- The PR number and title.
+- The count of threads that will be resolved.
+- The merge strategy that will be used (see 9.6).
+
+Ask: *"Proceed with comment, resolve, and merge? (y/n)"* — stop on anything
+other than explicit yes.
+
+### 9.5 — Post the review summary comment
+
+Write the Step 7 summary to a temp file first to avoid shell-quoting issues,
+then post it:
+
+```bash
+SUMMARY_FILE=$(mktemp)
+cat > "$SUMMARY_FILE" <<'EOF'
+<Step 7 summary markdown>
+EOF
+gh pr comment <PR_NUMBER> --body-file "$SUMMARY_FILE"
+rm "$SUMMARY_FILE"
+```
+
+### 9.6 — Resolve addressed inline threads
+
+Fetch all review threads (paginate if the PR has more than 100), then resolve
+**only** those that:
+
+1. Match a Step 7 ✅ item by `(path, line)` of the thread's root comment, and
+2. Have `isResolved == false`.
+
+```bash
+# 1. List threads (paginate via endCursor if needed)
+gh api graphql -f query='
+  query($owner:String!,$repo:String!,$pr:Int!,$after:String){
+    repository(owner:$owner,name:$repo){
+      pullRequest(number:$pr){
+        reviewThreads(first:100, after:$after){
+          pageInfo{ hasNextPage endCursor }
+          nodes{
+            id isResolved
+            comments(first:1){ nodes{ path line body author{ login } } }
+          }
+        }
+      }
+    }
+  }' -F owner=<OWNER> -F repo=<REPO> -F pr=<PR_NUMBER>
+
+# 2. For each matched unresolved thread
+gh api graphql -f query='
+  mutation($id:ID!){
+    resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } }
+  }' -f id=<THREAD_ID>
+```
+
+Do **not** resolve threads for ⚠️ or ❌ items — that is the
+author/reviewer's decision.
+
+### 9.7 — Merge the PR
+
+Detect the allowed merge strategy first:
+
+```bash
+gh api "repos/{owner}/{repo}" \
+  --jq '{squash:.allow_squash_merge,merge:.allow_merge_commit,rebase:.allow_rebase_merge}'
+```
+
+Then merge with the preferred enabled strategy (priority: squash → rebase →
+merge, unless the repo specifies otherwise):
+
+```bash
+gh pr merge <PR_NUMBER> --squash --delete-branch
+```
+
+### 9.8 — Confirm completion
+
+Report back:
+
+- Merge commit SHA (`gh pr view --json mergeCommit`).
+- Number of threads resolved.
+- Any threads intentionally left unresolved and why.
+
+### 9.9 — Failure handling
+
+- If `gh pr merge` fails due to required checks, branch protection, or merge
+  conflicts: report the exact error and stop. **Do not** retry with `--admin`.
+- If thread resolution fails for a subset of threads, continue with the rest
+  and list the failures in 9.8.
+- If the skill is re-run after a partial completion: Step 2 will catch a
+  merged PR, and 9.6's `isResolved == false` filter makes resolution
+  idempotent.
+
+---
