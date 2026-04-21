@@ -46,7 +46,7 @@ function getScrapeClawAnthropicApiKey(): string {
 }
 
 function getScrapeClawEnrichmentModel(): string | undefined {
-  return process.env['SCRAPECLAW_ENRICHMENT_MODEL'] ?? undefined
+  return process.env['SCRAPECLAW_ENRICHMENT_MODEL']?.trim() || undefined
 }
 
 function normaliseCanonicalWebsiteUrl(value: string): string {

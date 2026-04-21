@@ -199,9 +199,11 @@ function mergeProspect(
   base: ScrapeClawProspectDraft,
   enriched: EnrichmentToolInput,
 ): ScrapeClawProspectDraft {
+  const fitScore = clampFitScore(enriched.fitScore)
   return {
     ...base,
-    fitScore: clampFitScore(enriched.fitScore),
+    fitScore,
+    status: fitScore >= 0.35 ? 'qualified' : 'disqualified',
     useCaseHypothesis: enriched.useCaseHypothesis,
     dataNeedHypothesis: enriched.dataNeedHypothesis,
     demoTypeRecommendation: enriched.demoTypeRecommendation,
