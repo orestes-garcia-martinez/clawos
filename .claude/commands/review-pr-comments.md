@@ -74,7 +74,7 @@ gh pr view --json comments
 **Understanding the three types:**
 
 | Source                          | JSON key                                                      | Contains                                                                    |
-|---------------------------------|---------------------------------------------------------------|-----------------------------------------------------------------------------|
+| ------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `gh api .../pulls/<n>/comments` | `path`, `line`, `body`, `diff_hunk`, `user`, `in_reply_to_id` | Inline line-specific review comments — **primary focus**                    |
 | `gh pr view --json reviews`     | `reviews[].body`, `reviews[].state`, `reviews[].author`       | Formal review submissions; `body` may contain actionable top-level feedback |
 | `gh pr view --json comments`    | `comments[].body`, `comments[].author`                        | General PR conversation (no file/line context)                              |
@@ -113,10 +113,10 @@ type:
    the feedback.
 4. **Assign a verdict:**
 
-   | Verdict       | Meaning                                                                           |
-      |---------------|-----------------------------------------------------------------------------------|
+   | Verdict        | Meaning                                                                           |
+   | -------------- | --------------------------------------------------------------------------------- |
    | ✅ Addressed   | The code now reflects exactly what the reviewer requested.                        |
-   | ⚠️ Suggestion | Action taken, or the comment is non-blocking (style, nitpick, optional refactor). |
+   | ⚠️ Suggestion  | Action taken, or the comment is non-blocking (style, nitpick, optional refactor). |
    | ❌ Unaddressed | No change was made, or the change does not satisfy the request.                   |
 
 5. For ❌ and ⚠️ items, record: what was requested, what the code does now,
@@ -150,9 +150,9 @@ Output a structured report:
 **PR:** {title} (#{number})
 **State:** {state} | **Review decision:** {reviewDecision}
 
-| # | File                 | Comment summary                   | Status     |
-|---|----------------------|-----------------------------------|------------|
-| 1 | `path/to/file.ts:42` | Brief summary of reviewer request | ✅ / ⚠️ / ❌ |
+| #   | File                 | Comment summary                   | Status       |
+| --- | -------------------- | --------------------------------- | ------------ |
+| 1   | `path/to/file.ts:42` | Brief summary of reviewer request | ✅ / ⚠️ / ❌ |
 
 ### ✅ Addressed
 
@@ -192,7 +192,7 @@ this entire step if Step 2 found the PR `CLOSED` or `MERGED`.
 ### 9.1 — Decide the action path
 
 | Step 8 verdict           | Action path                                    |
-|--------------------------|------------------------------------------------|
+| ------------------------ | ---------------------------------------------- |
 | `NOT_READY`              | Go to **9.2** (report blockers, do not merge). |
 | `READY_WITH_SUGGESTIONS` | Go to **9.3** (confirm), then **9.4**.         |
 | `READY_TO_MERGE`         | Go to **9.4**.                                 |
@@ -220,7 +220,7 @@ Before any write action, show the user:
 - The count of threads that will be resolved.
 - The merge strategy that will be used (see 9.6).
 
-Ask: *"Proceed with comment, resolve, and merge? (y/n)"* — stop on anything
+Ask: _"Proceed with comment, resolve, and merge? (y/n)"_ — stop on anything
 other than explicit yes.
 
 ### 9.5 — Post the review summary comment
