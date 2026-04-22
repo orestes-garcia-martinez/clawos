@@ -13,6 +13,7 @@ import {
   SCRAPECLAW_DEFAULT_LLM_CALL_TIMEOUT_MS,
   SCRAPECLAW_DEFAULT_MAX_ENRICHMENT_PROSPECTS,
   SCRAPECLAW_ENRICHMENT_PROMPT_VERSION,
+  SCRAPECLAW_PROSPECT_QUALIFIED_THRESHOLD,
 } from './constants.js'
 import type { RunScrapeClawEnrichmentOptions } from './types.js'
 
@@ -91,6 +92,51 @@ function summariseEvidence(result: ScrapeClawResearchProspectResult): string {
 }
 
 function buildPrompt(result: ScrapeClawResearchProspectResult): string {
+  // Phase 4a: surface the deterministic score breakdown, contact summary, and
+  // quality summary so the LLM can reason about WHY a score landed where it
+  // did instead of guessing. The tool schema stays narrow — the model still
+  // emits the same EnrichmentToolInput shape.
+  const breakdown = result.scoreBreakdown
+  const contacts = result.contactSummary
+  const quality = result.qualitySummary
+
+  const breakdownLines = breakdown
+    ? [
+        '',
+        'Deterministic score breakdown (final = weighted sum, clamped 0–1):',
+        `- wedge match:          ${breakdown.wedgeMatchScore}`,
+        `- inventory signal:     ${breakdown.inventorySignalScore}`,
+        `- locality:             ${breakdown.localityScore}`,
+        `- website quality:      ${breakdown.websiteQualityScore}`,
+        `- contact quality:      ${breakdown.contactQualityScore}`,
+        `- evidence richness:    ${breakdown.evidenceRichnessScore}`,
+        `- final:                ${breakdown.finalScore}`,
+      ]
+    : []
+
+  const contactLines = contacts
+    ? [
+        '',
+        'Contact summary (post-normalization):',
+        `- primary email:        ${contacts.primaryBusinessEmail ?? '(none)'}`,
+        `- secondary emails:     ${contacts.secondaryEmails.length}`,
+        `- primary phone:        ${contacts.primaryBusinessPhone ?? '(none)'}`,
+        `- secondary phones:     ${contacts.secondaryPhones.length}`,
+        `- contact confidence:   ${contacts.contactConfidence}`,
+      ]
+    : []
+
+  const qualityLines = quality
+    ? [
+        '',
+        'Quality summary:',
+        `- distinct evidence pages: ${quality.distinctEvidencePageCount}`,
+        `- homepage only:           ${quality.homepageOnly}`,
+        `- compromised pages:       ${quality.compromisedPages.length}`,
+        `- warnings:                ${quality.warnings.join(', ') || '(none)'}`,
+      ]
+    : []
+
   return [
     'You are evaluating a prospective ScrapeClaw client in the residential property management wedge.',
     'Use only the evidence provided. Do not invent facts, pages, or business capabilities that are not grounded in the evidence.',
@@ -109,6 +155,9 @@ function buildPrompt(result: ScrapeClawResearchProspectResult): string {
     `- demo type recommendation: ${result.prospect.demoTypeRecommendation}`,
     `- outreach angle: ${result.prospect.outreachAngle}`,
     `- confidence level: ${result.prospect.confidenceLevel}`,
+    ...breakdownLines,
+    ...contactLines,
+    ...qualityLines,
     '',
     'Deterministic reasoning:',
     ...result.reasoning.map((item) => `- ${item}`),
@@ -122,6 +171,7 @@ function buildPrompt(result: ScrapeClawResearchProspectResult): string {
     '- recommend the best initial demo type',
     '- write a concise outreach angle grounded in the evidence',
     '- set confidence low/medium/high based on the evidence quality',
+    '- if the deterministic quality summary lists compromised pages or thin evidence, lean conservative on confidence and score',
     '- provide 1-5 short reasoning bullets referencing only the supplied evidence',
   ]
     .filter(Boolean)
@@ -203,7 +253,7 @@ function mergeProspect(
   return {
     ...base,
     fitScore,
-    status: fitScore >= 0.35 ? 'qualified' : 'disqualified',
+    status: fitScore >= SCRAPECLAW_PROSPECT_QUALIFIED_THRESHOLD ? 'qualified' : 'disqualified',
     useCaseHypothesis: enriched.useCaseHypothesis,
     dataNeedHypothesis: enriched.dataNeedHypothesis,
     demoTypeRecommendation: enriched.demoTypeRecommendation,
