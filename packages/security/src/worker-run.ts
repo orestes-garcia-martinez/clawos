@@ -182,9 +182,11 @@ const JsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
   ]),
 )
 
+const anyUrl = z.string().url().max(2_000)
+
 const ScrapeClawEvidenceDraftSchema = z.object({
   pageKind: z.enum(['homepage', 'about', 'services', 'contact', 'niche_relevant', 'other']),
-  sourceUrl: httpsUrl,
+  sourceUrl: anyUrl,
   observedAt: z.string().datetime(),
   title: z.string().max(300).nullable(),
   snippet: z.string().max(4_000).nullable(),

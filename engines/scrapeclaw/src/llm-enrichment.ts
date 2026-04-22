@@ -238,38 +238,47 @@ export async function runScrapeClawAgent1Enrichment(
   if (!fetchImpl) throw new Error('Global fetch is not available in this runtime')
   const model = input.model ?? options.model ?? SCRAPECLAW_DEFAULT_ENRICHMENT_MODEL
   const warnings: ScrapeClawEnrichmentWorkerResult['warnings'] = []
-  const enrichedProspects: ScrapeClawEnrichedProspectResult[] = []
 
-  for (const prospect of input.prospects.slice(
+  const batch = input.prospects.slice(
     0,
     input.maxProspects ?? SCRAPECLAW_DEFAULT_MAX_ENRICHMENT_PROSPECTS,
-  )) {
-    try {
-      const enriched = await callAnthropicStructured(fetchImpl, {
+  )
+
+  const settled = await Promise.all(
+    batch.map((prospect) =>
+      callAnthropicStructured(fetchImpl, {
         apiKey: options.apiKey,
         model,
         prompt: buildPrompt(prospect),
       })
-      enrichedProspects.push({
-        business: prospect.business,
-        baseProspect: prospect.prospect,
-        enrichedProspect: mergeProspect(prospect.prospect, enriched),
-        evidenceItems: prospect.evidenceItems,
-        deterministicReasoning: prospect.reasoning,
-        llmReasoning: enriched.reasoningBullets,
-        provider: 'anthropic',
-        model,
-        promptVersion: SCRAPECLAW_ENRICHMENT_PROMPT_VERSION,
-        usedFallback: false,
-      })
-    } catch (error) {
+        .then((enriched) => ({ prospect, enriched, error: null }))
+        .catch((error: unknown) => ({ prospect, enriched: null, error })),
+    ),
+  )
+
+  const enrichedProspects: ScrapeClawEnrichedProspectResult[] = settled.map(
+    ({ prospect, enriched, error }) => {
+      if (enriched) {
+        return {
+          business: prospect.business,
+          baseProspect: prospect.prospect,
+          enrichedProspect: mergeProspect(prospect.prospect, enriched),
+          evidenceItems: prospect.evidenceItems,
+          deterministicReasoning: prospect.reasoning,
+          llmReasoning: enriched.reasoningBullets,
+          provider: 'anthropic',
+          model,
+          promptVersion: SCRAPECLAW_ENRICHMENT_PROMPT_VERSION,
+          usedFallback: false,
+        }
+      }
       warnings.push({
         businessName: prospect.business.name,
         reason: error instanceof Error ? error.message : 'Unknown enrichment error',
       })
-      enrichedProspects.push(fallbackResult(prospect, model))
-    }
-  }
+      return fallbackResult(prospect, model)
+    },
+  )
 
   return {
     mode: 'enrich',
