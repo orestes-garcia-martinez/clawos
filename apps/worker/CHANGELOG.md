@@ -1,10 +1,14 @@
 # Changelog
 
-## [0.12.1] (2026-04-17)
+## [0.13.0] (2026-04-18)
+
+### Features
+
+- **worker:** wire ScrapeClaw Agent 1 LLM enrichment into adapter dispatch — `executeEnrichment()` delegates to `runScrapeClawAgent1Enrichment`; add `getScrapeClawAnthropicApiKey` / `getScrapeClawEnrichmentModel` helpers; document `SCRAPECLAW_ANTHROPIC_API_KEY` and `SCRAPECLAW_ENRICHMENT_MODEL` in `.env.example` ([14f8f52](https://github.com/orestes-garcia-martinez/clawos/commit/14f8f52ba429a44beaf7ef0d6cb99d14e54bbcf3))
 
 ### Bug Fixes
 
-- **deps:** bump `careerclaw-js` `^1.14.0` → `^1.14.1` — resolves 5 critical `protobufjs < 7.5.5` vulnerabilities (GHSA-xq3m-2v4x-88gg) transitively via `@xenova/transformers` upgrade in 1.14.1
+- **deps:** bump `careerclaw-js` `^1.14.0` → `^1.14.1` — resolves 5 critical `protobufjs < 7.5.5` vulnerabilities (GHSA-xq3m-2v4x-88gg) transitively via `@xenova/transformers` upgrade in 1.14.1 ([1592ea4](https://github.com/orestes-garcia-martinez/clawos/commit/1592ea4))
 
 ## [0.12.0] (2026-04-15)
 

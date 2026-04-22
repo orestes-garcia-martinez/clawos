@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VerifiedSkillExecutionContext } from '@clawos/shared'
 
 const mockRunResearch = vi.fn()
+const mockRunEnrichment = vi.fn()
 const mockDiscoverPlaceSeeds = vi.fn()
 const mockResolvePlaceSeedWebsite = vi.fn()
 
@@ -16,6 +17,7 @@ const storeMethods = {
 
 vi.mock('@clawos/scrapeclaw-engine', () => ({
   runScrapeClawAgent1Research: mockRunResearch,
+  runScrapeClawAgent1Enrichment: mockRunEnrichment,
   discoverPlaceSeeds: mockDiscoverPlaceSeeds,
   resolvePlaceSeedWebsite: mockResolvePlaceSeedWebsite,
 }))
@@ -62,6 +64,42 @@ const VALID_DISCOVERY_INPUT = {
   hubNames: ['Orange Park'],
 }
 
+const VALID_ENRICH_INPUT = {
+  mode: 'enrich' as const,
+  wedgeSlug: 'residential_property_management' as const,
+  marketCity: 'Green Cove Springs',
+  marketRegion: 'Clay County',
+  prospects: [
+    {
+      business: { name: 'Example PM', canonicalWebsiteUrl: 'https://examplepm.com' },
+      prospect: {
+        status: 'qualified',
+        wedgeSlug: 'residential_property_management',
+        marketCity: 'Green Cove Springs',
+        marketRegion: 'Clay County',
+        fitScore: 0.61,
+        useCaseHypothesis: 'Base use case',
+        dataNeedHypothesis: 'Base data need',
+        demoTypeRecommendation: 'competitor_listing_feed',
+        outreachAngle: 'Base outreach angle',
+        confidenceLevel: 'medium',
+      },
+      evidenceItems: [
+        {
+          pageKind: 'homepage',
+          sourceUrl: 'https://examplepm.com/',
+          observedAt: '2026-04-16T00:00:00.000Z',
+          title: 'Example PM',
+          snippet: 'Property management and rentals.',
+          extractedFacts: { matchedTerms: ['property management'] },
+          sourceConfidence: 'medium',
+        },
+      ],
+      reasoning: ['Observed property management signals.'],
+    },
+  ],
+}
+
 describe('scrapeClawAdapter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -99,6 +137,28 @@ describe('scrapeClawAdapter', () => {
     expect(result).toEqual(
       expect.objectContaining({ mode: 'research', marketRegion: 'Clay County' }),
     )
+  })
+
+  it('validates and executes enrichment input', async () => {
+    process.env['SCRAPECLAW_ANTHROPIC_API_KEY'] = 'anthropic-test-key'
+    mockRunEnrichment.mockResolvedValue({
+      mode: 'enrich',
+      wedgeSlug: 'residential_property_management',
+      marketCity: 'Green Cove Springs',
+      marketRegion: 'Clay County',
+      generatedAt: '2026-04-16T00:00:00.000Z',
+      enrichedProspects: [],
+      warnings: [],
+    })
+
+    const input = scrapeClawAdapter.validateInput(VALID_ENRICH_INPUT)
+    const result = await scrapeClawAdapter.execute(input, VERIFIED_CTX)
+
+    expect(mockRunEnrichment).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'enrich', marketCity: 'Green Cove Springs' }),
+      expect.objectContaining({ apiKey: 'anthropic-test-key' }),
+    )
+    expect(result).toEqual(expect.objectContaining({ mode: 'enrich', marketRegion: 'Clay County' }))
   })
 
   it('discovers Google Places candidates and inserts new businesses', async () => {

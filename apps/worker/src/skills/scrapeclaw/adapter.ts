@@ -1,6 +1,7 @@
 import {
   discoverPlaceSeeds,
   resolvePlaceSeedWebsite,
+  runScrapeClawAgent1Enrichment,
   runScrapeClawAgent1Research,
   type ScrapeClawResolvedWebsiteCandidate,
 } from '@clawos/scrapeclaw-engine'
@@ -12,6 +13,7 @@ import {
   type ScrapeClawDiscoveryDiscardedCandidate,
   type ScrapeClawDiscoveryInsertedBusiness,
   type ScrapeClawDiscoveryWorkerInput,
+  type ScrapeClawEnrichmentWorkerInput,
   type ScrapeClawResearchWorkerInput,
   type ScrapeClawWorkerInput,
   type VerifiedSkillExecutionContext,
@@ -28,6 +30,23 @@ function getGooglePlacesApiKey(): string {
   }
 
   return apiKey
+}
+
+function getScrapeClawAnthropicApiKey(): string {
+  const apiKey =
+    process.env['SCRAPECLAW_ANTHROPIC_API_KEY'] ??
+    process.env['CLAWOS_ANTHROPIC_KEY'] ??
+    process.env['CAREERCLAW_ANTHROPIC_KEY']
+
+  if (!apiKey) {
+    throw new Error('SCRAPECLAW_ANTHROPIC_API_KEY is required for ScrapeClaw enrichment')
+  }
+
+  return apiKey
+}
+
+function getScrapeClawEnrichmentModel(): string | undefined {
+  return process.env['SCRAPECLAW_ENRICHMENT_MODEL']?.trim() || undefined
 }
 
 function normaliseCanonicalWebsiteUrl(value: string): string {
@@ -91,6 +110,15 @@ async function executeResearch(
   input: ScrapeClawResearchWorkerInput,
 ): Promise<Record<string, unknown>> {
   return (await runScrapeClawAgent1Research(input)) as unknown as Record<string, unknown>
+}
+
+async function executeEnrichment(
+  input: ScrapeClawEnrichmentWorkerInput,
+): Promise<Record<string, unknown>> {
+  return (await runScrapeClawAgent1Enrichment(input, {
+    apiKey: getScrapeClawAnthropicApiKey(),
+    model: getScrapeClawEnrichmentModel(),
+  })) as unknown as Record<string, unknown>
 }
 
 function buildMergePatch(
@@ -280,7 +308,7 @@ export const scrapeClawAdapter = {
   slug: 'scrapeclaw' as const,
 
   validateInput(input: unknown): ScrapeClawWorkerInput {
-    return ScrapeClawWorkerInputSchema.parse(input)
+    return ScrapeClawWorkerInputSchema.parse(input) as unknown as ScrapeClawWorkerInput
   },
 
   async execute(
@@ -289,6 +317,10 @@ export const scrapeClawAdapter = {
   ): Promise<Record<string, unknown>> {
     if (input.mode === 'discover') {
       return executeDiscovery(input, ctx)
+    }
+
+    if (input.mode === 'enrich') {
+      return executeEnrichment(input)
     }
 
     return executeResearch(input)

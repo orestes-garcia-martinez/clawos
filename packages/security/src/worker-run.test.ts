@@ -3,6 +3,7 @@ import {
   CareerClawCoverLetterInputSchema,
   CareerClawGapAnalysisInputSchema,
   ScrapeClawDiscoveryWorkerInputSchema,
+  ScrapeClawEnrichmentWorkerInputSchema,
   ScrapeClawResearchWorkerInputSchema,
   ScrapeClawWorkerInputSchema,
 } from './worker-run.js'
@@ -161,5 +162,50 @@ describe('ScrapeClaw discovery worker input schema', () => {
         marketRegion: 'Miami-Dade County',
       }),
     ).toThrow()
+  })
+})
+
+describe('ScrapeClaw enrichment worker input schema', () => {
+  it('accepts schema-constrained enrichment input built from deterministic research', () => {
+    expect(() =>
+      ScrapeClawEnrichmentWorkerInputSchema.parse({
+        mode: 'enrich',
+        wedgeSlug: 'residential_property_management',
+        marketCity: 'Green Cove Springs',
+        marketRegion: 'Clay County',
+        prospects: [
+          {
+            business: {
+              name: 'Example Property Management',
+              canonicalWebsiteUrl: 'https://examplepm.com',
+            },
+            prospect: {
+              status: 'qualified',
+              wedgeSlug: 'residential_property_management',
+              marketCity: 'Green Cove Springs',
+              marketRegion: 'Clay County',
+              fitScore: 0.6,
+              useCaseHypothesis: 'Track local rental inventory and changes.',
+              dataNeedHypothesis: 'The website exposes public listing-style content.',
+              demoTypeRecommendation: 'weekly_market_snapshot',
+              outreachAngle: 'Offer a weekly Clay County market sheet.',
+              confidenceLevel: 'medium',
+            },
+            evidenceItems: [
+              {
+                pageKind: 'homepage',
+                sourceUrl: 'https://examplepm.com/',
+                observedAt: '2026-04-16T00:00:00.000Z',
+                title: 'Example PM',
+                snippet: 'Property management and rentals in Green Cove Springs.',
+                extractedFacts: { matchedTerms: ['property management'] },
+                sourceConfidence: 'medium',
+              },
+            ],
+            reasoning: ['Observed property management language on the homepage.'],
+          },
+        ],
+      }),
+    ).not.toThrow()
   })
 })
