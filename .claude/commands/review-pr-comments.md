@@ -204,6 +204,42 @@ this entire step if Step 2 found the PR `CLOSED` or `MERGED`.
    each blocker in a follow-up turn.
 3. **Do not merge. Do not resolve conversations.** Stop the skill here.
 
+#### 9.2.1 — After blockers are fixed (path b)
+
+Once all ❌ fixes are committed and pushed, immediately perform these two
+actions **without waiting for the user to re-invoke the skill**:
+
+**Post a summary comment** (use a temp file to avoid quoting issues):
+
+```bash
+SUMMARY_FILE=$(mktemp)
+cat > "$SUMMARY_FILE" <<'EOF'
+## Review response — <short description> (<commit SHA>)
+
+### ✅ <Comment #N title>
+One sentence describing what changed and why it satisfies the reviewer.
+
+### ✅ <Comment #M title>
+...
+EOF
+gh pr comment <PR_NUMBER> --body-file "$SUMMARY_FILE"
+rm "$SUMMARY_FILE"
+```
+
+**Resolve threads** for every item that is now ✅ using the GraphQL mutation
+from Step 9.6. Fetch thread IDs from the `reviewThreads` query, then resolve
+each unresolved thread whose `(path, line)` matches a fixed item:
+
+```bash
+gh api graphql -f query='
+  mutation($id:ID!){
+    resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } }
+  }' -f id=<THREAD_ID>
+```
+
+**Do not merge** — the PR verdict is still `NOT_READY` until CI re-runs and
+the user confirms. Stop here after comment + resolve.
+
 ### 9.3 — Confirm non-blocking suggestions
 
 Ask:
