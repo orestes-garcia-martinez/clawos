@@ -182,6 +182,13 @@ function scoreExclusion(
   const matched = SCRAPECLAW_PRE_RANK_OUT_OF_SCOPE_NAME_PATTERNS.filter((p) => {
     if (nameLower.includes(p)) return true
     const pNorm = p.replace(/\s+/g, '')
+    // Short patterns (e.g. "hoa" → 3 chars) are too broad for a plain
+    // substring match: "shoalcreekpm.com" normalises to "shoalcreekpm" which
+    // contains "hoa" as an accidental interior sequence.
+    // HOA-convention domains always end with the abbreviation
+    // ("glenhavenhoa.com", "sunsetridgehoa.com"), so an end-anchor is both
+    // correct for the intended case and safe against false positives.
+    if (pNorm.length < 5) return hostNorm.endsWith(pNorm)
     return hostNorm.includes(pNorm)
   })
   if (matched.length === 0) return { penalty: 0, matched: [] }

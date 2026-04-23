@@ -121,14 +121,17 @@ export function evaluateUrlEligibility(input: string): ScrapeClawUrlEligibilityR
     return build(trimmed, 'empty_host', 'URL has no host')
   }
 
-  // Lowercase hostname, strip leading "www.".
-  const lowerHost = parsed.hostname.toLowerCase().replace(/^www\./, '')
-  if (isHostUnsafe(lowerHost)) {
-    return build(trimmed, 'private_or_loopback_host', `Blocked host: ${lowerHost}`)
+  // Lowercase hostname for safety checks; strip www. only for the check, not
+  // for the canonical URL — many sites serve exclusively on www. and stripping
+  // it can break TLS or DNS resolution for downstream fetches.
+  const lowerHost = parsed.hostname.toLowerCase()
+  const checkHost = lowerHost.replace(/^www\./, '')
+  if (isHostUnsafe(checkHost)) {
+    return build(trimmed, 'private_or_loopback_host', `Blocked host: ${checkHost}`)
   }
 
-  if (isForbiddenHostPattern(lowerHost)) {
-    return build(trimmed, 'forbidden_host_pattern', `Forbidden host: ${lowerHost}`)
+  if (isForbiddenHostPattern(checkHost)) {
+    return build(trimmed, 'forbidden_host_pattern', `Forbidden host: ${checkHost}`)
   }
 
   // Build the normalized form: https, lowercased host, no fragment/query,

@@ -86,6 +86,16 @@ export interface ContactExtractionPage {
   pageKind: ScrapeClawEvidencePageKind
   /** Visible text (already stripped of HTML). */
   visibleText: string
+  /**
+   * Emails pre-extracted from raw HTML (preferred over visibleText re-scan
+   * when provided, because mailto: href attributes are not in visible text).
+   */
+  emails?: string[]
+  /**
+   * Phones pre-extracted from raw HTML (preferred over visibleText re-scan
+   * when provided).
+   */
+  phones?: string[]
 }
 
 interface PhoneCandidate {
@@ -103,14 +113,19 @@ interface EmailCandidate {
 }
 
 function extractEmailsFromPage(page: ContactExtractionPage): string[] {
+  if (page.emails) return page.emails.map((e) => e.toLowerCase())
   return Array.from(page.visibleText.matchAll(EMAIL_RE), (m) => m[0].toLowerCase())
 }
 
 function extractPhonesFromPage(
   page: ContactExtractionPage,
 ): Array<{ normalized: string; display: string }> {
+  // When pre-extracted phones are provided, join them so the PHONE_RE (which
+  // applies stricter NANP validation than the HTML extractor) still runs,
+  // but only against pre-matched strings rather than a full page of text.
+  const text = page.phones ? page.phones.join('\n') : page.visibleText
   const out: Array<{ normalized: string; display: string }> = []
-  for (const match of page.visibleText.matchAll(PHONE_RE)) {
+  for (const match of text.matchAll(PHONE_RE)) {
     const [, area, exch, line] = match
     if (!area || !exch || !line) continue
     const digits = `${area}${exch}${line}`

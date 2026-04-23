@@ -151,7 +151,9 @@ describe('runScrapeClawProductionPreRank', () => {
         }),
       ],
     })
-    expect(result.ranked[0]?.canonicalWebsiteUrl).toBe('https://mixedcasepm.com/')
+    // www. is preserved in the canonical URL so downstream fetches work for
+    // sites that only serve on www. (TLS cert or DNS may not cover the bare domain).
+    expect(result.ranked[0]?.canonicalWebsiteUrl).toBe('https://www.mixedcasepm.com/')
   })
 
   it('credits locality when the hub city appears concatenated in the URL hostname', () => {

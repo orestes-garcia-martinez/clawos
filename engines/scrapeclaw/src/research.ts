@@ -614,6 +614,8 @@ async function researchCandidate(
   const contactPages: ContactExtractionPage[] = evidencePages.map((p) => ({
     pageKind: p.pageKind,
     visibleText: p.visibleText,
+    emails: p.emails,
+    phones: p.phones,
   }))
   const contactSummary = buildContactSummary(contactPages, websiteUrl)
   const scoreBreakdown = computeScoreBreakdown(candidate, evidencePages, contactSummary)
