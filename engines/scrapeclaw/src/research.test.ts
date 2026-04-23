@@ -70,4 +70,89 @@ describe('runScrapeClawAgent1Research', () => {
       result.rankedProspects[0]?.prospect.fitScore ?? 1,
     )
   })
+
+  // ── Phase 4a — score breakdown, contacts, quality ──
+  it('exposes a score breakdown with rationale on each prospect', async () => {
+    const result = await runScrapeClawAgent1Research(
+      {
+        wedgeSlug: 'residential_property_management',
+        marketCity: 'Green Cove Springs',
+        marketRegion: 'Clay County',
+        candidates: [
+          {
+            name: 'Example Property Management',
+            canonicalWebsiteUrl: 'https://examplepm.com/',
+            city: 'Green Cove Springs',
+            state: 'FL',
+          },
+        ],
+      },
+      {
+        fetchImpl: mockFetchFactory() as unknown as typeof fetch,
+        dnsLookupImpl: async () => [{ address: '93.184.216.34', family: 4 }],
+      },
+    )
+    const breakdown = result.rankedProspects[0]?.scoreBreakdown
+    expect(breakdown).toBeDefined()
+    expect(breakdown!.finalScore).toBe(result.rankedProspects[0]!.prospect.fitScore)
+    // Wedge match should be the largest contributor for this clearly-PM site.
+    expect(breakdown!.wedgeMatchScore).toBeGreaterThan(0)
+    expect(breakdown!.localityScore).toBeGreaterThan(0)
+    expect(breakdown!.contactQualityScore).toBeGreaterThan(0)
+    expect(breakdown!.rationale.length).toBeGreaterThan(2)
+  })
+
+  it('produces a contact summary with on-domain primary email and phone', async () => {
+    const result = await runScrapeClawAgent1Research(
+      {
+        wedgeSlug: 'residential_property_management',
+        marketCity: 'Green Cove Springs',
+        marketRegion: 'Clay County',
+        candidates: [
+          {
+            name: 'Example Property Management',
+            canonicalWebsiteUrl: 'https://examplepm.com/',
+          },
+        ],
+      },
+      {
+        fetchImpl: mockFetchFactory() as unknown as typeof fetch,
+        dnsLookupImpl: async () => [{ address: '93.184.216.34', family: 4 }],
+      },
+    )
+    const contacts = result.rankedProspects[0]?.contactSummary
+    expect(contacts).toBeDefined()
+    // Both info@ and hello@ are on-domain and role-based; the regex iteration
+    // order in contacts.ts may pick either. Assert on shape, not the exact
+    // address.
+    expect(contacts!.primaryBusinessEmail).toMatch(/@examplepm\.com$/)
+    expect(contacts!.primaryBusinessPhone).toBe('+19045551212')
+    expect(contacts!.contactConfidence).toBe('high')
+  })
+
+  it('reports quality summary with distinct evidence page count', async () => {
+    const result = await runScrapeClawAgent1Research(
+      {
+        wedgeSlug: 'residential_property_management',
+        marketCity: 'Green Cove Springs',
+        marketRegion: 'Clay County',
+        candidates: [
+          {
+            name: 'Example Property Management',
+            canonicalWebsiteUrl: 'https://examplepm.com/',
+          },
+        ],
+        maxPagesPerBusiness: 5,
+      },
+      {
+        fetchImpl: mockFetchFactory() as unknown as typeof fetch,
+        dnsLookupImpl: async () => [{ address: '93.184.216.34', family: 4 }],
+      },
+    )
+    const quality = result.rankedProspects[0]?.qualitySummary
+    expect(quality).toBeDefined()
+    expect(quality!.distinctEvidencePageCount).toBeGreaterThanOrEqual(4)
+    expect(quality!.homepageOnly).toBe(false)
+    expect(quality!.compromisedPages).toEqual([])
+  })
 })

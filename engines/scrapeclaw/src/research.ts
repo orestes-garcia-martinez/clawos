@@ -1,20 +1,31 @@
 import type {
   ScrapeClawConfidenceLevel,
+  ScrapeClawContactSummary,
+  ScrapeClawCompromisedPageReport,
   ScrapeClawEvidencePageKind,
+  ScrapeClawQualitySummary,
+  ScrapeClawQualityWarning,
   ScrapeClawResearchCandidateBusinessInput,
   ScrapeClawResearchProspectResult,
   ScrapeClawResearchWorkerInput,
   ScrapeClawResearchWorkerResult,
+  ScrapeClawScoreBreakdown,
 } from '@clawos/shared'
 import {
   INVESTOR_TERMS,
   LISTING_TERMS,
   LOCAL_MARKET_TERMS,
   PROPERTY_MANAGEMENT_TERMS,
+  SCRAPECLAW_COMPROMISED_PAGE_QUALITY_PENALTY,
   SCRAPECLAW_DEFAULT_FETCH_TIMEOUT_MS,
   SCRAPECLAW_DEFAULT_MAX_CANDIDATES,
   SCRAPECLAW_DEFAULT_MAX_PAGES_PER_BUSINESS,
   SCRAPECLAW_DEFAULT_USER_AGENT,
+  SCRAPECLAW_DETERMINISTIC_SCORE_WEIGHTS,
+  SCRAPECLAW_PROSPECT_QUALIFIED_THRESHOLD,
+  SCRAPECLAW_SUSPICIOUS_CONTENT_TERMS,
+  SCRAPECLAW_SUSPICIOUS_PAGE_MIN_TERMS,
+  SCRAPECLAW_SUSPICIOUS_TITLE_MIN_LENGTH,
 } from './constants.js'
 import type { DnsLookupFn, PageSummary, RunScrapeClawResearchOptions } from './types.js'
 import {
@@ -24,6 +35,7 @@ import {
   extractTitle,
   stripHtml,
 } from './html.js'
+import { buildContactSummary, type ContactExtractionPage } from './contacts.js'
 
 const unique = <T>(values: Iterable<T>): T[] => [...new Set(values)]
 const normaliseUrl = (input: string): string => new URL(input).toString()
@@ -233,6 +245,34 @@ function buildPageSummary(
     ...countTermMatches(visibleText, INVESTOR_TERMS),
   ])
   const localTerms = unique(countTermMatches(visibleText, LOCAL_MARKET_TERMS))
+  // Compromised-page detection — two complementary signals, both gated on
+  // matchedTerms.length === 0 to avoid penalising legitimate pages that
+  // happen to mention a suspicious term in passing.
+  //
+  // (A) Content-term check: >= MIN distinct suspicious-content terms in the
+  //     visible text. Catches known English/cross-language spam vocabulary.
+  //     The "zero wedge" guard prevents false positives like a property
+  //     manager whose blog mentions "casino night fundraiser" once.
+  //
+  // (B) Title-divergence check: a non-trivially long title (>= MIN chars)
+  //     that contains zero wedge vocabulary is language-agnostic evidence
+  //     of off-topic injection (e.g. Indonesian gambling spam overwriting
+  //     a /contact/ page). The wedge-vocabulary check uses PM + listing +
+  //     investor terms; local-market terms (city names) are intentionally
+  //     excluded because geo-targeted spam sometimes includes city names.
+  const suspiciousTerms = unique(countTermMatches(visibleText, SCRAPECLAW_SUSPICIOUS_CONTENT_TERMS))
+  const suspiciousByTerms =
+    suspiciousTerms.length >= SCRAPECLAW_SUSPICIOUS_PAGE_MIN_TERMS && matchedTerms.length === 0
+  const titleLower = (title ?? '').toLowerCase()
+  const titleHasWedgeVocab =
+    PROPERTY_MANAGEMENT_TERMS.some((t) => titleLower.includes(t)) ||
+    LISTING_TERMS.some((t) => titleLower.includes(t)) ||
+    INVESTOR_TERMS.some((t) => titleLower.includes(t))
+  const suspiciousByTitle =
+    titleLower.length >= SCRAPECLAW_SUSPICIOUS_TITLE_MIN_LENGTH &&
+    !titleHasWedgeVocab &&
+    matchedTerms.length === 0
+  const suspicious = suspiciousByTerms || suspiciousByTitle
   return {
     url,
     pageKind,
@@ -243,6 +283,8 @@ function buildPageSummary(
     phones,
     matchedTerms,
     localTerms,
+    suspiciousTerms,
+    suspicious,
     extractedFacts: {
       title,
       metaDescription,
@@ -250,6 +292,8 @@ function buildPageSummary(
       phones,
       matchedTerms,
       localTerms,
+      suspiciousTerms,
+      suspicious,
       containsPropertyManagementSignals:
         countTermMatches(visibleText, PROPERTY_MANAGEMENT_TERMS).length > 0,
       containsRentalListingSignals: countTermMatches(visibleText, LISTING_TERMS).length > 0,
@@ -259,40 +303,235 @@ function buildPageSummary(
 }
 function confidenceFromEvidence(evidence: PageSummary[]): ScrapeClawConfidenceLevel {
   const strongPages = evidence.filter((item) => item.matchedTerms.length >= 2).length
+  const hasCompromised = evidence.some((item) => item.suspicious)
+  // Cap confidence at "low" when any page is flagged compromised — the
+  // research pass is the right place to be conservative even if signal
+  // counts otherwise looked strong.
+  if (hasCompromised) return 'low'
   if (evidence.length >= 4 && strongPages >= 2) return 'high'
   if (evidence.length >= 2 && strongPages >= 1) return 'medium'
   return 'low'
 }
-// TODO: scoring weights below are tuned for the residential_property_management wedge only.
-// When adding new wedge slugs, branch on wedgeSlug and apply appropriate term weights.
-function computeFitScore(
+// ── Phase 4a — Decomposed deterministic scoring ───────────────────────────────
+//
+// Replaces the old single-number computeFitScore. Each sub-score is bounded
+// to [0, 1] before weighting; the weighted final score is also clamped.
+//
+// Wedge-keyed weights live in constants. When a second wedge lands the
+// vocabulary lists (PROPERTY_MANAGEMENT_TERMS etc.) and weights become
+// per-wedge — see the WedgeProfile note in constants.
+//
+function clamp01(n: number): number {
+  return Math.max(0, Math.min(1, n))
+}
+
+function round4(n: number): number {
+  return Number(n.toFixed(4))
+}
+
+/**
+ * Wedge match: distinct property-management vocabulary terms across all
+ * pages, normalized so 4+ distinct terms fully saturate the sub-score.
+ */
+function subscoreWedgeMatch(evidence: PageSummary[]): number {
+  const distinct = unique(
+    evidence.flatMap((page) =>
+      page.matchedTerms.filter((term) => PROPERTY_MANAGEMENT_TERMS.includes(term as never)),
+    ),
+  )
+  return clamp01(distinct.length / 4)
+}
+
+function subscoreInventorySignal(evidence: PageSummary[]): number {
+  const listing = unique(
+    evidence.flatMap((page) =>
+      page.matchedTerms.filter((term) => LISTING_TERMS.includes(term as never)),
+    ),
+  )
+  const investor = unique(
+    evidence.flatMap((page) =>
+      page.matchedTerms.filter((term) => INVESTOR_TERMS.includes(term as never)),
+    ),
+  )
+  // Listings are the primary inventory signal; investor terms add half-weight.
+  return clamp01(listing.length / 3 + investor.length / 6)
+}
+
+function subscoreLocality(
   candidate: ScrapeClawResearchCandidateBusinessInput,
   evidence: PageSummary[],
 ): number {
-  const joinedTerms = unique(evidence.flatMap((item) => item.matchedTerms))
-  const localTerms = unique(evidence.flatMap((item) => item.localTerms))
-  const emails = evidence.flatMap((item) => item.emails)
-  const phones = evidence.flatMap((item) => item.phones)
-  let score = 0
-  score += Math.min(
-    joinedTerms.filter((term) => PROPERTY_MANAGEMENT_TERMS.includes(term as never)).length * 0.12,
-    0.42,
-  )
-  score += Math.min(
-    joinedTerms.filter((term) => LISTING_TERMS.includes(term as never)).length * 0.1,
-    0.2,
-  )
-  score += Math.min(
-    joinedTerms.filter((term) => INVESTOR_TERMS.includes(term as never)).length * 0.08,
-    0.16,
-  )
-  if (localTerms.length > 0 || candidate.city || candidate.state || candidate.serviceAreaText)
-    score += 0.12
-  if (emails.length > 0 || phones.length > 0) score += 0.05
-  if (evidence.some((item) => item.pageKind === 'services')) score += 0.05
-  if (evidence.some((item) => item.pageKind === 'contact')) score += 0.05
-  return Number(Math.max(0, Math.min(1, score)).toFixed(4))
+  const distinctLocal = unique(evidence.flatMap((page) => page.localTerms))
+  const candidateLocality = candidate.city || candidate.state || candidate.serviceAreaText ? 1 : 0
+  return clamp01(distinctLocal.length / 3 + candidateLocality * 0.4)
 }
+
+/**
+ * Website quality: penalize when no non-homepage page returned evidence,
+ * and lower further when any page is flagged compromised.
+ */
+function subscoreWebsiteQuality(evidence: PageSummary[]): number {
+  let score = 0.5 // baseline for "homepage fetched"
+  const kinds = new Set(evidence.map((p) => p.pageKind))
+  if (kinds.has('about')) score += 0.1
+  if (kinds.has('services')) score += 0.15
+  if (kinds.has('contact')) score += 0.15
+  if (kinds.has('niche_relevant')) score += 0.1
+  const hasCompromised = evidence.some((p) => p.suspicious)
+  if (hasCompromised) {
+    score *= SCRAPECLAW_COMPROMISED_PAGE_QUALITY_PENALTY
+  }
+  return clamp01(score)
+}
+
+/** Map ScrapeClawContactSummary.contactConfidence to a 0–1 score. */
+function subscoreContactQuality(contacts: ScrapeClawContactSummary): number {
+  switch (contacts.contactConfidence) {
+    case 'high':
+      return 1
+    case 'medium':
+      return 0.6
+    case 'low':
+      return contacts.primaryBusinessEmail || contacts.primaryBusinessPhone ? 0.3 : 0
+  }
+}
+
+/**
+ * Evidence richness: how many distinct, signal-bearing pages contributed.
+ * Saturates at 4 distinct pages with at least one matched term each.
+ */
+function subscoreEvidenceRichness(evidence: PageSummary[]): number {
+  const distinctSignalPages = new Set(
+    evidence.filter((p) => p.matchedTerms.length > 0).map((p) => p.url),
+  )
+  return clamp01(distinctSignalPages.size / 4)
+}
+
+function buildScoreRationale(args: {
+  breakdown: ScrapeClawScoreBreakdown
+  wedgeMatchCount: number
+  inventoryMatchCount: number
+  localTermCount: number
+  contactConfidence: ScrapeClawConfidenceLevel
+  distinctEvidencePages: number
+  hasCompromised: boolean
+}): string[] {
+  const r: string[] = [
+    `Final deterministic score: ${args.breakdown.finalScore.toFixed(3)}`,
+    `Wedge match (${args.wedgeMatchCount} distinct terms): +${args.breakdown.wedgeMatchScore.toFixed(3)}`,
+    `Inventory signals (${args.inventoryMatchCount} listing/investor terms): +${args.breakdown.inventorySignalScore.toFixed(3)}`,
+    `Locality (${args.localTermCount} local terms + candidate metadata): +${args.breakdown.localityScore.toFixed(3)}`,
+    `Website quality (${args.distinctEvidencePages} distinct pages): +${args.breakdown.websiteQualityScore.toFixed(3)}`,
+    `Contact quality (confidence: ${args.contactConfidence}): +${args.breakdown.contactQualityScore.toFixed(3)}`,
+    `Evidence richness: +${args.breakdown.evidenceRichnessScore.toFixed(3)}`,
+  ]
+  if (args.hasCompromised) {
+    r.push('Compromised page(s) detected — websiteQualityScore reduced.')
+  }
+  return r
+}
+
+function computeScoreBreakdown(
+  candidate: ScrapeClawResearchCandidateBusinessInput,
+  evidence: PageSummary[],
+  contacts: ScrapeClawContactSummary,
+): ScrapeClawScoreBreakdown {
+  const W = SCRAPECLAW_DETERMINISTIC_SCORE_WEIGHTS
+  const wedgeRaw = subscoreWedgeMatch(evidence)
+  const inventoryRaw = subscoreInventorySignal(evidence)
+  const localityRaw = subscoreLocality(candidate, evidence)
+  const websiteRaw = subscoreWebsiteQuality(evidence)
+  const contactRaw = subscoreContactQuality(contacts)
+  const evidenceRaw = subscoreEvidenceRichness(evidence)
+
+  const wedgeMatchScore = round4(wedgeRaw * W.wedgeMatch)
+  const inventorySignalScore = round4(inventoryRaw * W.inventorySignal)
+  const localityScore = round4(localityRaw * W.locality)
+  const websiteQualityScore = round4(websiteRaw * W.websiteQuality)
+  const contactQualityScore = round4(contactRaw * W.contactQuality)
+  const evidenceRichnessScore = round4(evidenceRaw * W.evidenceRichness)
+
+  const finalScore = round4(
+    clamp01(
+      wedgeMatchScore +
+        inventorySignalScore +
+        localityScore +
+        websiteQualityScore +
+        contactQualityScore +
+        evidenceRichnessScore,
+    ),
+  )
+
+  const breakdown: ScrapeClawScoreBreakdown = {
+    wedgeMatchScore,
+    inventorySignalScore,
+    localityScore,
+    websiteQualityScore,
+    contactQualityScore,
+    evidenceRichnessScore,
+    finalScore,
+    rationale: [],
+  }
+  breakdown.rationale = buildScoreRationale({
+    breakdown,
+    wedgeMatchCount: unique(
+      evidence.flatMap((p) =>
+        p.matchedTerms.filter((t) => PROPERTY_MANAGEMENT_TERMS.includes(t as never)),
+      ),
+    ).length,
+    inventoryMatchCount: unique(
+      evidence.flatMap((p) =>
+        p.matchedTerms.filter(
+          (t) => LISTING_TERMS.includes(t as never) || INVESTOR_TERMS.includes(t as never),
+        ),
+      ),
+    ).length,
+    localTermCount: unique(evidence.flatMap((p) => p.localTerms)).length,
+    contactConfidence: contacts.contactConfidence,
+    distinctEvidencePages: new Set(evidence.map((p) => p.url)).size,
+    hasCompromised: evidence.some((p) => p.suspicious),
+  })
+  return breakdown
+}
+
+/**
+ * Build the per-prospect quality summary: distinct evidence pages,
+ * compromised page reports, and coarse warnings for UI.
+ */
+function buildQualitySummary(evidence: PageSummary[]): ScrapeClawQualitySummary {
+  const distinctUrls = new Set(evidence.map((p) => p.url))
+  const distinctEvidencePageCount = distinctUrls.size
+  const homepageOnly = distinctEvidencePageCount === 1 && evidence[0]?.pageKind === 'homepage'
+
+  const compromisedPages: ScrapeClawCompromisedPageReport[] = evidence
+    .filter((p) => p.suspicious)
+    .map((p) => ({
+      url: p.url,
+      matchedTerms: p.suspiciousTerms ?? [],
+      hasNoWedgeSignal: p.matchedTerms.length === 0,
+    }))
+
+  const warnings: ScrapeClawQualityWarning[] = []
+  if (compromisedPages.length > 0) warnings.push('compromised_page_detected')
+  if (distinctEvidencePageCount <= 1) warnings.push('homepage_only')
+  if (
+    distinctEvidencePageCount < 3 ||
+    evidence.filter((p) => p.matchedTerms.length > 0).length < 2
+  ) {
+    warnings.push('thin_evidence')
+  }
+
+  return {
+    distinctEvidencePageCount,
+    homepageOnly,
+    compromisedPages,
+    warnings,
+  }
+}
+
+// Old single-number scorer removed in Phase 4a. Final score now lives on
+// scoreBreakdown.finalScore from computeScoreBreakdown above. The threshold
+// for qualified/disqualified is SCRAPECLAW_PROSPECT_QUALIFIED_THRESHOLD.
 function buildUseCaseHypothesis(evidence: PageSummary[]): string {
   const text = evidence.map((item) => item.visibleText.toLowerCase()).join(' ')
   if (countTermMatches(text, PROPERTY_MANAGEMENT_TERMS).length >= 2)
@@ -342,7 +581,7 @@ function buildReasoning(
   return reasons
 }
 const prospectStatusFromScore = (score: number): 'qualified' | 'disqualified' =>
-  score >= 0.35 ? 'qualified' : 'disqualified'
+  score >= SCRAPECLAW_PROSPECT_QUALIFIED_THRESHOLD ? 'qualified' : 'disqualified'
 async function researchCandidate(
   candidate: ScrapeClawResearchCandidateBusinessInput,
   input: ScrapeClawResearchWorkerInput,
@@ -369,8 +608,32 @@ async function researchCandidate(
       /* empty */
     }
   }
-  const fitScore = computeFitScore(candidate, evidencePages)
-  const confidenceLevel = confidenceFromEvidence(evidencePages)
+
+  // Phase 4a: build contact summary across all pages, then derive the
+  // decomposed score breakdown and quality summary.
+  const contactPages: ContactExtractionPage[] = evidencePages.map((p) => ({
+    pageKind: p.pageKind,
+    visibleText: p.visibleText,
+    emails: p.emails,
+    phones: p.phones,
+  }))
+  const contactSummary = buildContactSummary(contactPages, websiteUrl)
+  const scoreBreakdown = computeScoreBreakdown(candidate, evidencePages, contactSummary)
+  const qualitySummary = buildQualitySummary(evidencePages)
+
+  const fitScore = scoreBreakdown.finalScore
+  // confidenceLevel respects compromised-page detection; status uses the
+  // shared qualified threshold.
+  let confidenceLevel = confidenceFromEvidence(evidencePages)
+  // If contacts came in clean and rich, allow a one-step bump within bounds.
+  if (
+    confidenceLevel === 'medium' &&
+    contactSummary.contactConfidence === 'high' &&
+    qualitySummary.compromisedPages.length === 0
+  ) {
+    confidenceLevel = 'high'
+  }
+
   return {
     business: candidate,
     prospect: {
@@ -392,9 +655,12 @@ async function researchCandidate(
       title: page.title,
       snippet: page.snippet,
       extractedFacts: page.extractedFacts,
-      sourceConfidence: confidenceLevel,
+      sourceConfidence: page.suspicious ? 'low' : confidenceLevel,
     })),
     reasoning: buildReasoning(candidate, evidencePages),
+    scoreBreakdown,
+    contactSummary,
+    qualitySummary,
   }
 }
 export async function runScrapeClawAgent1Research(

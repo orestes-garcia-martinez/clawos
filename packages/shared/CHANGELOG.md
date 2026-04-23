@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0] (2026-04-22)
+
+### Features
+
+- **shared:** add `ScrapeClawUrlEligibilityResult`, `ScrapeClawPreRankCandidate`, `ScrapeClawPreRankBreakdown`, `ScrapeClawPreRankDiscarded`, and `ScrapeClawPreRankResult` interfaces for Phase 4a pre-rank pipeline ([5f30eb4](https://github.com/orestes-garcia-martinez/clawos/commit/5f30eb4f36a5814503f9bbc784fa2088eea85205))
+- **shared:** add `ScrapeClawScoreBreakdown`, `ScrapeClawContactSummary`, `ScrapeClawQualitySummary`, and `ScrapeClawCompromisedPageReport` interfaces for decomposed deterministic scoring and quality signals ([5f30eb4](https://github.com/orestes-garcia-martinez/clawos/commit/5f30eb4f36a5814503f9bbc784fa2088eea85205))
+- **shared:** extend `ScrapeClawResearchProspectResult` with optional `scoreBreakdown`, `contactSummary`, and `qualitySummary` fields (all backward-compatible) ([5f30eb4](https://github.com/orestes-garcia-martinez/clawos/commit/5f30eb4f36a5814503f9bbc784fa2088eea85205))
+
 ## [1.3.0] (2026-04-17)
 
 ### Features

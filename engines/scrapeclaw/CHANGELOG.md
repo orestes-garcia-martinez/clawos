@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0] (2026-04-22)
+
+### Features
+
+- **scrapeclaw:** add `url-eligibility.ts` — synchronous URL guard normalising http→https, blocking social media / private IPs, and returning a canonical URL for downstream use ([5f30eb4](https://github.com/orestes-garcia-martinez/clawos/commit/5f30eb4f36a5814503f9bbc784fa2088eea85205))
+- **scrapeclaw:** add `ranking.ts` — production pre-rank pass scoring name-wedge fit, locality (with hostname normalisation for concatenated city tokens), website quality (landing-slug path penalty), and HOA/community-association exclusion against both name and URL hostname ([5f30eb4](https://github.com/orestes-garcia-martinez/clawos/commit/5f30eb4f36a5814503f9bbc784fa2088eea85205))
+- **scrapeclaw:** add `contacts.ts` — email + phone extraction with on-domain priority, role-based mailbox preference, noreply/asset-host rejection, and NANP phone validation ([5f30eb4](https://github.com/orestes-garcia-martinez/clawos/commit/5f30eb4f36a5814503f9bbc784fa2088eea85205))
+- **scrapeclaw:** replace monolithic `computeFitScore` with 6-weight decomposed deterministic scoring (wedgeMatch 0.32, inventorySignal 0.18, locality 0.18, websiteQuality 0.12, contactQuality 0.10, evidenceRichness 0.10) ([5f30eb4](https://github.com/orestes-garcia-martinez/clawos/commit/5f30eb4f36a5814503f9bbc784fa2088eea85205))
+- **scrapeclaw:** add compromised-page detection — vocabulary match (≥3 suspicious terms with zero wedge signal) and language-agnostic title-divergence check (title ≥40 chars, zero wedge vocab in title or content) ([5f30eb4](https://github.com/orestes-garcia-martinez/clawos/commit/5f30eb4f36a5814503f9bbc784fa2088eea85205))
+- **scrapeclaw:** add cross-language gambling vocabulary (`jackpot`, `gambling`, `sportsbook`, `free spins`, `online betting`, `maxwin`, `scatter slot`, `bonus slot`) to suspicious-terms list ([5f30eb4](https://github.com/orestes-garcia-martinez/clawos/commit/5f30eb4f36a5814503f9bbc784fa2088eea85205))
+- **scrapeclaw:** surface `scoreBreakdown`, `contactSummary`, and `qualitySummary` in LLM enrichment prompt; add conservative-lean instruction for compromised/thin-evidence cases; replace magic number `0.35` with `SCRAPECLAW_PROSPECT_QUALIFIED_THRESHOLD` ([5f30eb4](https://github.com/orestes-garcia-martinez/clawos/commit/5f30eb4f36a5814503f9bbc784fa2088eea85205))
+
 ## [0.3.0] (2026-04-17)
 
 ### Features

@@ -13,13 +13,14 @@
  *   websites → enriches the top 3 by deterministic fitScore.
  *   Purpose: verify the full pipeline wires together without errors.
  *
- * Test 2 — quality-ordered pipeline (pre-rank):
- *   Discovers 20 places → resolves ALL websites in parallel → pre-ranks
- *   candidates by wedge-term signal in the business name → researches the
- *   top 5 by pre-rank → enriches the top 3 by deterministic fitScore.
- *   Purpose: reflect the real intended operating model where research and
- *   enrichment budget is spent on the most-likely-fit candidates, not on
- *   whichever ones happened to appear first in discovery order.
+ * Test 2 — Phase 4a production pipeline:
+ *   Discovers 20 places → resolves ALL websites in parallel → runs the
+ *   PRODUCTION pre-rank module (URL eligibility + decomposed pre-rank) →
+ *   researches the top 5 by pre-rank → enriches the top 3 by deterministic
+ *   fitScore.
+ *   Purpose: exercise the production path end-to-end, including URL
+ *   eligibility filtering, pre-rank rationale, deterministic score
+ *   decomposition, and quality summaries.
  *
  * Assertions are structural by design (smoke, not contract): we verify shapes,
  * ranges, and that the LLM did not fall back on any prospect.
@@ -29,42 +30,24 @@
  *   $env:SCRAPECLAW_GOOGLE_PLACES_API_KEY="<your-google-key>"
  *   $env:SCRAPECLAW_ANTHROPIC_API_KEY="<your-anthropic-key>"
  *
- *   To run only the pre-rank test (Test 2 by name pattern):
+ *   To run only the production-pipeline test (Test 2 by name pattern):
  *   cd engines/scrapeclaw
- *   npx vitest run --reporter=verbose llm-enrichment.smoke.test.ts -t "quality-ordered"
+ *   npx vitest run --reporter=verbose llm-enrichment.smoke.test.ts -t "production pipeline"
  *
  *   To run both smoke tests:
  *   cd engines/scrapeclaw
  *   npx vitest run --reporter=verbose llm-enrichment.smoke.test.ts
  *
  *   From the monorepo root (either):
- *   npx vitest run --reporter=verbose --project scrapeclaw engines/scrapeclaw/src/llm-enrichment.smoke.test.ts -t "quality-ordered"
+ *   npx vitest run --reporter=verbose --project scrapeclaw engines/scrapeclaw/src/llm-enrichment.smoke.test.ts -t "production pipeline"
  */
 
 import { describe, expect, it } from 'vitest'
 import { discoverPlaceSeeds, resolvePlaceSeedWebsite } from './discovery.js'
+import { runScrapeClawProductionPreRank } from './ranking.js'
 import { runScrapeClawAgent1Research } from './research.js'
 import { runScrapeClawAgent1Enrichment } from './llm-enrichment.js'
-import { PROPERTY_MANAGEMENT_TERMS, SCRAPECLAW_DEFAULT_ENRICHMENT_MODEL } from './constants.js'
-import type { ScrapeClawResolvedWebsiteCandidate } from './types.js'
-
-/**
- * Cheap pre-rank score derived entirely from discovery metadata — no HTTP
- * calls required.
- *
- * Scoring:
- *   +1  per property-management wedge term found in the business name
- *   +0.5  if the seed came from a primary query (vs fallback)
- *
- * Higher score → more likely to be a genuine property-management business
- * worth spending research and enrichment budget on.
- */
-function preRankScore(candidate: ScrapeClawResolvedWebsiteCandidate): number {
-  const nameLower = candidate.name.toLowerCase()
-  const termMatches = PROPERTY_MANAGEMENT_TERMS.filter((t) => nameLower.includes(t)).length
-  const kindBonus = candidate.queryKind === 'primary' ? 0.5 : 0
-  return termMatches + kindBonus
-}
+import { SCRAPECLAW_DEFAULT_ENRICHMENT_MODEL } from './constants.js'
 
 const GOOGLE_API_KEY = process.env['SCRAPECLAW_GOOGLE_PLACES_API_KEY']
 const ANTHROPIC_API_KEY = process.env['SCRAPECLAW_ANTHROPIC_API_KEY']
@@ -219,8 +202,8 @@ describe.skipIf(!GOOGLE_API_KEY || !ANTHROPIC_API_KEY)(
       }
     }, 180_000)
 
-    it('quality-ordered pipeline: resolves all websites, pre-ranks by wedge-term signal, researches top 5, enriches top 3', async () => {
-      // ── Phase 1: Discovery ───────────────────────────────────────────────
+    it('production pipeline: discovery → resolve → production pre-rank → research top 5 → enrich top 3', async () => {
+      // ── Phase 1: Discovery ─────────────────────────────────────────────
       console.log(`\n[Phase 1] Discovering places in ${HUB} via Google Places (pageSize 20)…`)
 
       const discovery = await discoverPlaceSeeds(
@@ -238,7 +221,7 @@ describe.skipIf(!GOOGLE_API_KEY || !ANTHROPIC_API_KEY)(
       console.log(`[Phase 1] Seeds discovered: ${discovery.placeSeeds.length}`)
       expect(discovery.placeSeeds.length).toBeGreaterThan(0)
 
-      // ── Phase 2: Resolve ALL websites in parallel ────────────────────────
+      // ── Phase 2: Resolve ALL websites in parallel ──────────────────────
       console.log(
         `\n[Phase 2] Resolving websites for all ${discovery.placeSeeds.length} seeds in parallel…`,
       )
@@ -254,30 +237,47 @@ describe.skipIf(!GOOGLE_API_KEY || !ANTHROPIC_API_KEY)(
       console.log(
         `[Phase 2] Seeds with a website: ${resolved.length} / ${discovery.placeSeeds.length}`,
       )
+      console.log('[Phase 2] resolvedCandidates:')
+      resolved.forEach((c, i) => {
+        console.log(`  [${i + 1}] ${c.name} — ${c.websiteUri}  (kind=${c.queryKind})`)
+      })
       expect(resolved.length).toBeGreaterThan(0)
 
-      // ── Phase 3: Pre-rank by wedge-term signal ───────────────────────────
-      const ranked = [...resolved].sort((a, b) => preRankScore(b) - preRankScore(a))
-
-      console.log(`\n[Phase 3] Pre-rank scores (all ${ranked.length} candidates):`)
-      ranked.forEach((c, i) => {
-        console.log(
-          `  [${i + 1}] score=${preRankScore(c).toFixed(1).padStart(4)}  kind=${c.queryKind.padEnd(8)}  ${c.name}  —  ${c.websiteUri}`,
-        )
+      // ── Phase 3: Production pre-rank ───────────────────────────────────
+      console.log(`\n[Phase 3] Running production pre-rank…`)
+      const preRank = runScrapeClawProductionPreRank({
+        candidates: resolved,
+        wedgeSlug: WEDGE_SLUG,
       })
 
-      const top5 = ranked.slice(0, 5)
+      console.log(`[Phase 3] Ranked candidates (${preRank.ranked.length}):`)
+      preRank.ranked.forEach((c, i) => {
+        console.log(
+          `  [${i + 1}] score=${c.preRankScore.toFixed(4).padStart(6)}  kind=${c.queryKind.padEnd(8)}  ${c.name}  —  ${c.canonicalWebsiteUrl}`,
+        )
+        console.log(`        breakdown: ${JSON.stringify(c.scoreBreakdown)}`)
+        c.rationale.forEach((r) => console.log(`        - ${r}`))
+      })
+
+      if (preRank.discarded.length > 0) {
+        console.log(`\n[Phase 3] Discarded by pre-rank (${preRank.discarded.length}):`)
+        preRank.discarded.forEach((d, i) => {
+          console.log(
+            `  [${i + 1}] ${d.name} — ${d.originalUrl}  (${d.eligibility?.reason ?? d.reason})`,
+          )
+        })
+      }
+
+      const top5 = preRank.ranked.slice(0, 5)
       console.log(`\n[Phase 3] Top 5 by pre-rank selected for research:`)
       top5.forEach((c, i) => {
-        console.log(
-          `  [${i + 1}] ${c.name} — ${c.websiteUri}  (score ${preRankScore(c).toFixed(1)})`,
-        )
+        console.log(`  [${i + 1}] ${c.name} — ${c.canonicalWebsiteUrl}  (${c.preRankScore})`)
       })
 
-      // ── Phase 4: Research top 5 ──────────────────────────────────────────
+      // ── Phase 4: Research top 5 ────────────────────────────────────────
       const researchCandidates = top5.map((c) => ({
         name: c.name,
-        canonicalWebsiteUrl: c.websiteUri,
+        canonicalWebsiteUrl: c.canonicalWebsiteUrl,
       }))
 
       console.log(
@@ -298,6 +298,30 @@ describe.skipIf(!GOOGLE_API_KEY || !ANTHROPIC_API_KEY)(
         console.log(
           `  [${i + 1}] fitScore=${p.prospect.fitScore.toFixed(4)}  confidence=${p.prospect.confidenceLevel.padEnd(6)}  ${p.business.name}`,
         )
+        if (p.scoreBreakdown) {
+          console.log(`        breakdown:`)
+          console.log(
+            `          wedge:${p.scoreBreakdown.wedgeMatchScore} inv:${p.scoreBreakdown.inventorySignalScore} loc:${p.scoreBreakdown.localityScore} site:${p.scoreBreakdown.websiteQualityScore} contact:${p.scoreBreakdown.contactQualityScore} richness:${p.scoreBreakdown.evidenceRichnessScore} → ${p.scoreBreakdown.finalScore}`,
+          )
+          p.scoreBreakdown.rationale.forEach((r) => console.log(`        - ${r}`))
+        }
+        if (p.contactSummary) {
+          console.log(
+            `        contacts: primary=${p.contactSummary.primaryBusinessEmail ?? '(none)'} phone=${p.contactSummary.primaryBusinessPhone ?? '(none)'} confidence=${p.contactSummary.contactConfidence}`,
+          )
+          if (p.contactSummary.rejectedContacts.length > 0) {
+            console.log(
+              `        rejected: ${p.contactSummary.rejectedContacts.length} (${p.contactSummary.rejectedContacts
+                .map((r) => r.reason)
+                .join(', ')})`,
+            )
+          }
+        }
+        if (p.qualitySummary) {
+          console.log(
+            `        quality: distinctPages=${p.qualitySummary.distinctEvidencePageCount} homepageOnly=${p.qualitySummary.homepageOnly} compromised=${p.qualitySummary.compromisedPages.length} warnings=[${p.qualitySummary.warnings.join(', ') || '(none)'}]`,
+          )
+        }
       })
       console.log(
         `[Phase 4] discardedBusinesses (${research.discardedBusinesses.length}):`,
@@ -306,7 +330,7 @@ describe.skipIf(!GOOGLE_API_KEY || !ANTHROPIC_API_KEY)(
 
       expect(research.rankedProspects.length).toBeGreaterThan(0)
 
-      // ── Phase 5: Enrich top 3 by deterministic fitScore ──────────────────
+      // ── Phase 5: Enrich top 3 by deterministic fitScore ────────────────
       const top3 = research.rankedProspects.slice(0, 3)
 
       console.log(`\n[Phase 5] Enriching top ${top3.length} prospect(s) with ${ENRICHMENT_MODEL}…`)
@@ -329,25 +353,26 @@ describe.skipIf(!GOOGLE_API_KEY || !ANTHROPIC_API_KEY)(
         },
       )
 
-      // ── Results ──────────────────────────────────────────────────────────
-      console.log('\n[Phase 5] ── Enrichment results ──')
+      // ── Results ────────────────────────────────────────────────────────
+      console.log('\n[Phase 5] ── Enrichment deltas (baseline → enriched) ──')
       enrichment.enrichedProspects.forEach((ep, i) => {
         console.log(`\n  [${i + 1}] ${ep.business.name}`)
-        console.log(`        usedFallback:             ${ep.usedFallback}`)
-        console.log(`        model:                    ${ep.model}`)
-        console.log(`        baseline fitScore:         ${ep.baseProspect.fitScore}`)
-        console.log(`        enriched fitScore:         ${ep.enrichedProspect.fitScore}`)
-        console.log(`        confidence:                ${ep.enrichedProspect.confidenceLevel}`)
+        console.log(`        usedFallback:           ${ep.usedFallback}`)
+        console.log(`        model:                  ${ep.model}`)
         console.log(
-          `        demoTypeRecommendation:    ${ep.enrichedProspect.demoTypeRecommendation}`,
+          `        fitScore:               ${ep.baseProspect.fitScore} → ${ep.enrichedProspect.fitScore}`,
         )
-        console.log(`        useCaseHypothesis:         ${ep.enrichedProspect.useCaseHypothesis}`)
-        console.log(`        dataNeedHypothesis:        ${ep.enrichedProspect.dataNeedHypothesis}`)
-        console.log(`        outreachAngle:             ${ep.enrichedProspect.outreachAngle}`)
+        console.log(
+          `        confidence:             ${ep.baseProspect.confidenceLevel} → ${ep.enrichedProspect.confidenceLevel}`,
+        )
+        console.log(
+          `        demoTypeRecommendation: ${ep.baseProspect.demoTypeRecommendation} → ${ep.enrichedProspect.demoTypeRecommendation}`,
+        )
+        console.log(`        useCaseHypothesis:      ${ep.enrichedProspect.useCaseHypothesis}`)
+        console.log(`        dataNeedHypothesis:     ${ep.enrichedProspect.dataNeedHypothesis}`)
+        console.log(`        outreachAngle:          ${ep.enrichedProspect.outreachAngle}`)
         console.log(`        llmReasoning (${ep.llmReasoning.length}):`)
         ep.llmReasoning.forEach((r) => console.log(`          - ${r}`))
-        console.log(`        deterministicReasoning (${ep.deterministicReasoning.length}):`)
-        ep.deterministicReasoning.forEach((r) => console.log(`          - ${r}`))
       })
 
       if (enrichment.warnings.length > 0) {
@@ -357,7 +382,7 @@ describe.skipIf(!GOOGLE_API_KEY || !ANTHROPIC_API_KEY)(
       console.log('\n[Phase 5] Full enrichment result (JSON):')
       console.log(JSON.stringify(enrichment, null, 2))
 
-      // ── Assertions ───────────────────────────────────────────────────────
+      // ── Assertions ─────────────────────────────────────────────────────
       expect(enrichment.mode).toBe('enrich')
       expect(enrichment.wedgeSlug).toBe(WEDGE_SLUG)
       expect(enrichment.enrichedProspects.length).toBeGreaterThanOrEqual(1)
@@ -369,6 +394,15 @@ describe.skipIf(!GOOGLE_API_KEY || !ANTHROPIC_API_KEY)(
         expect(ep.enrichedProspect.fitScore).toBeLessThanOrEqual(1)
         expect(ep.llmReasoning.length).toBeGreaterThanOrEqual(1)
         expect(['low', 'medium', 'high']).toContain(ep.enrichedProspect.confidenceLevel)
+      }
+
+      // Phase 4a: deterministic prospects must carry the new metadata.
+      for (const p of research.rankedProspects) {
+        expect(p.scoreBreakdown).toBeDefined()
+        expect(p.scoreBreakdown!.finalScore).toBe(p.prospect.fitScore)
+        expect(p.contactSummary).toBeDefined()
+        expect(p.qualitySummary).toBeDefined()
+        expect(p.qualitySummary!.distinctEvidencePageCount).toBeGreaterThan(0)
       }
     }, 180_000)
   },

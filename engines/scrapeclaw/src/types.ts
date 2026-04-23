@@ -22,6 +22,11 @@ export interface PageSummary {
   matchedTerms: string[]
   localTerms: string[]
   extractedFacts: Json
+  // ── Phase 4a additions ──────────────────────────────────────────────────────
+  /** Suspicious-content terms observed on this page (post-stripHtml). */
+  suspiciousTerms?: string[]
+  /** True when suspiciousTerms.length >= MIN AND matchedTerms.length === 0. */
+  suspicious?: boolean
 }
 
 export type DnsLookupFn = (hostname: string) => Promise<Array<{ address: string; family: number }>>

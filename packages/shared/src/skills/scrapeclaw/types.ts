@@ -237,6 +237,13 @@ export interface ScrapeClawResearchProspectResult {
   prospect: ScrapeClawProspectDraft
   evidenceItems: ScrapeClawEvidenceDraft[]
   reasoning: string[]
+  // ── Phase 4a additions (optional for backward compatibility) ────────────────
+  /** Decomposed deterministic score with rationale. */
+  scoreBreakdown?: ScrapeClawScoreBreakdown
+  /** Normalized contacts extracted across all evidence pages. */
+  contactSummary?: ScrapeClawContactSummary
+  /** Compromised-page reports + evidence distinctness signals. */
+  qualitySummary?: ScrapeClawQualitySummary
 }
 
 export interface ScrapeClawResearchWorkerInput {
@@ -352,3 +359,193 @@ export type ScrapeClawWorkerResult =
   | ScrapeClawResearchWorkerResult
   | ScrapeClawDiscoveryWorkerResult
   | ScrapeClawEnrichmentWorkerResult
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 4a — Production hardening shared types.
+//
+// These types describe the engine outputs added in Phase 4a:
+//   - URL eligibility decisions
+//   - Production pre-rank breakdown + rationale
+//   - Deterministic score decomposition
+//   - Contact summary (post-extraction normalization)
+//   - Quality summary (compromised pages, evidence distinctness)
+//
+// All fields are additive on existing result shapes and remain optional so
+// that:
+//   (a) older callers compile without changes, and
+//   (b) the security worker-input schemas continue to accept enrichment
+//       prospects without round-trip loss.
+//
+// Persistence is intentionally out of scope for Phase 4a — these shapes
+// exist as worker JSON output only. DB schema updates land in a later phase
+// once we know which fields are worth storing long-term.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── URL eligibility ───────────────────────────────────────────────────────────
+
+export const SCRAPECLAW_URL_INELIGIBILITY_REASONS = [
+  'malformed_url',
+  'unsupported_scheme',
+  'private_or_loopback_host',
+  'forbidden_host_pattern',
+  'empty_host',
+] as const
+export type ScrapeClawUrlIneligibilityReason = (typeof SCRAPECLAW_URL_INELIGIBILITY_REASONS)[number]
+
+export interface ScrapeClawUrlEligibilityResult {
+  /** True only when the URL is safe to fetch and well-formed. */
+  eligible: boolean
+  /** Original URL as supplied. Useful for audit logs. */
+  originalUrl: string
+  /** Normalized URL (lowercased host, http→https where safe, trimmed). Null when ineligible. */
+  normalizedUrl: string | null
+  /** Reason the URL was rejected. Null when eligible. */
+  reason: ScrapeClawUrlIneligibilityReason | null
+  /** Short human-readable explanation. Null when eligible. */
+  rationale: string | null
+}
+
+// ── Production pre-rank ───────────────────────────────────────────────────────
+
+export interface ScrapeClawPreRankBreakdown {
+  /** Wedge-fit signal from the business name (e.g. "property management"). 0–1. */
+  nameWedgeScore: number
+  /** Locality fit derived from hub/city tokens in the name or URL. 0–1. */
+  localityScore: number
+  /** Coarse website quality hints (length, hostname shape). 0–1. */
+  websiteQualityScore: number
+  /** Penalty for out-of-scope candidates (HOAs, community associations). 0 or negative. */
+  exclusionPenalty: number
+  /** Tie-breaker: primary query > fallback query. 0–0.05. */
+  queryQualityScore: number
+}
+
+export interface ScrapeClawPreRankCandidate {
+  name: string
+  /** Already-normalized canonical website URL. */
+  canonicalWebsiteUrl: string
+  /** Original Google Places ID. */
+  placeId: string
+  /** Hub the seed came from (e.g. "Orange Park"). */
+  hubName: string
+  /** Discovery query kind. */
+  queryKind: ScrapeClawDiscoveryQueryKind
+  /** Final aggregate pre-rank score after combining sub-scores. */
+  preRankScore: number
+  /** Machine-readable score decomposition. */
+  scoreBreakdown: ScrapeClawPreRankBreakdown
+  /** Human-readable rationale lines, in order of contribution. */
+  rationale: string[]
+  /** True when the candidate should be excluded from research entirely. */
+  excluded: boolean
+  /** Reason for exclusion when `excluded` is true. */
+  exclusionReason: string | null
+}
+
+export interface ScrapeClawPreRankDiscarded {
+  name: string
+  originalUrl: string
+  /** Eligibility decision (when discarded for URL reasons). */
+  eligibility: ScrapeClawUrlEligibilityResult | null
+  /** Free-form reason if discarded for non-URL reasons (e.g. wedge exclusion). */
+  reason: string
+}
+
+export interface ScrapeClawPreRankResult {
+  /** Sorted descending by preRankScore. Excluded candidates are NOT included here. */
+  ranked: ScrapeClawPreRankCandidate[]
+  /** Candidates dropped before ranking (ineligible URL or hard-excluded). */
+  discarded: ScrapeClawPreRankDiscarded[]
+  generatedAt: string
+}
+
+// ── Deterministic score decomposition ─────────────────────────────────────────
+
+export interface ScrapeClawScoreBreakdown {
+  /** Direct wedge vocabulary matches across evidence pages. 0–1. */
+  wedgeMatchScore: number
+  /** Listing/availability/inventory signals. 0–1. */
+  inventorySignalScore: number
+  /** Local market terminology + candidate locality. 0–1. */
+  localityScore: number
+  /** Page kinds present; multiplied by SCRAPECLAW_COMPROMISED_PAGE_QUALITY_PENALTY when any page is flagged. 0–1. */
+  websiteQualityScore: number
+  /** Quality of extracted contacts (presence, validity, role-based prefix). 0–1. */
+  contactQualityScore: number
+  /** Distinct evidence pages contributing signal. 0–1. */
+  evidenceRichnessScore: number
+  /** Final weighted aggregate. 0–1. Should rarely saturate at 1.0. */
+  finalScore: number
+  /** Human-readable rationale for the breakdown. */
+  rationale: string[]
+}
+
+// ── Contact summary ───────────────────────────────────────────────────────────
+
+export const SCRAPECLAW_CONTACT_REJECTION_REASONS = [
+  'invalid_email_syntax',
+  'noreply_mailbox',
+  'duplicate',
+  'asset_host_email',
+  'too_short',
+  'invalid_phone_format',
+  'looks_like_zip_or_id',
+] as const
+export type ScrapeClawContactRejectionReason = (typeof SCRAPECLAW_CONTACT_REJECTION_REASONS)[number]
+
+export interface ScrapeClawRejectedContact {
+  /** Raw value as observed before normalization. */
+  raw: string
+  reason: ScrapeClawContactRejectionReason
+}
+
+export interface ScrapeClawContactSummary {
+  /**
+   * Best business email per heuristic ranking:
+   *   1. role-based mailbox on same domain as website
+   *      (info, contact, hello, office, leasing, sales, admin)
+   *   2. any mailbox on same domain as website
+   *   3. role-based mailbox off-domain
+   * `null` when no acceptable email was extracted.
+   */
+  primaryBusinessEmail: string | null
+  secondaryEmails: string[]
+  /** Best business phone in E.164-ish form (leading +1 stripped). */
+  primaryBusinessPhone: string | null
+  secondaryPhones: string[]
+  rejectedContacts: ScrapeClawRejectedContact[]
+  /** Confidence in the chosen primaries. */
+  contactConfidence: ScrapeClawConfidenceLevel
+}
+
+// ── Quality summary ───────────────────────────────────────────────────────────
+
+export const SCRAPECLAW_QUALITY_WARNINGS = [
+  'compromised_page_detected',
+  'thin_evidence',
+  'fallback_pages_only',
+  'homepage_only',
+] as const
+export type ScrapeClawQualityWarning = (typeof SCRAPECLAW_QUALITY_WARNINGS)[number]
+
+export interface ScrapeClawCompromisedPageReport {
+  url: string
+  /** Suspicious terms observed on the page. */
+  matchedTerms: string[]
+  /** True when the page also has zero wedge-vocabulary signal. */
+  hasNoWedgeSignal: boolean
+}
+
+export interface ScrapeClawQualitySummary {
+  /**
+   * Number of distinct, successfully-fetched URLs that contributed evidence.
+   * Excludes pages that returned errors or fell back to the homepage shape.
+   */
+  distinctEvidencePageCount: number
+  /** True when only the homepage produced evidence. */
+  homepageOnly: boolean
+  /** Pages flagged as compromised. */
+  compromisedPages: ScrapeClawCompromisedPageReport[]
+  /** Coarse warnings to surface in UI/rationale. */
+  warnings: ScrapeClawQualityWarning[]
+}
