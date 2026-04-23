@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0](https://github.com/orestes-garcia-martinez/clawos/compare/v1.0.0...v1.1.0) (2026-04-23)
+
+
+### Features
+
+* **worker:** add ScrapeClaw Agent 1 deterministic research engine ([#195](https://github.com/orestes-garcia-martinez/clawos/issues/195)) ([b4d7039](https://github.com/orestes-garcia-martinez/clawos/commit/b4d7039ee36b0d0e7d02c3094e8dc234610d7b2b))
+* **worker:** add ScrapeClaw Agent 1 LLM enrichment pipeline ([#199](https://github.com/orestes-garcia-martinez/clawos/issues/199)) ([b0219bb](https://github.com/orestes-garcia-martinez/clawos/commit/b0219bb907177018180857f7ffd99ec0a6241f70))
+* **worker:** add ScrapeClaw discovery pipeline via Google Places API ([#197](https://github.com/orestes-garcia-martinez/clawos/issues/197)) ([3681ac7](https://github.com/orestes-garcia-martinez/clawos/commit/3681ac771e4f5bbe5414cedb67cde382374ee77f))
+* **worker:** add ScrapeClaw Phase 4a production hardening ([#201](https://github.com/orestes-garcia-martinez/clawos/issues/201)) ([a7adead](https://github.com/orestes-garcia-martinez/clawos/commit/a7adeade4622169fc31b0acc905df68babddef0c))
+
+
+### Bug Fixes
+
+* **worker:** bump careerclaw-js to 1.14.1 to resolve protobufjs CVE ([#200](https://github.com/orestes-garcia-martinez/clawos/issues/200)) ([1592ea4](https://github.com/orestes-garcia-martinez/clawos/commit/1592ea44d0c2a67cd18dc7bcdd03fa4993b794f6))
+
 ## [1.0.0](https://github.com/orestes-garcia-martinez/clawos/compare/v0.19.1...v1.0.0) (2026-04-14)
 
 
