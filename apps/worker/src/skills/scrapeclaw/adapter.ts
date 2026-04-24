@@ -1,4 +1,6 @@
 import {
+  assembleDemoPackage,
+  CLAY_COUNTY_RESIDENTIAL_PM_BASELINE,
   discoverPlaceSeeds,
   resolvePlaceSeedWebsite,
   runScrapeClawAgent1Enrichment,
@@ -6,20 +8,30 @@ import {
   type ScrapeClawResolvedWebsiteCandidate,
 } from '@clawos/scrapeclaw-engine'
 import {
+  buildScrapeClawAttachmentPath,
   createServerClient,
+  SCRAPECLAW_PACKAGE_ARTIFACT_FILENAMES,
+  SCRAPECLAW_PACKAGE_SCHEMA_VERSION,
+  type Json,
+  type ScrapeClawAssembledPackage,
   type ScrapeClawBusinessInsert,
   type ScrapeClawBusinessRow,
+  type ScrapeClawDemoPackageInsert,
   type ScrapeClawDiscoveryDiscardReason,
   type ScrapeClawDiscoveryDiscardedCandidate,
   type ScrapeClawDiscoveryInsertedBusiness,
   type ScrapeClawDiscoveryWorkerInput,
   type ScrapeClawEnrichmentWorkerInput,
+  type ScrapeClawPackageAttachmentInsert,
+  type ScrapeClawPackageWorkerInput,
+  type ScrapeClawPackageWorkerResult,
   type ScrapeClawResearchWorkerInput,
   type ScrapeClawWorkerInput,
   type VerifiedSkillExecutionContext,
 } from '@clawos/shared'
 import { ScrapeClawWorkerInputSchema } from '@clawos/security'
 import { buildDiscardInsert, ScrapeClawDiscoveryStore } from './discovery-store.js'
+import { ScrapeClawPackageStore } from './package-store.js'
 
 function getGooglePlacesApiKey(): string {
   const apiKey =
@@ -304,6 +316,233 @@ async function executeDiscovery(
   }
 }
 
+// ── Phase 5 — Demo Package generation ────────────────────────────────────────
+
+interface AttachmentPlan {
+  kind: 'csv' | 'json' | 'manifest'
+  filename: string
+  mimeType: string
+  byteSize: number
+  sha256: string
+  rowCount: number | null
+}
+
+function buildAttachmentPlans(pkg: ScrapeClawAssembledPackage): AttachmentPlan[] {
+  return [
+    {
+      kind: 'csv',
+      filename: SCRAPECLAW_PACKAGE_ARTIFACT_FILENAMES.csv,
+      mimeType: pkg.csv.mimeType,
+      byteSize: pkg.csv.byteSize,
+      sha256: pkg.csv.sha256,
+      rowCount: pkg.csv.rowCount,
+    },
+    {
+      kind: 'json',
+      filename: SCRAPECLAW_PACKAGE_ARTIFACT_FILENAMES.json,
+      mimeType: pkg.json.mimeType,
+      byteSize: pkg.json.byteSize,
+      sha256: pkg.json.sha256,
+      rowCount: null,
+    },
+    {
+      kind: 'manifest',
+      filename: SCRAPECLAW_PACKAGE_ARTIFACT_FILENAMES.manifest,
+      mimeType: pkg.manifest.mimeType,
+      byteSize: pkg.manifest.byteSize,
+      sha256: pkg.manifest.sha256,
+      rowCount: null,
+    },
+  ]
+}
+
+async function executePackage(
+  input: ScrapeClawPackageWorkerInput,
+  ctx: VerifiedSkillExecutionContext,
+): Promise<Record<string, unknown>> {
+  const store = new ScrapeClawPackageStore(createServerClient())
+
+  // 1. Load the prospect (scoped to the caller). RLS also enforces this, but
+  //    we pass userId explicitly for defense-in-depth.
+  const prospect = await store.findProspect(ctx.userId, input.prospectId)
+  if (!prospect) {
+    const result: ScrapeClawPackageWorkerResult = {
+      mode: 'package',
+      packageId: '',
+      prospectId: input.prospectId,
+      status: 'failed',
+      generatedAt: input.generatedAt ?? new Date().toISOString(),
+      package: null,
+      attachments: [],
+      validationErrors: [
+        {
+          code: 'prospect_not_found',
+          message: 'Prospect not found or not owned by the requesting user.',
+        },
+      ],
+    }
+    return result as unknown as Record<string, unknown>
+  }
+
+  // Guard: reject re-packaging a prospect that already has a finalized package.
+  if (prospect.status === 'packaged') {
+    const result: ScrapeClawPackageWorkerResult = {
+      mode: 'package',
+      packageId: '',
+      prospectId: prospect.id,
+      status: 'failed',
+      generatedAt: input.generatedAt ?? prospect.updated_at,
+      package: null,
+      attachments: [],
+      validationErrors: [
+        {
+          code: 'already_packaged',
+          message: 'Prospect already has a finalized package; re-packaging is not allowed.',
+        },
+      ],
+    }
+    return result as unknown as Record<string, unknown>
+  }
+
+  // 2. Load the originating business.
+  const business = await store.findBusiness(ctx.userId, prospect.business_id)
+  if (!business) {
+    const result: ScrapeClawPackageWorkerResult = {
+      mode: 'package',
+      packageId: '',
+      prospectId: prospect.id,
+      status: 'failed',
+      generatedAt: input.generatedAt ?? prospect.updated_at,
+      package: null,
+      attachments: [],
+      validationErrors: [
+        {
+          code: 'business_not_found',
+          message: 'Business row missing for prospect; cannot build package.',
+        },
+      ],
+    }
+    return result as unknown as Record<string, unknown>
+  }
+
+  // 3. Load evidence. Empty evidence is not fatal — the report will flag
+  //    every dimension as absent and the threat score will be 0.
+  const evidence = await store.listEvidence(ctx.userId, prospect.id)
+
+  // 4. Determine `generatedAt` deterministically.
+  const generatedAt = input.generatedAt ?? prospect.updated_at
+
+  // 5. Insert the demo package row FIRST so we have a stable UUID that the
+  //    verification manifest can embed. Status is 'generating' briefly —
+  //    flipped to 'draft' after attachments insert.
+  const pkgInsert: ScrapeClawDemoPackageInsert = {
+    user_id: ctx.userId,
+    prospect_id: prospect.id,
+    status: 'generating',
+    template_slug: input.templateSlug ?? null,
+    summary_markdown: null,
+    manifest: {},
+    evidence_references: [],
+    validation_errors: [],
+    schema_version: SCRAPECLAW_PACKAGE_SCHEMA_VERSION,
+  }
+  const pkgRow = await store.insertPackage(pkgInsert)
+
+  // 6–9. Build artifacts and persist. On any failure, flip the row to 'failed'
+  //      so it does not remain stuck in 'generating' indefinitely.
+  try {
+    // 6. Assemble artifacts.
+    const assembled = assembleDemoPackage({
+      prospect,
+      business,
+      evidence,
+      baseline: CLAY_COUNTY_RESIDENTIAL_PM_BASELINE,
+      generatedAt,
+      packageId: pkgRow.id,
+    })
+
+    // 7. Insert attachment rows with logical storage paths (no upload yet).
+    const plans = buildAttachmentPlans(assembled)
+    const attachmentPayloads: ScrapeClawPackageAttachmentInsert[] = plans.map((plan) => ({
+      user_id: ctx.userId,
+      package_id: pkgRow.id,
+      kind: plan.kind,
+      storage_path: buildScrapeClawAttachmentPath({
+        userId: ctx.userId,
+        packageId: pkgRow.id,
+        filename: plan.filename,
+      }),
+      mime_type: plan.mimeType,
+      byte_size: plan.byteSize,
+      sha256: plan.sha256,
+      row_count: plan.rowCount,
+      schema_version: SCRAPECLAW_PACKAGE_SCHEMA_VERSION,
+    }))
+    await store.insertAttachments(attachmentPayloads)
+
+    // 8. Finalize the package row: promote to 'draft', stamp summary MD, and
+    //    store evidence references inline. Phase 6 will handle the
+    //    'draft' → 'approved' → 'finalized' transitions.
+    const summaryText = Buffer.from(assembled.summary.bytesBase64, 'base64').toString('utf8')
+
+    // Spread nested anchor objects into plain records so the values are
+    // verifiably Json-compatible (specific interfaces lack the index signature).
+    const evidenceReferences: Json = assembled.report.insights.map((i) => ({
+      insightId: i.id,
+      dimension: i.dimension,
+      evidence: i.evidence.map((e) => ({
+        evidenceId: e.evidenceId,
+        sourceUrl: e.sourceUrl,
+        pageKind: e.pageKind,
+      })),
+    }))
+
+    await store.finalizePackageAsDraft({
+      userId: ctx.userId,
+      packageId: pkgRow.id,
+      summaryMarkdown: summaryText,
+      manifest: {
+        schemaVersion: assembled.schemaVersion,
+        threatLevel: assembled.report.threat.level,
+        threatScore: assembled.report.threat.score,
+        artifacts: plans.map((p) => ({
+          filename: p.filename,
+          kind: p.kind,
+          sha256: p.sha256,
+          byteSize: p.byteSize,
+          rowCount: p.rowCount,
+        })),
+      } as Json,
+      evidenceReferences,
+    })
+
+    // 9. Move the prospect to 'packaged' state.
+    await store.markProspectPackaged(ctx.userId, prospect.id)
+
+    const result: ScrapeClawPackageWorkerResult = {
+      mode: 'package',
+      packageId: pkgRow.id,
+      prospectId: prospect.id,
+      status: 'draft',
+      generatedAt,
+      package: assembled,
+      attachments: attachmentPayloads.map((a) => ({
+        kind: a.kind as 'csv' | 'json' | 'manifest',
+        storagePath: a.storage_path,
+        mimeType: a.mime_type,
+        byteSize: a.byte_size ?? 0,
+        sha256: a.sha256 ?? '',
+        rowCount: a.row_count ?? null,
+      })),
+      validationErrors: [],
+    }
+    return result as unknown as Record<string, unknown>
+  } catch (err) {
+    await store.markPackageFailed(ctx.userId, pkgRow.id)
+    throw err
+  }
+}
+
 export const scrapeClawAdapter = {
   slug: 'scrapeclaw' as const,
 
@@ -321,6 +560,10 @@ export const scrapeClawAdapter = {
 
     if (input.mode === 'enrich') {
       return executeEnrichment(input)
+    }
+
+    if (input.mode === 'package') {
+      return executePackage(input, ctx)
     }
 
     return executeResearch(input)
