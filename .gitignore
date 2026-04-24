@@ -22,6 +22,9 @@ build/
 coverage/
 *.lcov
 
+# Integration test results (timestamped JSON, may contain real business data)
+**/.integration-test-results/
+
 # Editor
 .vscode/
 .idea/

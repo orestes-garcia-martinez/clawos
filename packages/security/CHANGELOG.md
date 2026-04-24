@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.0] (2026-04-24)
+
+### Features
+
+- **security:** add `ScrapeClawPackageWorkerInputSchema` (mode literal, prospectId UUID, optional templateSlug + generatedAt), `ScrapeClawPackageRunRequestSchema`, and derived input types; add package schema to `ScrapeClawWorkerInputSchema` union ([70a5d47](https://github.com/orestes-garcia-martinez/clawos/commit/70a5d4776af62d180932bfc8880fa500892a0db7))
+
 ## [1.3.0] (2026-04-17)
 
 ### Features

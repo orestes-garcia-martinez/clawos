@@ -233,10 +233,23 @@ export const ScrapeClawEnrichmentWorkerInputSchema = z.object({
   model: z.string().min(1).max(200).nullable().optional(),
 })
 
+// ── Phase 5 — Demo Package generation ────────────────────────────────────────
+// Input is intentionally minimal. Worker loads the prospect/business/evidence
+// rows itself from Supabase (under the caller's RLS identity). This prevents
+// the caller from spoofing which prospect gets packaged — the request carries
+// only an id, not the data.
+export const ScrapeClawPackageWorkerInputSchema = z.object({
+  mode: z.literal('package'),
+  prospectId: z.string().uuid(),
+  templateSlug: z.string().min(1).max(120).nullable().optional(),
+  generatedAt: z.string().datetime().optional(),
+})
+
 export const ScrapeClawWorkerInputSchema = z.union([
   ScrapeClawResearchWorkerInputSchema,
   ScrapeClawDiscoveryWorkerInputSchema,
   ScrapeClawEnrichmentWorkerInputSchema,
+  ScrapeClawPackageWorkerInputSchema,
 ])
 
 export const ScrapeClawRunRequestSchema = z.object({
@@ -259,6 +272,11 @@ export const ScrapeClawEnrichmentRunRequestSchema = z.object({
   input: ScrapeClawEnrichmentWorkerInputSchema,
 })
 
+export const ScrapeClawPackageRunRequestSchema = z.object({
+  assertion: WorkerAssertionTokenSchema,
+  input: ScrapeClawPackageWorkerInputSchema,
+})
+
 export type ScrapeClawResearchWorkerInputParsed = z.infer<
   typeof ScrapeClawResearchWorkerInputSchema
 >
@@ -273,5 +291,7 @@ export type ScrapeClawEnrichmentWorkerInputParsed = z.infer<
 export type ScrapeClawEnrichmentRunRequestInput = z.infer<
   typeof ScrapeClawEnrichmentRunRequestSchema
 >
+export type ScrapeClawPackageWorkerInputParsed = z.infer<typeof ScrapeClawPackageWorkerInputSchema>
+export type ScrapeClawPackageRunRequestInput = z.infer<typeof ScrapeClawPackageRunRequestSchema>
 export type ScrapeClawWorkerInputParsed = z.infer<typeof ScrapeClawWorkerInputSchema>
 export type ScrapeClawRunRequestInput = z.infer<typeof ScrapeClawRunRequestSchema>

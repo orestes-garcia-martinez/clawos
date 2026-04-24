@@ -8,3 +8,4 @@
 export * from './types.js'
 export * from './storage.js'
 export * from './db-aliases.js'
+export * from './package-types.js'

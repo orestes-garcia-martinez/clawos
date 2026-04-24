@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.0] (2026-04-24)
+
+### Features
+
+- **shared:** add `package-types.ts` — `ScrapeClawPackageWorkerInput/Result`, `ScrapeClawAssembledPackage`, `ScrapeClawInsightReport`, `ScrapeClawInsight`, `ScrapeClawClientBaseline`, `ScrapeClawPackageArtifact`, `ScrapeClawVerificationManifest`, `ScrapeClawPackageDemoPackageRow/Insert/Update`, `ScrapeClawPackageAttachmentInsert`, artifact filename constants, and `buildScrapeClawAttachmentPath`; added to `ScrapeClawWorkerInput/Result` unions ([70a5d47](https://github.com/orestes-garcia-martinez/clawos/commit/70a5d4776af62d180932bfc8880fa500892a0db7))
+
 ## [1.4.0] (2026-04-22)
 
 ### Features

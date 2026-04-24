@@ -10,3 +10,8 @@ export * from './llm-enrichment.js'
 export * from './url-eligibility.js'
 export * from './contacts.js'
 export * from './ranking.js'
+
+// ── Phase 5 — Demo Package generation (Insight Engine) ──────────────────────
+export * from './package-baseline.js'
+export * from './package-insights.js'
+export * from './package.js'

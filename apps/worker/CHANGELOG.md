@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.0] (2026-04-24)
+
+### Features
+
+- **worker:** add ScrapeClaw Phase 5 demo package generation — `executePackage()` orchestrates prospect/business/evidence load, insight engine invocation, artifact assembly, Supabase persistence, and prospect status flip; idempotency guard rejects re-packaging; error recovery marks failed rows; E2E smoke test covers full pipeline with real Google Places + Anthropic APIs and guaranteed zero-row Supabase cleanup ([70a5d47](https://github.com/orestes-garcia-martinez/clawos/commit/70a5d4776af62d180932bfc8880fa500892a0db7))
+
 ## [0.13.0] (2026-04-18)
 
 ### Features

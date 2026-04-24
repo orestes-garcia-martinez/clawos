@@ -10,6 +10,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { Json } from '../../types/database.types.js'
+import type {
+  ScrapeClawPackageWorkerInput,
+  ScrapeClawPackageWorkerResult,
+} from './package-types.js'
 
 // ── Enums / Constants ─────────────────────────────────────────────────────────
 
@@ -354,11 +358,13 @@ export type ScrapeClawWorkerInput =
   | ScrapeClawResearchWorkerInput
   | ScrapeClawDiscoveryWorkerInput
   | ScrapeClawEnrichmentWorkerInput
+  | ScrapeClawPackageWorkerInput
 
 export type ScrapeClawWorkerResult =
   | ScrapeClawResearchWorkerResult
   | ScrapeClawDiscoveryWorkerResult
   | ScrapeClawEnrichmentWorkerResult
+  | ScrapeClawPackageWorkerResult
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 4a — Production hardening shared types.

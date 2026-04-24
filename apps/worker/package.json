@@ -1,6 +1,6 @@
 {
   "name": "@clawos/worker",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "private": true,
   "description": "ClawOS Lightsail skill worker — Express wrapper for direct CareerClaw runtime execution",
   "type": "module",
@@ -12,6 +12,7 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts --reporter=verbose",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {

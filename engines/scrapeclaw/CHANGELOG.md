@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0] (2026-04-24)
+
+### Features
+
+- **scrapeclaw:** add `package-insights.ts` — 7-dimension insight analyzer (pricing, service coverage, maintenance, response, digital presence, operational hours, contact quality) with tiered detection (observed/inferred/absent), threat scoring, and action hooks ([70a5d47](https://github.com/orestes-garcia-martinez/clawos/commit/70a5d4776af62d180932bfc8880fa500892a0db7))
+- **scrapeclaw:** add `package-baseline.ts` — Clay County residential property management client baseline ([70a5d47](https://github.com/orestes-garcia-martinez/clawos/commit/70a5d4776af62d180932bfc8880fa500892a0db7))
+- **scrapeclaw:** add `package.ts` — `assembleDemoPackage` builds 4 byte-stable artifacts (Executive_Summary.md, Competitive_Matrix.csv, Evidence_Manifest.json, ClawOS_Verification.manifest) with SHA-256 integrity via two-pass self-hashing manifest ([70a5d47](https://github.com/orestes-garcia-martinez/clawos/commit/70a5d4776af62d180932bfc8880fa500892a0db7))
+
 ## [0.4.0] (2026-04-22)
 
 ### Features
