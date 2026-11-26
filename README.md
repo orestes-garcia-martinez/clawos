@@ -1,4 +1,11 @@
-# ClawOS
+# Original ClawOS multi-channel AI agent platform. Legacy project.
+
+
+This repository contains the original ClawOS AI agent platform, which delivered tools through web and messaging channels.  
+ClawOS LLC now focuses on local market intelligence and is developing RoofIntel, a prototype for roofing contractors.  
+For the company’s current work, visit clawoshq.com.
+
+
 
 One platform. Purpose-built AI skills.
 
